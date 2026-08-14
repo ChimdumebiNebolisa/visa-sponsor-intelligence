@@ -16,6 +16,7 @@ htmlcov/
 data/raw/
 data/staging/
 data/resolved/
+data/classified/
 data/processed/
 data/cache/
 db/*.duckdb
