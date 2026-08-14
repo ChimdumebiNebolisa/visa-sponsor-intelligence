@@ -20,7 +20,7 @@ def _available_local_port() -> int:
 
 
 def main() -> None:
-    """Fail unless the Phase 0 Streamlit shell becomes healthy within 20 seconds."""
+    """Fail unless the Streamlit explorer becomes healthy within 20 seconds."""
 
     port = _available_local_port()
     command = [

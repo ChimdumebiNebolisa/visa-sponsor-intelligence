@@ -13,3 +13,5 @@ All notable project changes will be documented here.
 - Added a 200-pair entity-resolution gold set spanning technology, universities, systems, hospitals, research laboratories, and staffing/consulting, with precision and parent/legal-collapse acceptance checks.
 - Added Phase 4 versioned SOC/title role classification, reviewed overrides, technical families, strong exclusions, combined evidence rules, complete classified DOL mirrors, and an explicit ambiguity review queue.
 - Added a 750-record role benchmark across all source years and six employer types, with precision, recall, family-accuracy, and low-confidence routing gates.
+- Added Phase 5 processed employer, institution, case, and source-health metrics with parent/legal reconciliation, raw DOL/USCIS/IPEDS/HERD evidence, and explicit FY2026 partial-period warnings.
+- Added the DuckDB presentation database, all ten required views, parameterized read-only services, employer and research-institution filters, organization drilldowns, and filtered CSV/Parquet exports.
