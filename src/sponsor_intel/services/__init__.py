@@ -3,6 +3,7 @@
 from sponsor_intel.services.explorer import (
     DuckDBExplorerService,
     EmployerFilters,
+    EvidenceReviewQueues,
     ExplorerService,
     ExplorerStatus,
     FoundationExplorerService,
@@ -15,6 +16,7 @@ from sponsor_intel.services.explorer import (
 __all__ = [
     "DuckDBExplorerService",
     "EmployerFilters",
+    "EvidenceReviewQueues",
     "ExplorerService",
     "ExplorerStatus",
     "FoundationExplorerService",

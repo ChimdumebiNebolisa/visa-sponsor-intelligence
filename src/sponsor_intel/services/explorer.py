@@ -98,7 +98,19 @@ class OrganizationDetail:
     worksite_states: pl.DataFrame
     wage_summary: pl.DataFrame
     institutions: pl.DataFrame
+    everify_evidence: pl.DataFrame
+    opt_evidence: pl.DataFrame
     provenance: pl.DataFrame
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceReviewQueues:
+    """Reviewable entity, E-Verify, OPT, and policy evidence."""
+
+    entity: pl.DataFrame
+    everify: pl.DataFrame
+    opt: pl.DataFrame
+    policy: pl.DataFrame
 
 
 @runtime_checkable
@@ -125,6 +137,8 @@ class ExplorerService(Protocol):
 
     def get_organization_detail(self, organization_id: str) -> OrganizationDetail | None: ...
 
+    def get_evidence_review(self, *, limit: int = 500) -> EvidenceReviewQueues: ...
+
     def export_employers(self, filters: EmployerFilters, file_format: ExportFormat) -> bytes: ...
 
     def export_institutions(
@@ -141,7 +155,7 @@ class FoundationExplorerService:
 
     def get_status(self) -> ExplorerStatus:
         return ExplorerStatus(
-            phase="Phase 5",
+            phase="Phase 6",
             build_id="database-unavailable",
             data_available=False,
             evidence_status="UNKNOWN",
@@ -173,6 +187,9 @@ class FoundationExplorerService:
 
     def get_organization_detail(self, organization_id: str) -> OrganizationDetail | None:
         return None
+
+    def get_evidence_review(self, *, limit: int = 500) -> EvidenceReviewQueues:
+        return EvidenceReviewQueues(_empty(), _empty(), _empty(), _empty())
 
     def export_employers(self, filters: EmployerFilters, file_format: ExportFormat) -> bytes:
         return b""
@@ -228,8 +245,8 @@ class DuckDBExplorerService:
                 f" FY{partial} is partial and must not be compared directly with complete years."
             )
         return ExplorerStatus(
-            phase="Phase 5",
-            build_id="raw_metrics_v1",
+            phase="Phase 6",
+            build_id="raw_metrics_v2",
             data_available=True,
             evidence_status="AVAILABLE",
             message=message,
@@ -323,7 +340,14 @@ class DuckDBExplorerService:
                 organization_type,
                 state,
                 everify_status,
+                everify_lookup_status,
+                everify_retrieved_at,
+                everify_source_url,
                 known_opt_observation,
+                opt_report_year,
+                opt_reported_count,
+                opt_report_rank,
+                opt_source_url,
                 relevant_lca_count,
                 initial_approvals,
                 relevant_certified_perm_count,
@@ -403,6 +427,11 @@ class DuckDBExplorerService:
                 relevant_certified_perm_count,
                 initial_approvals,
                 everify_status,
+                everify_lookup_status,
+                everify_retrieved_at,
+                known_opt_observation,
+                opt_report_year,
+                opt_reported_count,
                 cap_exemption_status,
                 research_staff_h1b_policy,
                 research_staff_permanent_residence_policy,
@@ -609,7 +638,50 @@ class DuckDBExplorerService:
                 """,
                 [organization_id],
             ),
+            everify_evidence=self._query(
+                """
+                SELECT lookup_id, queried_name, enrollment_status, matched_name, matched_dba,
+                    state, enrollment_date, termination_date, workforce_size,
+                    hiring_site_count, hiring_site_locations, retrieved_at,
+                    match_confidence, match_method, review_status, review_reason, source_url
+                FROM vw_everify_evidence
+                WHERE organization_id = ?
+                ORDER BY retrieved_at DESC
+                """,
+                [organization_id],
+            ),
+            opt_evidence=self._query(
+                """
+                SELECT observation_id, report_year, rank, employer_name_raw, program_type,
+                    reported_count, is_positive, match_method, match_confidence,
+                    review_status, retrieved_at, source_url, coverage_note
+                FROM vw_opt_evidence
+                WHERE organization_id = ?
+                ORDER BY report_year DESC, rank, program_type
+                """,
+                [organization_id],
+            ),
             provenance=provenance,
+        )
+
+    def get_evidence_review(self, *, limit: int = 500) -> EvidenceReviewQueues:
+        selected_limit = max(1, min(limit, 5_000))
+        return EvidenceReviewQueues(
+            entity=self._query("SELECT * FROM vw_entity_review_queue LIMIT ?", [selected_limit]),
+            everify=self._query(
+                "SELECT * FROM vw_everify_review_queue ORDER BY priority_rank LIMIT ?",
+                [selected_limit],
+            ),
+            opt=self._query(
+                """
+                SELECT * FROM vw_opt_evidence
+                WHERE review_status = 'NEEDS_REVIEW'
+                ORDER BY report_year DESC, rank, program_type
+                LIMIT ?
+                """,
+                [selected_limit],
+            ),
+            policy=self._query("SELECT * FROM vw_policy_review_queue LIMIT ?", [selected_limit]),
         )
 
     def export_employers(self, filters: EmployerFilters, file_format: ExportFormat) -> bytes:

@@ -33,6 +33,7 @@ from sponsor_intel.sources.models import (
     ValidationStatus,
 )
 from sponsor_intel.sources.registry import SourceRegistry
+from sponsor_intel.sources.sevp_opt import SevpOptAdapter
 from sponsor_intel.sources.uscis_h1b import UscisH1bAdapter
 
 logger = get_logger("sources.pipeline")
@@ -61,6 +62,8 @@ def _adapter(
         return IpedsAdapter(config, client, data_root, output_root)
     if config.adapter == "herd":
         return HerdAdapter(config, client, data_root, output_root)
+    if config.adapter == "sevp_opt":
+        return SevpOptAdapter(config, client, data_root, output_root)
     raise ValueError(f"Unsupported source adapter: {config.adapter}")
 
 

@@ -27,7 +27,7 @@ def _safe_directory(root: Path, source_id: str, fiscal_year: int) -> Path:
     return target
 
 
-_FORMAT_SUFFIXES = {"csv": ".csv", "xlsx": ".xlsx", "zip": ".zip"}
+_FORMAT_SUFFIXES = {"csv": ".csv", "pdf": ".pdf", "xlsx": ".xlsx", "zip": ".zip"}
 
 
 def _validate_zip_archive(
@@ -73,6 +73,13 @@ def _validate_csv(path: Path) -> None:
     lowered = prefix.lstrip().lower()
     if lowered.startswith((b"<!doctype html", b"<html")):
         raise DownloadError(f"Downloaded CSV contains an HTML response: {path.name}")
+
+
+def _validate_pdf(path: Path) -> None:
+    with path.open("rb") as source:
+        prefix = source.read(5)
+    if prefix != b"%PDF-":
+        raise DownloadError(f"Downloaded file is not a valid PDF: {path.name}")
 
 
 def _safe_file_stem(file_name: str) -> str:
@@ -179,6 +186,8 @@ class ArtifactDownloader:
                 )
             elif candidate.expected_format == "csv":
                 _validate_csv(temporary_path)
+            elif candidate.expected_format == "pdf":
+                _validate_pdf(temporary_path)
 
             checksum = hasher.hexdigest()
             safe_stem = _safe_file_stem(candidate.file_name)

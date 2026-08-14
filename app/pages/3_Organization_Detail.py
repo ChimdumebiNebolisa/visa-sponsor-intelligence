@@ -100,7 +100,21 @@ with signals_tab:
             "Immigration evidence score": summary["immigration_evidence_score"],
         }
     )
-    st.info("Signals and scores remain UNKNOWN or unscored until Phases 6 and 8.")
+    st.caption(
+        "An E-Verify NO_MATCH or ambiguous lookup is displayed as UNKNOWN. OPT absence is also "
+        "UNKNOWN because the official report contains positive Top 200 observations only."
+    )
+    st.write("E-Verify lookup evidence")
+    if detail.everify_evidence.is_empty():
+        st.info("This organization has not been checked in the prioritized E-Verify queue.")
+    else:
+        st.dataframe(detail.everify_evidence.to_arrow(), width="stretch", hide_index=True)
+    st.write("Positive OPT report evidence")
+    if detail.opt_evidence.is_empty():
+        st.info("No linked positive report observation; status remains UNKNOWN.")
+    else:
+        st.dataframe(detail.opt_evidence.to_arrow(), width="stretch", hide_index=True)
+    st.info("Composite scores remain unscored until Phase 8.")
 with provenance_tab:
     st.dataframe(detail.provenance.to_arrow(), width="stretch", hide_index=True)
     render_evidence_notice()

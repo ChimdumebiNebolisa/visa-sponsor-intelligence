@@ -15,3 +15,6 @@ All notable project changes will be documented here.
 - Added a 750-record role benchmark across all source years and six employer types, with precision, recall, family-accuracy, and low-confidence routing gates.
 - Added Phase 5 processed employer, institution, case, and source-health metrics with parent/legal reconciliation, raw DOL/USCIS/IPEDS/HERD evidence, and explicit FY2026 partial-period warnings.
 - Added the DuckDB presentation database, all ten required views, parameterized read-only services, employer and research-institution filters, organization drilldowns, and filtered CSV/Parquet exports.
+- Added Phase 6 ICE SEVP PDF discovery/download, immutable checksummed raw evidence, all 200 ranked employers, 589 positive-only OPT/STEM OPT observations, exact entity reconciliation, and unresolved-name review routing.
+- Added a 97,893-organization E-Verify priority universe, safe full-legal-name guards, last-30-years Tableau lookups, five-second rate limiting, 90-day evidence caches, location-aware exact matching, raw no-match semantics, and an ambiguity review queue.
+- Enriched employer and institution metrics, detail drilldowns, source health, evidence-review UI, and DuckDB views with retrieval-visible E-Verify and positive OPT evidence while preserving `UNKNOWN` for absence and ambiguity.

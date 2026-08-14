@@ -11,6 +11,7 @@ def test_registry_contains_phase_one_and_two_sources() -> None:
         "dol_perm",
         "herd",
         "ipeds",
+        "sevp_opt",
         "uscis_h1b",
     ]
     assert registry.get("dol_lca").official_domains == ("dol.gov",)
