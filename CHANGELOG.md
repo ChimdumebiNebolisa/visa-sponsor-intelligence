@@ -11,3 +11,5 @@ All notable project changes will be documented here.
 - Added Phase 2 USCIS H-1B, IPEDS directory, and HERD microdata adapters; fiscal-year-filtered petition evidence; canonical UNITID institution identities; exact-identifier HERD reconciliation; and explicit unmatched review outputs.
 - Added Phase 3 conservative legal-entity resolution, reviewed parent rollups, IPEDS system relationships, immutable resolved-source mirrors, explicit match statuses, an unmerged review queue, audited alias/rejection overrides, and deterministic outputs.
 - Added a 200-pair entity-resolution gold set spanning technology, universities, systems, hospitals, research laboratories, and staffing/consulting, with precision and parent/legal-collapse acceptance checks.
+- Added Phase 4 versioned SOC/title role classification, reviewed overrides, technical families, strong exclusions, combined evidence rules, complete classified DOL mirrors, and an explicit ambiguity review queue.
+- Added a 750-record role benchmark across all source years and six employer types, with precision, recall, family-accuracy, and low-confidence routing gates.

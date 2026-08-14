@@ -1,0 +1,751 @@
+sample_id,source_id,fiscal_year,employer_type,job_title_raw,soc_code,expected_technical,expected_family,expected_review
+role-001-1,dol_lca,2022,technology,Software Engineer,15-1252.00,true,software_engineering,false
+role-001-2,dol_perm,2023,university,Software Engineer,15-1252.00,true,software_engineering,false
+role-001-3,dol_lca,2024,hospital_medical,Software Engineer,15-1252.00,true,software_engineering,false
+role-001-4,dol_perm,2025,research_institute,Software Engineer,15-1252.00,true,software_engineering,false
+role-001-5,dol_lca,2026,staffing_consulting,Software Engineer,15-1252.00,true,software_engineering,false
+role-001-6,dol_perm,2022,other_industry,Software Engineer,15-1252.00,true,software_engineering,false
+role-001-7,dol_lca,2023,technology,Software Engineer,15-1252.00,true,software_engineering,false
+role-001-8,dol_perm,2024,university,Software Engineer,15-1252.00,true,software_engineering,false
+role-001-9,dol_lca,2025,hospital_medical,Software Engineer,15-1252.00,true,software_engineering,false
+role-001-10,dol_perm,2026,research_institute,Software Engineer,15-1252.00,true,software_engineering,false
+role-002-1,dol_lca,2022,university,Web Developer,15-1254.00,true,software_engineering,false
+role-002-2,dol_perm,2023,hospital_medical,Web Developer,15-1254.00,true,software_engineering,false
+role-002-3,dol_lca,2024,research_institute,Web Developer,15-1254.00,true,software_engineering,false
+role-002-4,dol_perm,2025,staffing_consulting,Web Developer,15-1254.00,true,software_engineering,false
+role-002-5,dol_lca,2026,other_industry,Web Developer,15-1254.00,true,software_engineering,false
+role-002-6,dol_perm,2022,technology,Web Developer,15-1254.00,true,software_engineering,false
+role-002-7,dol_lca,2023,university,Web Developer,15-1254.00,true,software_engineering,false
+role-002-8,dol_perm,2024,hospital_medical,Web Developer,15-1254.00,true,software_engineering,false
+role-002-9,dol_lca,2025,research_institute,Web Developer,15-1254.00,true,software_engineering,false
+role-002-10,dol_perm,2026,staffing_consulting,Web Developer,15-1254.00,true,software_engineering,false
+role-003-1,dol_lca,2022,hospital_medical,Java Developer,,true,software_engineering,false
+role-003-2,dol_perm,2023,research_institute,Java Developer,,true,software_engineering,false
+role-003-3,dol_lca,2024,staffing_consulting,Java Developer,,true,software_engineering,false
+role-003-4,dol_perm,2025,other_industry,Java Developer,,true,software_engineering,false
+role-003-5,dol_lca,2026,technology,Java Developer,,true,software_engineering,false
+role-003-6,dol_perm,2022,university,Java Developer,,true,software_engineering,false
+role-003-7,dol_lca,2023,hospital_medical,Java Developer,,true,software_engineering,false
+role-003-8,dol_perm,2024,research_institute,Java Developer,,true,software_engineering,false
+role-003-9,dol_lca,2025,staffing_consulting,Java Developer,,true,software_engineering,false
+role-003-10,dol_perm,2026,other_industry,Java Developer,,true,software_engineering,false
+role-004-1,dol_lca,2022,research_institute,Full Stack Developer,,true,software_engineering,false
+role-004-2,dol_perm,2023,staffing_consulting,Full Stack Developer,,true,software_engineering,false
+role-004-3,dol_lca,2024,other_industry,Full Stack Developer,,true,software_engineering,false
+role-004-4,dol_perm,2025,technology,Full Stack Developer,,true,software_engineering,false
+role-004-5,dol_lca,2026,university,Full Stack Developer,,true,software_engineering,false
+role-004-6,dol_perm,2022,hospital_medical,Full Stack Developer,,true,software_engineering,false
+role-004-7,dol_lca,2023,research_institute,Full Stack Developer,,true,software_engineering,false
+role-004-8,dol_perm,2024,staffing_consulting,Full Stack Developer,,true,software_engineering,false
+role-004-9,dol_lca,2025,other_industry,Full Stack Developer,,true,software_engineering,false
+role-004-10,dol_perm,2026,technology,Full Stack Developer,,true,software_engineering,false
+role-005-1,dol_lca,2022,staffing_consulting,Programmer Analyst,,true,software_engineering,false
+role-005-2,dol_perm,2023,other_industry,Programmer Analyst,,true,software_engineering,false
+role-005-3,dol_lca,2024,technology,Programmer Analyst,,true,software_engineering,false
+role-005-4,dol_perm,2025,university,Programmer Analyst,,true,software_engineering,false
+role-005-5,dol_lca,2026,hospital_medical,Programmer Analyst,,true,software_engineering,false
+role-005-6,dol_perm,2022,research_institute,Programmer Analyst,,true,software_engineering,false
+role-005-7,dol_lca,2023,staffing_consulting,Programmer Analyst,,true,software_engineering,false
+role-005-8,dol_perm,2024,other_industry,Programmer Analyst,,true,software_engineering,false
+role-005-9,dol_lca,2025,technology,Programmer Analyst,,true,software_engineering,false
+role-005-10,dol_perm,2026,university,Programmer Analyst,,true,software_engineering,false
+role-006-1,dol_lca,2022,other_industry,Applications Engineer,,true,software_engineering,false
+role-006-2,dol_perm,2023,technology,Applications Engineer,,true,software_engineering,false
+role-006-3,dol_lca,2024,university,Applications Engineer,,true,software_engineering,false
+role-006-4,dol_perm,2025,hospital_medical,Applications Engineer,,true,software_engineering,false
+role-006-5,dol_lca,2026,research_institute,Applications Engineer,,true,software_engineering,false
+role-006-6,dol_perm,2022,staffing_consulting,Applications Engineer,,true,software_engineering,false
+role-006-7,dol_lca,2023,other_industry,Applications Engineer,,true,software_engineering,false
+role-006-8,dol_perm,2024,technology,Applications Engineer,,true,software_engineering,false
+role-006-9,dol_lca,2025,university,Applications Engineer,,true,software_engineering,false
+role-006-10,dol_perm,2026,hospital_medical,Applications Engineer,,true,software_engineering,false
+role-007-1,dol_lca,2022,technology,QA Automation Engineer,,true,software_engineering,false
+role-007-2,dol_perm,2023,university,QA Automation Engineer,,true,software_engineering,false
+role-007-3,dol_lca,2024,hospital_medical,QA Automation Engineer,,true,software_engineering,false
+role-007-4,dol_perm,2025,research_institute,QA Automation Engineer,,true,software_engineering,false
+role-007-5,dol_lca,2026,staffing_consulting,QA Automation Engineer,,true,software_engineering,false
+role-007-6,dol_perm,2022,other_industry,QA Automation Engineer,,true,software_engineering,false
+role-007-7,dol_lca,2023,technology,QA Automation Engineer,,true,software_engineering,false
+role-007-8,dol_perm,2024,university,QA Automation Engineer,,true,software_engineering,false
+role-007-9,dol_lca,2025,hospital_medical,QA Automation Engineer,,true,software_engineering,false
+role-007-10,dol_perm,2026,research_institute,QA Automation Engineer,,true,software_engineering,false
+role-008-1,dol_lca,2022,university,Embedded Software Developer,,true,software_engineering,false
+role-008-2,dol_perm,2023,hospital_medical,Embedded Software Developer,,true,software_engineering,false
+role-008-3,dol_lca,2024,research_institute,Embedded Software Developer,,true,software_engineering,false
+role-008-4,dol_perm,2025,staffing_consulting,Embedded Software Developer,,true,software_engineering,false
+role-008-5,dol_lca,2026,other_industry,Embedded Software Developer,,true,software_engineering,false
+role-008-6,dol_perm,2022,technology,Embedded Software Developer,,true,software_engineering,false
+role-008-7,dol_lca,2023,university,Embedded Software Developer,,true,software_engineering,false
+role-008-8,dol_perm,2024,hospital_medical,Embedded Software Developer,,true,software_engineering,false
+role-008-9,dol_lca,2025,research_institute,Embedded Software Developer,,true,software_engineering,false
+role-008-10,dol_perm,2026,staffing_consulting,Embedded Software Developer,,true,software_engineering,false
+role-009-1,dol_lca,2022,hospital_medical,Research Software Engineer,,true,research_software,false
+role-009-2,dol_perm,2023,research_institute,Research Software Engineer,,true,research_software,false
+role-009-3,dol_lca,2024,staffing_consulting,Research Software Engineer,,true,research_software,false
+role-009-4,dol_perm,2025,other_industry,Research Software Engineer,,true,research_software,false
+role-009-5,dol_lca,2026,technology,Research Software Engineer,,true,research_software,false
+role-009-6,dol_perm,2022,university,Research Software Engineer,,true,research_software,false
+role-009-7,dol_lca,2023,hospital_medical,Research Software Engineer,,true,research_software,false
+role-009-8,dol_perm,2024,research_institute,Research Software Engineer,,true,research_software,false
+role-009-9,dol_lca,2025,staffing_consulting,Research Software Engineer,,true,research_software,false
+role-009-10,dol_perm,2026,other_industry,Research Software Engineer,,true,research_software,false
+role-010-1,dol_lca,2022,research_institute,Scientific Software Developer,,true,research_software,false
+role-010-2,dol_perm,2023,staffing_consulting,Scientific Software Developer,,true,research_software,false
+role-010-3,dol_lca,2024,other_industry,Scientific Software Developer,,true,research_software,false
+role-010-4,dol_perm,2025,technology,Scientific Software Developer,,true,research_software,false
+role-010-5,dol_lca,2026,university,Scientific Software Developer,,true,research_software,false
+role-010-6,dol_perm,2022,hospital_medical,Scientific Software Developer,,true,research_software,false
+role-010-7,dol_lca,2023,research_institute,Scientific Software Developer,,true,research_software,false
+role-010-8,dol_perm,2024,staffing_consulting,Scientific Software Developer,,true,research_software,false
+role-010-9,dol_lca,2025,other_industry,Scientific Software Developer,,true,research_software,false
+role-010-10,dol_perm,2026,technology,Scientific Software Developer,,true,research_software,false
+role-011-1,dol_lca,2022,staffing_consulting,Software Research Scientist,,true,research_software,false
+role-011-2,dol_perm,2023,other_industry,Software Research Scientist,,true,research_software,false
+role-011-3,dol_lca,2024,technology,Software Research Scientist,,true,research_software,false
+role-011-4,dol_perm,2025,university,Software Research Scientist,,true,research_software,false
+role-011-5,dol_lca,2026,hospital_medical,Software Research Scientist,,true,research_software,false
+role-011-6,dol_perm,2022,research_institute,Software Research Scientist,,true,research_software,false
+role-011-7,dol_lca,2023,staffing_consulting,Software Research Scientist,,true,research_software,false
+role-011-8,dol_perm,2024,other_industry,Software Research Scientist,,true,research_software,false
+role-011-9,dol_lca,2025,technology,Software Research Scientist,,true,research_software,false
+role-011-10,dol_perm,2026,university,Software Research Scientist,,true,research_software,false
+role-012-1,dol_lca,2022,other_industry,Research Computing Engineer,,true,research_engineering,false
+role-012-2,dol_perm,2023,technology,Research Computing Engineer,,true,research_engineering,false
+role-012-3,dol_lca,2024,university,Research Computing Engineer,,true,research_engineering,false
+role-012-4,dol_perm,2025,hospital_medical,Research Computing Engineer,,true,research_engineering,false
+role-012-5,dol_lca,2026,research_institute,Research Computing Engineer,,true,research_engineering,false
+role-012-6,dol_perm,2022,staffing_consulting,Research Computing Engineer,,true,research_engineering,false
+role-012-7,dol_lca,2023,other_industry,Research Computing Engineer,,true,research_engineering,false
+role-012-8,dol_perm,2024,technology,Research Computing Engineer,,true,research_engineering,false
+role-012-9,dol_lca,2025,university,Research Computing Engineer,,true,research_engineering,false
+role-012-10,dol_perm,2026,hospital_medical,Research Computing Engineer,,true,research_engineering,false
+role-013-1,dol_lca,2022,technology,Computational Research Engineer,,true,research_engineering,false
+role-013-2,dol_perm,2023,university,Computational Research Engineer,,true,research_engineering,false
+role-013-3,dol_lca,2024,hospital_medical,Computational Research Engineer,,true,research_engineering,false
+role-013-4,dol_perm,2025,research_institute,Computational Research Engineer,,true,research_engineering,false
+role-013-5,dol_lca,2026,staffing_consulting,Computational Research Engineer,,true,research_engineering,false
+role-013-6,dol_perm,2022,other_industry,Computational Research Engineer,,true,research_engineering,false
+role-013-7,dol_lca,2023,technology,Computational Research Engineer,,true,research_engineering,false
+role-013-8,dol_perm,2024,university,Computational Research Engineer,,true,research_engineering,false
+role-013-9,dol_lca,2025,hospital_medical,Computational Research Engineer,,true,research_engineering,false
+role-013-10,dol_perm,2026,research_institute,Computational Research Engineer,,true,research_engineering,false
+role-014-1,dol_lca,2022,university,R and D Software Engineer,,true,research_engineering,false
+role-014-2,dol_perm,2023,hospital_medical,R and D Software Engineer,,true,research_engineering,false
+role-014-3,dol_lca,2024,research_institute,R and D Software Engineer,,true,research_engineering,false
+role-014-4,dol_perm,2025,staffing_consulting,R and D Software Engineer,,true,research_engineering,false
+role-014-5,dol_lca,2026,other_industry,R and D Software Engineer,,true,research_engineering,false
+role-014-6,dol_perm,2022,technology,R and D Software Engineer,,true,research_engineering,false
+role-014-7,dol_lca,2023,university,R and D Software Engineer,,true,research_engineering,false
+role-014-8,dol_perm,2024,hospital_medical,R and D Software Engineer,,true,research_engineering,false
+role-014-9,dol_lca,2025,research_institute,R and D Software Engineer,,true,research_engineering,false
+role-014-10,dol_perm,2026,staffing_consulting,R and D Software Engineer,,true,research_engineering,false
+role-015-1,dol_lca,2022,hospital_medical,Machine Learning Engineer,,true,machine_learning_ai,false
+role-015-2,dol_perm,2023,research_institute,Machine Learning Engineer,,true,machine_learning_ai,false
+role-015-3,dol_lca,2024,staffing_consulting,Machine Learning Engineer,,true,machine_learning_ai,false
+role-015-4,dol_perm,2025,other_industry,Machine Learning Engineer,,true,machine_learning_ai,false
+role-015-5,dol_lca,2026,technology,Machine Learning Engineer,,true,machine_learning_ai,false
+role-015-6,dol_perm,2022,university,Machine Learning Engineer,,true,machine_learning_ai,false
+role-015-7,dol_lca,2023,hospital_medical,Machine Learning Engineer,,true,machine_learning_ai,false
+role-015-8,dol_perm,2024,research_institute,Machine Learning Engineer,,true,machine_learning_ai,false
+role-015-9,dol_lca,2025,staffing_consulting,Machine Learning Engineer,,true,machine_learning_ai,false
+role-015-10,dol_perm,2026,other_industry,Machine Learning Engineer,,true,machine_learning_ai,false
+role-016-1,dol_lca,2022,research_institute,Artificial Intelligence Scientist,,true,machine_learning_ai,false
+role-016-2,dol_perm,2023,staffing_consulting,Artificial Intelligence Scientist,,true,machine_learning_ai,false
+role-016-3,dol_lca,2024,other_industry,Artificial Intelligence Scientist,,true,machine_learning_ai,false
+role-016-4,dol_perm,2025,technology,Artificial Intelligence Scientist,,true,machine_learning_ai,false
+role-016-5,dol_lca,2026,university,Artificial Intelligence Scientist,,true,machine_learning_ai,false
+role-016-6,dol_perm,2022,hospital_medical,Artificial Intelligence Scientist,,true,machine_learning_ai,false
+role-016-7,dol_lca,2023,research_institute,Artificial Intelligence Scientist,,true,machine_learning_ai,false
+role-016-8,dol_perm,2024,staffing_consulting,Artificial Intelligence Scientist,,true,machine_learning_ai,false
+role-016-9,dol_lca,2025,other_industry,Artificial Intelligence Scientist,,true,machine_learning_ai,false
+role-016-10,dol_perm,2026,technology,Artificial Intelligence Scientist,,true,machine_learning_ai,false
+role-017-1,dol_lca,2022,staffing_consulting,Computer Vision Researcher,,true,machine_learning_ai,false
+role-017-2,dol_perm,2023,other_industry,Computer Vision Researcher,,true,machine_learning_ai,false
+role-017-3,dol_lca,2024,technology,Computer Vision Researcher,,true,machine_learning_ai,false
+role-017-4,dol_perm,2025,university,Computer Vision Researcher,,true,machine_learning_ai,false
+role-017-5,dol_lca,2026,hospital_medical,Computer Vision Researcher,,true,machine_learning_ai,false
+role-017-6,dol_perm,2022,research_institute,Computer Vision Researcher,,true,machine_learning_ai,false
+role-017-7,dol_lca,2023,staffing_consulting,Computer Vision Researcher,,true,machine_learning_ai,false
+role-017-8,dol_perm,2024,other_industry,Computer Vision Researcher,,true,machine_learning_ai,false
+role-017-9,dol_lca,2025,technology,Computer Vision Researcher,,true,machine_learning_ai,false
+role-017-10,dol_perm,2026,university,Computer Vision Researcher,,true,machine_learning_ai,false
+role-018-1,dol_lca,2022,other_industry,NLP Engineer,,true,machine_learning_ai,false
+role-018-2,dol_perm,2023,technology,NLP Engineer,,true,machine_learning_ai,false
+role-018-3,dol_lca,2024,university,NLP Engineer,,true,machine_learning_ai,false
+role-018-4,dol_perm,2025,hospital_medical,NLP Engineer,,true,machine_learning_ai,false
+role-018-5,dol_lca,2026,research_institute,NLP Engineer,,true,machine_learning_ai,false
+role-018-6,dol_perm,2022,staffing_consulting,NLP Engineer,,true,machine_learning_ai,false
+role-018-7,dol_lca,2023,other_industry,NLP Engineer,,true,machine_learning_ai,false
+role-018-8,dol_perm,2024,technology,NLP Engineer,,true,machine_learning_ai,false
+role-018-9,dol_lca,2025,university,NLP Engineer,,true,machine_learning_ai,false
+role-018-10,dol_perm,2026,hospital_medical,NLP Engineer,,true,machine_learning_ai,false
+role-019-1,dol_lca,2022,technology,Data Engineer,,true,data_engineering,false
+role-019-2,dol_perm,2023,university,Data Engineer,,true,data_engineering,false
+role-019-3,dol_lca,2024,hospital_medical,Data Engineer,,true,data_engineering,false
+role-019-4,dol_perm,2025,research_institute,Data Engineer,,true,data_engineering,false
+role-019-5,dol_lca,2026,staffing_consulting,Data Engineer,,true,data_engineering,false
+role-019-6,dol_perm,2022,other_industry,Data Engineer,,true,data_engineering,false
+role-019-7,dol_lca,2023,technology,Data Engineer,,true,data_engineering,false
+role-019-8,dol_perm,2024,university,Data Engineer,,true,data_engineering,false
+role-019-9,dol_lca,2025,hospital_medical,Data Engineer,,true,data_engineering,false
+role-019-10,dol_perm,2026,research_institute,Data Engineer,,true,data_engineering,false
+role-020-1,dol_lca,2022,university,Analytics Engineer,,true,data_engineering,false
+role-020-2,dol_perm,2023,hospital_medical,Analytics Engineer,,true,data_engineering,false
+role-020-3,dol_lca,2024,research_institute,Analytics Engineer,,true,data_engineering,false
+role-020-4,dol_perm,2025,staffing_consulting,Analytics Engineer,,true,data_engineering,false
+role-020-5,dol_lca,2026,other_industry,Analytics Engineer,,true,data_engineering,false
+role-020-6,dol_perm,2022,technology,Analytics Engineer,,true,data_engineering,false
+role-020-7,dol_lca,2023,university,Analytics Engineer,,true,data_engineering,false
+role-020-8,dol_perm,2024,hospital_medical,Analytics Engineer,,true,data_engineering,false
+role-020-9,dol_lca,2025,research_institute,Analytics Engineer,,true,data_engineering,false
+role-020-10,dol_perm,2026,staffing_consulting,Analytics Engineer,,true,data_engineering,false
+role-021-1,dol_lca,2022,hospital_medical,ETL Developer,,true,data_engineering,false
+role-021-2,dol_perm,2023,research_institute,ETL Developer,,true,data_engineering,false
+role-021-3,dol_lca,2024,staffing_consulting,ETL Developer,,true,data_engineering,false
+role-021-4,dol_perm,2025,other_industry,ETL Developer,,true,data_engineering,false
+role-021-5,dol_lca,2026,technology,ETL Developer,,true,data_engineering,false
+role-021-6,dol_perm,2022,university,ETL Developer,,true,data_engineering,false
+role-021-7,dol_lca,2023,hospital_medical,ETL Developer,,true,data_engineering,false
+role-021-8,dol_perm,2024,research_institute,ETL Developer,,true,data_engineering,false
+role-021-9,dol_lca,2025,staffing_consulting,ETL Developer,,true,data_engineering,false
+role-021-10,dol_perm,2026,other_industry,ETL Developer,,true,data_engineering,false
+role-022-1,dol_lca,2022,research_institute,Database Architect,,true,data_engineering,false
+role-022-2,dol_perm,2023,staffing_consulting,Database Architect,,true,data_engineering,false
+role-022-3,dol_lca,2024,other_industry,Database Architect,,true,data_engineering,false
+role-022-4,dol_perm,2025,technology,Database Architect,,true,data_engineering,false
+role-022-5,dol_lca,2026,university,Database Architect,,true,data_engineering,false
+role-022-6,dol_perm,2022,hospital_medical,Database Architect,,true,data_engineering,false
+role-022-7,dol_lca,2023,research_institute,Database Architect,,true,data_engineering,false
+role-022-8,dol_perm,2024,staffing_consulting,Database Architect,,true,data_engineering,false
+role-022-9,dol_lca,2025,other_industry,Database Architect,,true,data_engineering,false
+role-022-10,dol_perm,2026,technology,Database Architect,,true,data_engineering,false
+role-023-1,dol_lca,2022,staffing_consulting,Data Scientist,,true,data_science,false
+role-023-2,dol_perm,2023,other_industry,Data Scientist,,true,data_science,false
+role-023-3,dol_lca,2024,technology,Data Scientist,,true,data_science,false
+role-023-4,dol_perm,2025,university,Data Scientist,,true,data_science,false
+role-023-5,dol_lca,2026,hospital_medical,Data Scientist,,true,data_science,false
+role-023-6,dol_perm,2022,research_institute,Data Scientist,,true,data_science,false
+role-023-7,dol_lca,2023,staffing_consulting,Data Scientist,,true,data_science,false
+role-023-8,dol_perm,2024,other_industry,Data Scientist,,true,data_science,false
+role-023-9,dol_lca,2025,technology,Data Scientist,,true,data_science,false
+role-023-10,dol_perm,2026,university,Data Scientist,,true,data_science,false
+role-024-1,dol_lca,2022,other_industry,Quantitative Scientist,,true,data_science,false
+role-024-2,dol_perm,2023,technology,Quantitative Scientist,,true,data_science,false
+role-024-3,dol_lca,2024,university,Quantitative Scientist,,true,data_science,false
+role-024-4,dol_perm,2025,hospital_medical,Quantitative Scientist,,true,data_science,false
+role-024-5,dol_lca,2026,research_institute,Quantitative Scientist,,true,data_science,false
+role-024-6,dol_perm,2022,staffing_consulting,Quantitative Scientist,,true,data_science,false
+role-024-7,dol_lca,2023,other_industry,Quantitative Scientist,,true,data_science,false
+role-024-8,dol_perm,2024,technology,Quantitative Scientist,,true,data_science,false
+role-024-9,dol_lca,2025,university,Quantitative Scientist,,true,data_science,false
+role-024-10,dol_perm,2026,hospital_medical,Quantitative Scientist,,true,data_science,false
+role-025-1,dol_lca,2022,technology,Statistical Programmer,,true,data_science,false
+role-025-2,dol_perm,2023,university,Statistical Programmer,,true,data_science,false
+role-025-3,dol_lca,2024,hospital_medical,Statistical Programmer,,true,data_science,false
+role-025-4,dol_perm,2025,research_institute,Statistical Programmer,,true,data_science,false
+role-025-5,dol_lca,2026,staffing_consulting,Statistical Programmer,,true,data_science,false
+role-025-6,dol_perm,2022,other_industry,Statistical Programmer,,true,data_science,false
+role-025-7,dol_lca,2023,technology,Statistical Programmer,,true,data_science,false
+role-025-8,dol_perm,2024,university,Statistical Programmer,,true,data_science,false
+role-025-9,dol_lca,2025,hospital_medical,Statistical Programmer,,true,data_science,false
+role-025-10,dol_perm,2026,research_institute,Statistical Programmer,,true,data_science,false
+role-026-1,dol_lca,2022,university,Systems Administrator,,true,systems_infrastructure,false
+role-026-2,dol_perm,2023,hospital_medical,Systems Administrator,,true,systems_infrastructure,false
+role-026-3,dol_lca,2024,research_institute,Systems Administrator,,true,systems_infrastructure,false
+role-026-4,dol_perm,2025,staffing_consulting,Systems Administrator,,true,systems_infrastructure,false
+role-026-5,dol_lca,2026,other_industry,Systems Administrator,,true,systems_infrastructure,false
+role-026-6,dol_perm,2022,technology,Systems Administrator,,true,systems_infrastructure,false
+role-026-7,dol_lca,2023,university,Systems Administrator,,true,systems_infrastructure,false
+role-026-8,dol_perm,2024,hospital_medical,Systems Administrator,,true,systems_infrastructure,false
+role-026-9,dol_lca,2025,research_institute,Systems Administrator,,true,systems_infrastructure,false
+role-026-10,dol_perm,2026,staffing_consulting,Systems Administrator,,true,systems_infrastructure,false
+role-027-1,dol_lca,2022,hospital_medical,Network Engineer,,true,systems_infrastructure,false
+role-027-2,dol_perm,2023,research_institute,Network Engineer,,true,systems_infrastructure,false
+role-027-3,dol_lca,2024,staffing_consulting,Network Engineer,,true,systems_infrastructure,false
+role-027-4,dol_perm,2025,other_industry,Network Engineer,,true,systems_infrastructure,false
+role-027-5,dol_lca,2026,technology,Network Engineer,,true,systems_infrastructure,false
+role-027-6,dol_perm,2022,university,Network Engineer,,true,systems_infrastructure,false
+role-027-7,dol_lca,2023,hospital_medical,Network Engineer,,true,systems_infrastructure,false
+role-027-8,dol_perm,2024,research_institute,Network Engineer,,true,systems_infrastructure,false
+role-027-9,dol_lca,2025,staffing_consulting,Network Engineer,,true,systems_infrastructure,false
+role-027-10,dol_perm,2026,other_industry,Network Engineer,,true,systems_infrastructure,false
+role-028-1,dol_lca,2022,research_institute,Cybersecurity Analyst,,true,systems_infrastructure,false
+role-028-2,dol_perm,2023,staffing_consulting,Cybersecurity Analyst,,true,systems_infrastructure,false
+role-028-3,dol_lca,2024,other_industry,Cybersecurity Analyst,,true,systems_infrastructure,false
+role-028-4,dol_perm,2025,technology,Cybersecurity Analyst,,true,systems_infrastructure,false
+role-028-5,dol_lca,2026,university,Cybersecurity Analyst,,true,systems_infrastructure,false
+role-028-6,dol_perm,2022,hospital_medical,Cybersecurity Analyst,,true,systems_infrastructure,false
+role-028-7,dol_lca,2023,research_institute,Cybersecurity Analyst,,true,systems_infrastructure,false
+role-028-8,dol_perm,2024,staffing_consulting,Cybersecurity Analyst,,true,systems_infrastructure,false
+role-028-9,dol_lca,2025,other_industry,Cybersecurity Analyst,,true,systems_infrastructure,false
+role-028-10,dol_perm,2026,technology,Cybersecurity Analyst,,true,systems_infrastructure,false
+role-029-1,dol_lca,2022,staffing_consulting,Computer Systems Architect,,true,systems_infrastructure,false
+role-029-2,dol_perm,2023,other_industry,Computer Systems Architect,,true,systems_infrastructure,false
+role-029-3,dol_lca,2024,technology,Computer Systems Architect,,true,systems_infrastructure,false
+role-029-4,dol_perm,2025,university,Computer Systems Architect,,true,systems_infrastructure,false
+role-029-5,dol_lca,2026,hospital_medical,Computer Systems Architect,,true,systems_infrastructure,false
+role-029-6,dol_perm,2022,research_institute,Computer Systems Architect,,true,systems_infrastructure,false
+role-029-7,dol_lca,2023,staffing_consulting,Computer Systems Architect,,true,systems_infrastructure,false
+role-029-8,dol_perm,2024,other_industry,Computer Systems Architect,,true,systems_infrastructure,false
+role-029-9,dol_lca,2025,technology,Computer Systems Architect,,true,systems_infrastructure,false
+role-029-10,dol_perm,2026,university,Computer Systems Architect,,true,systems_infrastructure,false
+role-030-1,dol_lca,2022,other_industry,High Performance Computing Engineer,,true,hpc,false
+role-030-2,dol_perm,2023,technology,High Performance Computing Engineer,,true,hpc,false
+role-030-3,dol_lca,2024,university,High Performance Computing Engineer,,true,hpc,false
+role-030-4,dol_perm,2025,hospital_medical,High Performance Computing Engineer,,true,hpc,false
+role-030-5,dol_lca,2026,research_institute,High Performance Computing Engineer,,true,hpc,false
+role-030-6,dol_perm,2022,staffing_consulting,High Performance Computing Engineer,,true,hpc,false
+role-030-7,dol_lca,2023,other_industry,High Performance Computing Engineer,,true,hpc,false
+role-030-8,dol_perm,2024,technology,High Performance Computing Engineer,,true,hpc,false
+role-030-9,dol_lca,2025,university,High Performance Computing Engineer,,true,hpc,false
+role-030-10,dol_perm,2026,hospital_medical,High Performance Computing Engineer,,true,hpc,false
+role-031-1,dol_lca,2022,technology,HPC Specialist,,true,hpc,false
+role-031-2,dol_perm,2023,university,HPC Specialist,,true,hpc,false
+role-031-3,dol_lca,2024,hospital_medical,HPC Specialist,,true,hpc,false
+role-031-4,dol_perm,2025,research_institute,HPC Specialist,,true,hpc,false
+role-031-5,dol_lca,2026,staffing_consulting,HPC Specialist,,true,hpc,false
+role-031-6,dol_perm,2022,other_industry,HPC Specialist,,true,hpc,false
+role-031-7,dol_lca,2023,technology,HPC Specialist,,true,hpc,false
+role-031-8,dol_perm,2024,university,HPC Specialist,,true,hpc,false
+role-031-9,dol_lca,2025,hospital_medical,HPC Specialist,,true,hpc,false
+role-031-10,dol_perm,2026,research_institute,HPC Specialist,,true,hpc,false
+role-032-1,dol_lca,2022,university,Cloud Engineer,,true,cloud,false
+role-032-2,dol_perm,2023,hospital_medical,Cloud Engineer,,true,cloud,false
+role-032-3,dol_lca,2024,research_institute,Cloud Engineer,,true,cloud,false
+role-032-4,dol_perm,2025,staffing_consulting,Cloud Engineer,,true,cloud,false
+role-032-5,dol_lca,2026,other_industry,Cloud Engineer,,true,cloud,false
+role-032-6,dol_perm,2022,technology,Cloud Engineer,,true,cloud,false
+role-032-7,dol_lca,2023,university,Cloud Engineer,,true,cloud,false
+role-032-8,dol_perm,2024,hospital_medical,Cloud Engineer,,true,cloud,false
+role-032-9,dol_lca,2025,research_institute,Cloud Engineer,,true,cloud,false
+role-032-10,dol_perm,2026,staffing_consulting,Cloud Engineer,,true,cloud,false
+role-033-1,dol_lca,2022,hospital_medical,AWS Architect,,true,cloud,false
+role-033-2,dol_perm,2023,research_institute,AWS Architect,,true,cloud,false
+role-033-3,dol_lca,2024,staffing_consulting,AWS Architect,,true,cloud,false
+role-033-4,dol_perm,2025,other_industry,AWS Architect,,true,cloud,false
+role-033-5,dol_lca,2026,technology,AWS Architect,,true,cloud,false
+role-033-6,dol_perm,2022,university,AWS Architect,,true,cloud,false
+role-033-7,dol_lca,2023,hospital_medical,AWS Architect,,true,cloud,false
+role-033-8,dol_perm,2024,research_institute,AWS Architect,,true,cloud,false
+role-033-9,dol_lca,2025,staffing_consulting,AWS Architect,,true,cloud,false
+role-033-10,dol_perm,2026,other_industry,AWS Architect,,true,cloud,false
+role-034-1,dol_lca,2022,research_institute,Azure Developer,,true,cloud,false
+role-034-2,dol_perm,2023,staffing_consulting,Azure Developer,,true,cloud,false
+role-034-3,dol_lca,2024,other_industry,Azure Developer,,true,cloud,false
+role-034-4,dol_perm,2025,technology,Azure Developer,,true,cloud,false
+role-034-5,dol_lca,2026,university,Azure Developer,,true,cloud,false
+role-034-6,dol_perm,2022,hospital_medical,Azure Developer,,true,cloud,false
+role-034-7,dol_lca,2023,research_institute,Azure Developer,,true,cloud,false
+role-034-8,dol_perm,2024,staffing_consulting,Azure Developer,,true,cloud,false
+role-034-9,dol_lca,2025,other_industry,Azure Developer,,true,cloud,false
+role-034-10,dol_perm,2026,technology,Azure Developer,,true,cloud,false
+role-035-1,dol_lca,2022,staffing_consulting,DevOps Engineer,,true,devops_sre,false
+role-035-2,dol_perm,2023,other_industry,DevOps Engineer,,true,devops_sre,false
+role-035-3,dol_lca,2024,technology,DevOps Engineer,,true,devops_sre,false
+role-035-4,dol_perm,2025,university,DevOps Engineer,,true,devops_sre,false
+role-035-5,dol_lca,2026,hospital_medical,DevOps Engineer,,true,devops_sre,false
+role-035-6,dol_perm,2022,research_institute,DevOps Engineer,,true,devops_sre,false
+role-035-7,dol_lca,2023,staffing_consulting,DevOps Engineer,,true,devops_sre,false
+role-035-8,dol_perm,2024,other_industry,DevOps Engineer,,true,devops_sre,false
+role-035-9,dol_lca,2025,technology,DevOps Engineer,,true,devops_sre,false
+role-035-10,dol_perm,2026,university,DevOps Engineer,,true,devops_sre,false
+role-036-1,dol_lca,2022,other_industry,Site Reliability Engineer,,true,devops_sre,false
+role-036-2,dol_perm,2023,technology,Site Reliability Engineer,,true,devops_sre,false
+role-036-3,dol_lca,2024,university,Site Reliability Engineer,,true,devops_sre,false
+role-036-4,dol_perm,2025,hospital_medical,Site Reliability Engineer,,true,devops_sre,false
+role-036-5,dol_lca,2026,research_institute,Site Reliability Engineer,,true,devops_sre,false
+role-036-6,dol_perm,2022,staffing_consulting,Site Reliability Engineer,,true,devops_sre,false
+role-036-7,dol_lca,2023,other_industry,Site Reliability Engineer,,true,devops_sre,false
+role-036-8,dol_perm,2024,technology,Site Reliability Engineer,,true,devops_sre,false
+role-036-9,dol_lca,2025,university,Site Reliability Engineer,,true,devops_sre,false
+role-036-10,dol_perm,2026,hospital_medical,Site Reliability Engineer,,true,devops_sre,false
+role-037-1,dol_lca,2022,technology,Platform Engineer,,true,devops_sre,false
+role-037-2,dol_perm,2023,university,Platform Engineer,,true,devops_sre,false
+role-037-3,dol_lca,2024,hospital_medical,Platform Engineer,,true,devops_sre,false
+role-037-4,dol_perm,2025,research_institute,Platform Engineer,,true,devops_sre,false
+role-037-5,dol_lca,2026,staffing_consulting,Platform Engineer,,true,devops_sre,false
+role-037-6,dol_perm,2022,other_industry,Platform Engineer,,true,devops_sre,false
+role-037-7,dol_lca,2023,technology,Platform Engineer,,true,devops_sre,false
+role-037-8,dol_perm,2024,university,Platform Engineer,,true,devops_sre,false
+role-037-9,dol_lca,2025,hospital_medical,Platform Engineer,,true,devops_sre,false
+role-037-10,dol_perm,2026,research_institute,Platform Engineer,,true,devops_sre,false
+role-038-1,dol_lca,2022,university,Release Engineer,,true,devops_sre,false
+role-038-2,dol_perm,2023,hospital_medical,Release Engineer,,true,devops_sre,false
+role-038-3,dol_lca,2024,research_institute,Release Engineer,,true,devops_sre,false
+role-038-4,dol_perm,2025,staffing_consulting,Release Engineer,,true,devops_sre,false
+role-038-5,dol_lca,2026,other_industry,Release Engineer,,true,devops_sre,false
+role-038-6,dol_perm,2022,technology,Release Engineer,,true,devops_sre,false
+role-038-7,dol_lca,2023,university,Release Engineer,,true,devops_sre,false
+role-038-8,dol_perm,2024,hospital_medical,Release Engineer,,true,devops_sre,false
+role-038-9,dol_lca,2025,research_institute,Release Engineer,,true,devops_sre,false
+role-038-10,dol_perm,2026,staffing_consulting,Release Engineer,,true,devops_sre,false
+role-039-1,dol_lca,2022,hospital_medical,Computer Science Researcher,,true,computer_science_research,false
+role-039-2,dol_perm,2023,research_institute,Computer Science Researcher,,true,computer_science_research,false
+role-039-3,dol_lca,2024,staffing_consulting,Computer Science Researcher,,true,computer_science_research,false
+role-039-4,dol_perm,2025,other_industry,Computer Science Researcher,,true,computer_science_research,false
+role-039-5,dol_lca,2026,technology,Computer Science Researcher,,true,computer_science_research,false
+role-039-6,dol_perm,2022,university,Computer Science Researcher,,true,computer_science_research,false
+role-039-7,dol_lca,2023,hospital_medical,Computer Science Researcher,,true,computer_science_research,false
+role-039-8,dol_perm,2024,research_institute,Computer Science Researcher,,true,computer_science_research,false
+role-039-9,dol_lca,2025,staffing_consulting,Computer Science Researcher,,true,computer_science_research,false
+role-039-10,dol_perm,2026,other_industry,Computer Science Researcher,,true,computer_science_research,false
+role-040-1,dol_lca,2022,research_institute,Computing Research Fellow,,true,computer_science_research,false
+role-040-2,dol_perm,2023,staffing_consulting,Computing Research Fellow,,true,computer_science_research,false
+role-040-3,dol_lca,2024,other_industry,Computing Research Fellow,,true,computer_science_research,false
+role-040-4,dol_perm,2025,technology,Computing Research Fellow,,true,computer_science_research,false
+role-040-5,dol_lca,2026,university,Computing Research Fellow,,true,computer_science_research,false
+role-040-6,dol_perm,2022,hospital_medical,Computing Research Fellow,,true,computer_science_research,false
+role-040-7,dol_lca,2023,research_institute,Computing Research Fellow,,true,computer_science_research,false
+role-040-8,dol_perm,2024,staffing_consulting,Computing Research Fellow,,true,computer_science_research,false
+role-040-9,dol_lca,2025,other_industry,Computing Research Fellow,,true,computer_science_research,false
+role-040-10,dol_perm,2026,technology,Computing Research Fellow,,true,computer_science_research,false
+role-041-1,dol_lca,2022,staffing_consulting,Computer and Information Research Scientist,,true,computer_science_research,false
+role-041-2,dol_perm,2023,other_industry,Computer and Information Research Scientist,,true,computer_science_research,false
+role-041-3,dol_lca,2024,technology,Computer and Information Research Scientist,,true,computer_science_research,false
+role-041-4,dol_perm,2025,university,Computer and Information Research Scientist,,true,computer_science_research,false
+role-041-5,dol_lca,2026,hospital_medical,Computer and Information Research Scientist,,true,computer_science_research,false
+role-041-6,dol_perm,2022,research_institute,Computer and Information Research Scientist,,true,computer_science_research,false
+role-041-7,dol_lca,2023,staffing_consulting,Computer and Information Research Scientist,,true,computer_science_research,false
+role-041-8,dol_perm,2024,other_industry,Computer and Information Research Scientist,,true,computer_science_research,false
+role-041-9,dol_lca,2025,technology,Computer and Information Research Scientist,,true,computer_science_research,false
+role-041-10,dol_perm,2026,university,Computer and Information Research Scientist,,true,computer_science_research,false
+role-042-1,dol_lca,2022,other_industry,Computer Science Professor,,true,computer_science_research,false
+role-042-2,dol_perm,2023,technology,Computer Science Professor,,true,computer_science_research,false
+role-042-3,dol_lca,2024,university,Computer Science Professor,,true,computer_science_research,false
+role-042-4,dol_perm,2025,hospital_medical,Computer Science Professor,,true,computer_science_research,false
+role-042-5,dol_lca,2026,research_institute,Computer Science Professor,,true,computer_science_research,false
+role-042-6,dol_perm,2022,staffing_consulting,Computer Science Professor,,true,computer_science_research,false
+role-042-7,dol_lca,2023,other_industry,Computer Science Professor,,true,computer_science_research,false
+role-042-8,dol_perm,2024,technology,Computer Science Professor,,true,computer_science_research,false
+role-042-9,dol_lca,2025,university,Computer Science Professor,,true,computer_science_research,false
+role-042-10,dol_perm,2026,hospital_medical,Computer Science Professor,,true,computer_science_research,false
+role-043-1,dol_lca,2022,technology,Software Engineering Manager,,true,technical_management_related,false
+role-043-2,dol_perm,2023,university,Software Engineering Manager,,true,technical_management_related,false
+role-043-3,dol_lca,2024,hospital_medical,Software Engineering Manager,,true,technical_management_related,false
+role-043-4,dol_perm,2025,research_institute,Software Engineering Manager,,true,technical_management_related,false
+role-043-5,dol_lca,2026,staffing_consulting,Software Engineering Manager,,true,technical_management_related,false
+role-043-6,dol_perm,2022,other_industry,Software Engineering Manager,,true,technical_management_related,false
+role-043-7,dol_lca,2023,technology,Software Engineering Manager,,true,technical_management_related,false
+role-043-8,dol_perm,2024,university,Software Engineering Manager,,true,technical_management_related,false
+role-043-9,dol_lca,2025,hospital_medical,Software Engineering Manager,,true,technical_management_related,false
+role-043-10,dol_perm,2026,research_institute,Software Engineering Manager,,true,technical_management_related,false
+role-044-1,dol_lca,2022,university,Technical Director,,true,technical_management_related,false
+role-044-2,dol_perm,2023,hospital_medical,Technical Director,,true,technical_management_related,false
+role-044-3,dol_lca,2024,research_institute,Technical Director,,true,technical_management_related,false
+role-044-4,dol_perm,2025,staffing_consulting,Technical Director,,true,technical_management_related,false
+role-044-5,dol_lca,2026,other_industry,Technical Director,,true,technical_management_related,false
+role-044-6,dol_perm,2022,technology,Technical Director,,true,technical_management_related,false
+role-044-7,dol_lca,2023,university,Technical Director,,true,technical_management_related,false
+role-044-8,dol_perm,2024,hospital_medical,Technical Director,,true,technical_management_related,false
+role-044-9,dol_lca,2025,research_institute,Technical Director,,true,technical_management_related,false
+role-044-10,dol_perm,2026,staffing_consulting,Technical Director,,true,technical_management_related,false
+role-045-1,dol_lca,2022,hospital_medical,Chief Technology Officer,,true,technical_management_related,false
+role-045-2,dol_perm,2023,research_institute,Chief Technology Officer,,true,technical_management_related,false
+role-045-3,dol_lca,2024,staffing_consulting,Chief Technology Officer,,true,technical_management_related,false
+role-045-4,dol_perm,2025,other_industry,Chief Technology Officer,,true,technical_management_related,false
+role-045-5,dol_lca,2026,technology,Chief Technology Officer,,true,technical_management_related,false
+role-045-6,dol_perm,2022,university,Chief Technology Officer,,true,technical_management_related,false
+role-045-7,dol_lca,2023,hospital_medical,Chief Technology Officer,,true,technical_management_related,false
+role-045-8,dol_perm,2024,research_institute,Chief Technology Officer,,true,technical_management_related,false
+role-045-9,dol_lca,2025,staffing_consulting,Chief Technology Officer,,true,technical_management_related,false
+role-045-10,dol_perm,2026,other_industry,Chief Technology Officer,,true,technical_management_related,false
+role-046-1,dol_lca,2022,research_institute,Technical Program Manager,,true,technical_management_related,false
+role-046-2,dol_perm,2023,staffing_consulting,Technical Program Manager,,true,technical_management_related,false
+role-046-3,dol_lca,2024,other_industry,Technical Program Manager,,true,technical_management_related,false
+role-046-4,dol_perm,2025,technology,Technical Program Manager,,true,technical_management_related,false
+role-046-5,dol_lca,2026,university,Technical Program Manager,,true,technical_management_related,false
+role-046-6,dol_perm,2022,hospital_medical,Technical Program Manager,,true,technical_management_related,false
+role-046-7,dol_lca,2023,research_institute,Technical Program Manager,,true,technical_management_related,false
+role-046-8,dol_perm,2024,staffing_consulting,Technical Program Manager,,true,technical_management_related,false
+role-046-9,dol_lca,2025,other_industry,Technical Program Manager,,true,technical_management_related,false
+role-046-10,dol_perm,2026,technology,Technical Program Manager,,true,technical_management_related,false
+role-047-1,dol_lca,2022,staffing_consulting,Information Technology Analyst,,true,other_computing,false
+role-047-2,dol_perm,2023,other_industry,Information Technology Analyst,,true,other_computing,false
+role-047-3,dol_lca,2024,technology,Information Technology Analyst,,true,other_computing,false
+role-047-4,dol_perm,2025,university,Information Technology Analyst,,true,other_computing,false
+role-047-5,dol_lca,2026,hospital_medical,Information Technology Analyst,,true,other_computing,false
+role-047-6,dol_perm,2022,research_institute,Information Technology Analyst,,true,other_computing,false
+role-047-7,dol_lca,2023,staffing_consulting,Information Technology Analyst,,true,other_computing,false
+role-047-8,dol_perm,2024,other_industry,Information Technology Analyst,,true,other_computing,false
+role-047-9,dol_lca,2025,technology,Information Technology Analyst,,true,other_computing,false
+role-047-10,dol_perm,2026,university,Information Technology Analyst,,true,other_computing,false
+role-048-1,dol_lca,2022,other_industry,IT Architect,,true,other_computing,false
+role-048-2,dol_perm,2023,technology,IT Architect,,true,other_computing,false
+role-048-3,dol_lca,2024,university,IT Architect,,true,other_computing,false
+role-048-4,dol_perm,2025,hospital_medical,IT Architect,,true,other_computing,false
+role-048-5,dol_lca,2026,research_institute,IT Architect,,true,other_computing,false
+role-048-6,dol_perm,2022,staffing_consulting,IT Architect,,true,other_computing,false
+role-048-7,dol_lca,2023,other_industry,IT Architect,,true,other_computing,false
+role-048-8,dol_perm,2024,technology,IT Architect,,true,other_computing,false
+role-048-9,dol_lca,2025,university,IT Architect,,true,other_computing,false
+role-048-10,dol_perm,2026,hospital_medical,IT Architect,,true,other_computing,false
+role-049-1,dol_lca,2022,technology,Computer Specialist,,true,other_computing,false
+role-049-2,dol_perm,2023,university,Computer Specialist,,true,other_computing,false
+role-049-3,dol_lca,2024,hospital_medical,Computer Specialist,,true,other_computing,false
+role-049-4,dol_perm,2025,research_institute,Computer Specialist,,true,other_computing,false
+role-049-5,dol_lca,2026,staffing_consulting,Computer Specialist,,true,other_computing,false
+role-049-6,dol_perm,2022,other_industry,Computer Specialist,,true,other_computing,false
+role-049-7,dol_lca,2023,technology,Computer Specialist,,true,other_computing,false
+role-049-8,dol_perm,2024,university,Computer Specialist,,true,other_computing,false
+role-049-9,dol_lca,2025,hospital_medical,Computer Specialist,,true,other_computing,false
+role-049-10,dol_perm,2026,research_institute,Computer Specialist,,true,other_computing,false
+role-050-1,dol_lca,2022,university,Technical Architect,,true,other_computing,false
+role-050-2,dol_perm,2023,hospital_medical,Technical Architect,,true,other_computing,false
+role-050-3,dol_lca,2024,research_institute,Technical Architect,,true,other_computing,false
+role-050-4,dol_perm,2025,staffing_consulting,Technical Architect,,true,other_computing,false
+role-050-5,dol_lca,2026,other_industry,Technical Architect,,true,other_computing,false
+role-050-6,dol_perm,2022,technology,Technical Architect,,true,other_computing,false
+role-050-7,dol_lca,2023,university,Technical Architect,,true,other_computing,false
+role-050-8,dol_perm,2024,hospital_medical,Technical Architect,,true,other_computing,false
+role-050-9,dol_lca,2025,research_institute,Technical Architect,,true,other_computing,false
+role-050-10,dol_perm,2026,staffing_consulting,Technical Architect,,true,other_computing,false
+role-051-1,dol_lca,2022,hospital_medical,Physician,29-1215.00,false,not_relevant,false
+role-051-2,dol_perm,2023,research_institute,Physician,29-1215.00,false,not_relevant,false
+role-051-3,dol_lca,2024,staffing_consulting,Physician,29-1215.00,false,not_relevant,false
+role-051-4,dol_perm,2025,other_industry,Physician,29-1215.00,false,not_relevant,false
+role-051-5,dol_lca,2026,technology,Physician,29-1215.00,false,not_relevant,false
+role-051-6,dol_perm,2022,university,Physician,29-1215.00,false,not_relevant,false
+role-051-7,dol_lca,2023,hospital_medical,Physician,29-1215.00,false,not_relevant,false
+role-051-8,dol_perm,2024,research_institute,Physician,29-1215.00,false,not_relevant,false
+role-051-9,dol_lca,2025,staffing_consulting,Physician,29-1215.00,false,not_relevant,false
+role-051-10,dol_perm,2026,other_industry,Physician,29-1215.00,false,not_relevant,false
+role-052-1,dol_lca,2022,research_institute,Medical Resident,29-1229.00,false,not_relevant,false
+role-052-2,dol_perm,2023,staffing_consulting,Medical Resident,29-1229.00,false,not_relevant,false
+role-052-3,dol_lca,2024,other_industry,Medical Resident,29-1229.00,false,not_relevant,false
+role-052-4,dol_perm,2025,technology,Medical Resident,29-1229.00,false,not_relevant,false
+role-052-5,dol_lca,2026,university,Medical Resident,29-1229.00,false,not_relevant,false
+role-052-6,dol_perm,2022,hospital_medical,Medical Resident,29-1229.00,false,not_relevant,false
+role-052-7,dol_lca,2023,research_institute,Medical Resident,29-1229.00,false,not_relevant,false
+role-052-8,dol_perm,2024,staffing_consulting,Medical Resident,29-1229.00,false,not_relevant,false
+role-052-9,dol_lca,2025,other_industry,Medical Resident,29-1229.00,false,not_relevant,false
+role-052-10,dol_perm,2026,technology,Medical Resident,29-1229.00,false,not_relevant,false
+role-053-1,dol_lca,2022,staffing_consulting,Biological Scientist,19-1029.00,false,not_relevant,false
+role-053-2,dol_perm,2023,other_industry,Biological Scientist,19-1029.00,false,not_relevant,false
+role-053-3,dol_lca,2024,technology,Biological Scientist,19-1029.00,false,not_relevant,false
+role-053-4,dol_perm,2025,university,Biological Scientist,19-1029.00,false,not_relevant,false
+role-053-5,dol_lca,2026,hospital_medical,Biological Scientist,19-1029.00,false,not_relevant,false
+role-053-6,dol_perm,2022,research_institute,Biological Scientist,19-1029.00,false,not_relevant,false
+role-053-7,dol_lca,2023,staffing_consulting,Biological Scientist,19-1029.00,false,not_relevant,false
+role-053-8,dol_perm,2024,other_industry,Biological Scientist,19-1029.00,false,not_relevant,false
+role-053-9,dol_lca,2025,technology,Biological Scientist,19-1029.00,false,not_relevant,false
+role-053-10,dol_perm,2026,university,Biological Scientist,19-1029.00,false,not_relevant,false
+role-054-1,dol_lca,2022,other_industry,Chemical Engineer,17-2041.00,false,not_relevant,false
+role-054-2,dol_perm,2023,technology,Chemical Engineer,17-2041.00,false,not_relevant,false
+role-054-3,dol_lca,2024,university,Chemical Engineer,17-2041.00,false,not_relevant,false
+role-054-4,dol_perm,2025,hospital_medical,Chemical Engineer,17-2041.00,false,not_relevant,false
+role-054-5,dol_lca,2026,research_institute,Chemical Engineer,17-2041.00,false,not_relevant,false
+role-054-6,dol_perm,2022,staffing_consulting,Chemical Engineer,17-2041.00,false,not_relevant,false
+role-054-7,dol_lca,2023,other_industry,Chemical Engineer,17-2041.00,false,not_relevant,false
+role-054-8,dol_perm,2024,technology,Chemical Engineer,17-2041.00,false,not_relevant,false
+role-054-9,dol_lca,2025,university,Chemical Engineer,17-2041.00,false,not_relevant,false
+role-054-10,dol_perm,2026,hospital_medical,Chemical Engineer,17-2041.00,false,not_relevant,false
+role-055-1,dol_lca,2022,technology,Sales Engineer,41-9031.00,false,not_relevant,false
+role-055-2,dol_perm,2023,university,Sales Engineer,41-9031.00,false,not_relevant,false
+role-055-3,dol_lca,2024,hospital_medical,Sales Engineer,41-9031.00,false,not_relevant,false
+role-055-4,dol_perm,2025,research_institute,Sales Engineer,41-9031.00,false,not_relevant,false
+role-055-5,dol_lca,2026,staffing_consulting,Sales Engineer,41-9031.00,false,not_relevant,false
+role-055-6,dol_perm,2022,other_industry,Sales Engineer,41-9031.00,false,not_relevant,false
+role-055-7,dol_lca,2023,technology,Sales Engineer,41-9031.00,false,not_relevant,false
+role-055-8,dol_perm,2024,university,Sales Engineer,41-9031.00,false,not_relevant,false
+role-055-9,dol_lca,2025,hospital_medical,Sales Engineer,41-9031.00,false,not_relevant,false
+role-055-10,dol_perm,2026,research_institute,Sales Engineer,41-9031.00,false,not_relevant,false
+role-056-1,dol_lca,2022,university,Recruiter,13-1071.00,false,not_relevant,false
+role-056-2,dol_perm,2023,hospital_medical,Recruiter,13-1071.00,false,not_relevant,false
+role-056-3,dol_lca,2024,research_institute,Recruiter,13-1071.00,false,not_relevant,false
+role-056-4,dol_perm,2025,staffing_consulting,Recruiter,13-1071.00,false,not_relevant,false
+role-056-5,dol_lca,2026,other_industry,Recruiter,13-1071.00,false,not_relevant,false
+role-056-6,dol_perm,2022,technology,Recruiter,13-1071.00,false,not_relevant,false
+role-056-7,dol_lca,2023,university,Recruiter,13-1071.00,false,not_relevant,false
+role-056-8,dol_perm,2024,hospital_medical,Recruiter,13-1071.00,false,not_relevant,false
+role-056-9,dol_lca,2025,research_institute,Recruiter,13-1071.00,false,not_relevant,false
+role-056-10,dol_perm,2026,staffing_consulting,Recruiter,13-1071.00,false,not_relevant,false
+role-057-1,dol_lca,2022,hospital_medical,Help Desk Technician,15-1232.00,false,not_relevant,false
+role-057-2,dol_perm,2023,research_institute,Help Desk Technician,15-1232.00,false,not_relevant,false
+role-057-3,dol_lca,2024,staffing_consulting,Help Desk Technician,15-1232.00,false,not_relevant,false
+role-057-4,dol_perm,2025,other_industry,Help Desk Technician,15-1232.00,false,not_relevant,false
+role-057-5,dol_lca,2026,technology,Help Desk Technician,15-1232.00,false,not_relevant,false
+role-057-6,dol_perm,2022,university,Help Desk Technician,15-1232.00,false,not_relevant,false
+role-057-7,dol_lca,2023,hospital_medical,Help Desk Technician,15-1232.00,false,not_relevant,false
+role-057-8,dol_perm,2024,research_institute,Help Desk Technician,15-1232.00,false,not_relevant,false
+role-057-9,dol_lca,2025,staffing_consulting,Help Desk Technician,15-1232.00,false,not_relevant,false
+role-057-10,dol_perm,2026,other_industry,Help Desk Technician,15-1232.00,false,not_relevant,false
+role-058-1,dol_lca,2022,research_institute,Desktop Support Specialist,15-1232.00,false,not_relevant,false
+role-058-2,dol_perm,2023,staffing_consulting,Desktop Support Specialist,15-1232.00,false,not_relevant,false
+role-058-3,dol_lca,2024,other_industry,Desktop Support Specialist,15-1232.00,false,not_relevant,false
+role-058-4,dol_perm,2025,technology,Desktop Support Specialist,15-1232.00,false,not_relevant,false
+role-058-5,dol_lca,2026,university,Desktop Support Specialist,15-1232.00,false,not_relevant,false
+role-058-6,dol_perm,2022,hospital_medical,Desktop Support Specialist,15-1232.00,false,not_relevant,false
+role-058-7,dol_lca,2023,research_institute,Desktop Support Specialist,15-1232.00,false,not_relevant,false
+role-058-8,dol_perm,2024,staffing_consulting,Desktop Support Specialist,15-1232.00,false,not_relevant,false
+role-058-9,dol_lca,2025,other_industry,Desktop Support Specialist,15-1232.00,false,not_relevant,false
+role-058-10,dol_perm,2026,technology,Desktop Support Specialist,15-1232.00,false,not_relevant,false
+role-059-1,dol_lca,2022,staffing_consulting,Business Analyst,13-1111.00,false,not_relevant,false
+role-059-2,dol_perm,2023,other_industry,Business Analyst,13-1111.00,false,not_relevant,false
+role-059-3,dol_lca,2024,technology,Business Analyst,13-1111.00,false,not_relevant,false
+role-059-4,dol_perm,2025,university,Business Analyst,13-1111.00,false,not_relevant,false
+role-059-5,dol_lca,2026,hospital_medical,Business Analyst,13-1111.00,false,not_relevant,false
+role-059-6,dol_perm,2022,research_institute,Business Analyst,13-1111.00,false,not_relevant,false
+role-059-7,dol_lca,2023,staffing_consulting,Business Analyst,13-1111.00,false,not_relevant,false
+role-059-8,dol_perm,2024,other_industry,Business Analyst,13-1111.00,false,not_relevant,false
+role-059-9,dol_lca,2025,technology,Business Analyst,13-1111.00,false,not_relevant,false
+role-059-10,dol_perm,2026,university,Business Analyst,13-1111.00,false,not_relevant,false
+role-060-1,dol_lca,2022,other_industry,Project Manager,13-1082.00,false,not_relevant,false
+role-060-2,dol_perm,2023,technology,Project Manager,13-1082.00,false,not_relevant,false
+role-060-3,dol_lca,2024,university,Project Manager,13-1082.00,false,not_relevant,false
+role-060-4,dol_perm,2025,hospital_medical,Project Manager,13-1082.00,false,not_relevant,false
+role-060-5,dol_lca,2026,research_institute,Project Manager,13-1082.00,false,not_relevant,false
+role-060-6,dol_perm,2022,staffing_consulting,Project Manager,13-1082.00,false,not_relevant,false
+role-060-7,dol_lca,2023,other_industry,Project Manager,13-1082.00,false,not_relevant,false
+role-060-8,dol_perm,2024,technology,Project Manager,13-1082.00,false,not_relevant,false
+role-060-9,dol_lca,2025,university,Project Manager,13-1082.00,false,not_relevant,false
+role-060-10,dol_perm,2026,hospital_medical,Project Manager,13-1082.00,false,not_relevant,false
+role-061-1,dol_lca,2022,technology,Manager,11-1021.00,false,not_relevant,false
+role-061-2,dol_perm,2023,university,Manager,11-1021.00,false,not_relevant,false
+role-061-3,dol_lca,2024,hospital_medical,Manager,11-1021.00,false,not_relevant,false
+role-061-4,dol_perm,2025,research_institute,Manager,11-1021.00,false,not_relevant,false
+role-061-5,dol_lca,2026,staffing_consulting,Manager,11-1021.00,false,not_relevant,false
+role-061-6,dol_perm,2022,other_industry,Manager,11-1021.00,false,not_relevant,false
+role-061-7,dol_lca,2023,technology,Manager,11-1021.00,false,not_relevant,false
+role-061-8,dol_perm,2024,university,Manager,11-1021.00,false,not_relevant,false
+role-061-9,dol_lca,2025,hospital_medical,Manager,11-1021.00,false,not_relevant,false
+role-061-10,dol_perm,2026,research_institute,Manager,11-1021.00,false,not_relevant,false
+role-062-1,dol_lca,2022,university,Assistant Professor,25-1011.00,false,not_relevant,false
+role-062-2,dol_perm,2023,hospital_medical,Assistant Professor,25-1011.00,false,not_relevant,false
+role-062-3,dol_lca,2024,research_institute,Assistant Professor,25-1011.00,false,not_relevant,false
+role-062-4,dol_perm,2025,staffing_consulting,Assistant Professor,25-1011.00,false,not_relevant,false
+role-062-5,dol_lca,2026,other_industry,Assistant Professor,25-1011.00,false,not_relevant,false
+role-062-6,dol_perm,2022,technology,Assistant Professor,25-1011.00,false,not_relevant,false
+role-062-7,dol_lca,2023,university,Assistant Professor,25-1011.00,false,not_relevant,false
+role-062-8,dol_perm,2024,hospital_medical,Assistant Professor,25-1011.00,false,not_relevant,false
+role-062-9,dol_lca,2025,research_institute,Assistant Professor,25-1011.00,false,not_relevant,false
+role-062-10,dol_perm,2026,staffing_consulting,Assistant Professor,25-1011.00,false,not_relevant,false
+role-063-1,dol_lca,2022,hospital_medical,Software Engineering Intern,,false,not_relevant,false
+role-063-2,dol_perm,2023,research_institute,Software Engineering Intern,,false,not_relevant,false
+role-063-3,dol_lca,2024,staffing_consulting,Software Engineering Intern,,false,not_relevant,false
+role-063-4,dol_perm,2025,other_industry,Software Engineering Intern,,false,not_relevant,false
+role-063-5,dol_lca,2026,technology,Software Engineering Intern,,false,not_relevant,false
+role-063-6,dol_perm,2022,university,Software Engineering Intern,,false,not_relevant,false
+role-063-7,dol_lca,2023,hospital_medical,Software Engineering Intern,,false,not_relevant,false
+role-063-8,dol_perm,2024,research_institute,Software Engineering Intern,,false,not_relevant,false
+role-063-9,dol_lca,2025,staffing_consulting,Software Engineering Intern,,false,not_relevant,false
+role-063-10,dol_perm,2026,other_industry,Software Engineering Intern,,false,not_relevant,false
+role-064-1,dol_lca,2022,research_institute,Crew Member,35-3023.00,false,not_relevant,false
+role-064-2,dol_perm,2023,staffing_consulting,Crew Member,35-3023.00,false,not_relevant,false
+role-064-3,dol_lca,2024,other_industry,Crew Member,35-3023.00,false,not_relevant,false
+role-064-4,dol_perm,2025,technology,Crew Member,35-3023.00,false,not_relevant,false
+role-064-5,dol_lca,2026,university,Crew Member,35-3023.00,false,not_relevant,false
+role-064-6,dol_perm,2022,hospital_medical,Crew Member,35-3023.00,false,not_relevant,false
+role-064-7,dol_lca,2023,research_institute,Crew Member,35-3023.00,false,not_relevant,false
+role-064-8,dol_perm,2024,staffing_consulting,Crew Member,35-3023.00,false,not_relevant,false
+role-064-9,dol_lca,2025,other_industry,Crew Member,35-3023.00,false,not_relevant,false
+role-064-10,dol_perm,2026,technology,Crew Member,35-3023.00,false,not_relevant,false
+role-065-1,dol_lca,2022,staffing_consulting,Truck Driver,53-3032.00,false,not_relevant,false
+role-065-2,dol_perm,2023,other_industry,Truck Driver,53-3032.00,false,not_relevant,false
+role-065-3,dol_lca,2024,technology,Truck Driver,53-3032.00,false,not_relevant,false
+role-065-4,dol_perm,2025,university,Truck Driver,53-3032.00,false,not_relevant,false
+role-065-5,dol_lca,2026,hospital_medical,Truck Driver,53-3032.00,false,not_relevant,false
+role-065-6,dol_perm,2022,research_institute,Truck Driver,53-3032.00,false,not_relevant,false
+role-065-7,dol_lca,2023,staffing_consulting,Truck Driver,53-3032.00,false,not_relevant,false
+role-065-8,dol_perm,2024,other_industry,Truck Driver,53-3032.00,false,not_relevant,false
+role-065-9,dol_lca,2025,technology,Truck Driver,53-3032.00,false,not_relevant,false
+role-065-10,dol_perm,2026,university,Truck Driver,53-3032.00,false,not_relevant,false
+role-066-1,dol_lca,2022,other_industry,Research Scientist,,,ambiguous,true
+role-066-2,dol_perm,2023,technology,Research Scientist,,,ambiguous,true
+role-066-3,dol_lca,2024,university,Research Scientist,,,ambiguous,true
+role-066-4,dol_perm,2025,hospital_medical,Research Scientist,,,ambiguous,true
+role-066-5,dol_lca,2026,research_institute,Research Scientist,,,ambiguous,true
+role-066-6,dol_perm,2022,staffing_consulting,Research Scientist,,,ambiguous,true
+role-066-7,dol_lca,2023,other_industry,Research Scientist,,,ambiguous,true
+role-066-8,dol_perm,2024,technology,Research Scientist,,,ambiguous,true
+role-066-9,dol_lca,2025,university,Research Scientist,,,ambiguous,true
+role-066-10,dol_perm,2026,hospital_medical,Research Scientist,,,ambiguous,true
+role-067-1,dol_lca,2022,technology,Engineer,,,ambiguous,true
+role-067-2,dol_perm,2023,university,Engineer,,,ambiguous,true
+role-067-3,dol_lca,2024,hospital_medical,Engineer,,,ambiguous,true
+role-067-4,dol_perm,2025,research_institute,Engineer,,,ambiguous,true
+role-067-5,dol_lca,2026,staffing_consulting,Engineer,,,ambiguous,true
+role-067-6,dol_perm,2022,other_industry,Engineer,,,ambiguous,true
+role-067-7,dol_lca,2023,technology,Engineer,,,ambiguous,true
+role-067-8,dol_perm,2024,university,Engineer,,,ambiguous,true
+role-067-9,dol_lca,2025,hospital_medical,Engineer,,,ambiguous,true
+role-067-10,dol_perm,2026,research_institute,Engineer,,,ambiguous,true
+role-068-1,dol_lca,2022,university,Systems Engineer,,,ambiguous,true
+role-068-2,dol_perm,2023,hospital_medical,Systems Engineer,,,ambiguous,true
+role-068-3,dol_lca,2024,research_institute,Systems Engineer,,,ambiguous,true
+role-068-4,dol_perm,2025,staffing_consulting,Systems Engineer,,,ambiguous,true
+role-068-5,dol_lca,2026,other_industry,Systems Engineer,,,ambiguous,true
+role-068-6,dol_perm,2022,technology,Systems Engineer,,,ambiguous,true
+role-068-7,dol_lca,2023,university,Systems Engineer,,,ambiguous,true
+role-068-8,dol_perm,2024,hospital_medical,Systems Engineer,,,ambiguous,true
+role-068-9,dol_lca,2025,research_institute,Systems Engineer,,,ambiguous,true
+role-068-10,dol_perm,2026,staffing_consulting,Systems Engineer,,,ambiguous,true
+role-069-1,dol_lca,2022,hospital_medical,Architect,,,ambiguous,true
+role-069-2,dol_perm,2023,research_institute,Architect,,,ambiguous,true
+role-069-3,dol_lca,2024,staffing_consulting,Architect,,,ambiguous,true
+role-069-4,dol_perm,2025,other_industry,Architect,,,ambiguous,true
+role-069-5,dol_lca,2026,technology,Architect,,,ambiguous,true
+role-069-6,dol_perm,2022,university,Architect,,,ambiguous,true
+role-069-7,dol_lca,2023,hospital_medical,Architect,,,ambiguous,true
+role-069-8,dol_perm,2024,research_institute,Architect,,,ambiguous,true
+role-069-9,dol_lca,2025,staffing_consulting,Architect,,,ambiguous,true
+role-069-10,dol_perm,2026,other_industry,Architect,,,ambiguous,true
+role-070-1,dol_lca,2022,research_institute,Applied Scientist,,,ambiguous,true
+role-070-2,dol_perm,2023,staffing_consulting,Applied Scientist,,,ambiguous,true
+role-070-3,dol_lca,2024,other_industry,Applied Scientist,,,ambiguous,true
+role-070-4,dol_perm,2025,technology,Applied Scientist,,,ambiguous,true
+role-070-5,dol_lca,2026,university,Applied Scientist,,,ambiguous,true
+role-070-6,dol_perm,2022,hospital_medical,Applied Scientist,,,ambiguous,true
+role-070-7,dol_lca,2023,research_institute,Applied Scientist,,,ambiguous,true
+role-070-8,dol_perm,2024,staffing_consulting,Applied Scientist,,,ambiguous,true
+role-070-9,dol_lca,2025,other_industry,Applied Scientist,,,ambiguous,true
+role-070-10,dol_perm,2026,technology,Applied Scientist,,,ambiguous,true
+role-071-1,dol_lca,2022,staffing_consulting,Research Engineer,,,ambiguous,true
+role-071-2,dol_perm,2023,other_industry,Research Engineer,,,ambiguous,true
+role-071-3,dol_lca,2024,technology,Research Engineer,,,ambiguous,true
+role-071-4,dol_perm,2025,university,Research Engineer,,,ambiguous,true
+role-071-5,dol_lca,2026,hospital_medical,Research Engineer,,,ambiguous,true
+role-071-6,dol_perm,2022,research_institute,Research Engineer,,,ambiguous,true
+role-071-7,dol_lca,2023,staffing_consulting,Research Engineer,,,ambiguous,true
+role-071-8,dol_perm,2024,other_industry,Research Engineer,,,ambiguous,true
+role-071-9,dol_lca,2025,technology,Research Engineer,,,ambiguous,true
+role-071-10,dol_perm,2026,university,Research Engineer,,,ambiguous,true
+role-072-1,dol_lca,2022,other_industry,Postdoctoral Fellow,,,ambiguous,true
+role-072-2,dol_perm,2023,technology,Postdoctoral Fellow,,,ambiguous,true
+role-072-3,dol_lca,2024,university,Postdoctoral Fellow,,,ambiguous,true
+role-072-4,dol_perm,2025,hospital_medical,Postdoctoral Fellow,,,ambiguous,true
+role-072-5,dol_lca,2026,research_institute,Postdoctoral Fellow,,,ambiguous,true
+role-072-6,dol_perm,2022,staffing_consulting,Postdoctoral Fellow,,,ambiguous,true
+role-072-7,dol_lca,2023,other_industry,Postdoctoral Fellow,,,ambiguous,true
+role-072-8,dol_perm,2024,technology,Postdoctoral Fellow,,,ambiguous,true
+role-072-9,dol_lca,2025,university,Postdoctoral Fellow,,,ambiguous,true
+role-072-10,dol_perm,2026,hospital_medical,Postdoctoral Fellow,,,ambiguous,true
+role-073-1,dol_lca,2022,technology,Research Associate,,,ambiguous,true
+role-073-2,dol_perm,2023,university,Research Associate,,,ambiguous,true
+role-073-3,dol_lca,2024,hospital_medical,Research Associate,,,ambiguous,true
+role-073-4,dol_perm,2025,research_institute,Research Associate,,,ambiguous,true
+role-073-5,dol_lca,2026,staffing_consulting,Research Associate,,,ambiguous,true
+role-073-6,dol_perm,2022,other_industry,Research Associate,,,ambiguous,true
+role-073-7,dol_lca,2023,technology,Research Associate,,,ambiguous,true
+role-073-8,dol_perm,2024,university,Research Associate,,,ambiguous,true
+role-073-9,dol_lca,2025,hospital_medical,Research Associate,,,ambiguous,true
+role-073-10,dol_perm,2026,research_institute,Research Associate,,,ambiguous,true
+role-074-1,dol_lca,2022,university,Technical Lead,,,ambiguous,true
+role-074-2,dol_perm,2023,hospital_medical,Technical Lead,,,ambiguous,true
+role-074-3,dol_lca,2024,research_institute,Technical Lead,,,ambiguous,true
+role-074-4,dol_perm,2025,staffing_consulting,Technical Lead,,,ambiguous,true
+role-074-5,dol_lca,2026,other_industry,Technical Lead,,,ambiguous,true
+role-074-6,dol_perm,2022,technology,Technical Lead,,,ambiguous,true
+role-074-7,dol_lca,2023,university,Technical Lead,,,ambiguous,true
+role-074-8,dol_perm,2024,hospital_medical,Technical Lead,,,ambiguous,true
+role-074-9,dol_lca,2025,research_institute,Technical Lead,,,ambiguous,true
+role-074-10,dol_perm,2026,staffing_consulting,Technical Lead,,,ambiguous,true
+role-075-1,dol_lca,2022,hospital_medical,Scientist,,,ambiguous,true
+role-075-2,dol_perm,2023,research_institute,Scientist,,,ambiguous,true
+role-075-3,dol_lca,2024,staffing_consulting,Scientist,,,ambiguous,true
+role-075-4,dol_perm,2025,other_industry,Scientist,,,ambiguous,true
+role-075-5,dol_lca,2026,technology,Scientist,,,ambiguous,true
+role-075-6,dol_perm,2022,university,Scientist,,,ambiguous,true
+role-075-7,dol_lca,2023,hospital_medical,Scientist,,,ambiguous,true
+role-075-8,dol_perm,2024,research_institute,Scientist,,,ambiguous,true
+role-075-9,dol_lca,2025,staffing_consulting,Scientist,,,ambiguous,true
+role-075-10,dol_perm,2026,other_industry,Scientist,,,ambiguous,true

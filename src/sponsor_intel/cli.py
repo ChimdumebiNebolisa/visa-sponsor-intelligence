@@ -17,6 +17,9 @@ from sponsor_intel.entity_resolution.models import EntityResolutionConfig
 from sponsor_intel.entity_resolution.pipeline import EntityResolutionPipeline
 from sponsor_intel.entity_resolution.validation import validate_gold_dataset
 from sponsor_intel.logging import configure_logging
+from sponsor_intel.role_classification.models import RoleTaxonomyConfig
+from sponsor_intel.role_classification.pipeline import RoleClassificationPipeline
+from sponsor_intel.role_classification.validation import validate_role_gold
 from sponsor_intel.sources.pipeline import IngestionPipeline
 from sponsor_intel.sources.registry import DEFAULT_SOURCE_REGISTRY_PATH, SourceRegistry
 
@@ -28,8 +31,10 @@ app = typer.Typer(
 )
 sources_app = typer.Typer(help="Inspect and discover authoritative source artifacts.")
 entities_app = typer.Typer(help="Build and validate legal-entity resolution tables.")
+roles_app = typer.Typer(help="Build and validate deterministic role classifications.")
 app.add_typer(sources_app, name="sources")
 app.add_typer(entities_app, name="entities")
+app.add_typer(roles_app, name="roles")
 
 
 @app.command()
@@ -182,6 +187,53 @@ def entities_validate_gold(
 
     config = EntityResolutionConfig.from_yaml(resolution_config)
     result = validate_gold_dataset(gold_path, config, report_path=report_path)
+    typer.echo(json.dumps(result.model_dump(mode="json"), indent=2, sort_keys=True))
+    if not result.passed:
+        raise typer.Exit(1)
+
+
+@roles_app.command("build")
+def roles_build(
+    config_file: Annotated[
+        Path | None,
+        typer.Option("--config", help="Optional application configuration path."),
+    ] = None,
+    taxonomy_path: Annotated[
+        Path,
+        typer.Option("--taxonomy", help="Versioned role-taxonomy YAML path."),
+    ] = Path("configs/role_taxonomy.yaml"),
+) -> None:
+    """Classify every resolved DOL record and build the review queue."""
+
+    settings = load_settings(config_file)
+    configure_logging(settings.log_level)
+    pipeline = RoleClassificationPipeline(
+        data_root=settings.data_dir,
+        taxonomy_path=taxonomy_path,
+    )
+    summary = pipeline.build()
+    typer.echo(json.dumps(summary.model_dump(mode="json"), indent=2, sort_keys=True))
+
+
+@roles_app.command("validate-gold")
+def roles_validate_gold(
+    gold_path: Annotated[
+        Path,
+        typer.Option("--gold", help="Manually labeled role-classification CSV."),
+    ] = Path("tests/fixtures/role_classification_gold.csv"),
+    taxonomy_path: Annotated[
+        Path,
+        typer.Option("--taxonomy", help="Versioned role-taxonomy YAML path."),
+    ] = Path("configs/role_taxonomy.yaml"),
+    report_path: Annotated[
+        Path,
+        typer.Option("--report", help="Machine-readable validation report path."),
+    ] = Path("outputs/reports/roles/gold_validation.json"),
+) -> None:
+    """Measure role precision, recall, family accuracy, and review routing."""
+
+    config = RoleTaxonomyConfig.from_yaml(taxonomy_path)
+    result = validate_role_gold(gold_path, config, report_path=report_path)
     typer.echo(json.dumps(result.model_dump(mode="json"), indent=2, sort_keys=True))
     if not result.passed:
         raise typer.Exit(1)

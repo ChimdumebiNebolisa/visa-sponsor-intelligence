@@ -64,3 +64,9 @@ Institution joins expose `institution_join_method`, `institution_match_confidenc
 ### Resolved source mirrors
 
 Files under `data/resolved/sources/` preserve every staging column and add `legal_entity_id`, `parent_organization_id`, `entity_match_status`, `entity_match_method`, and `entity_match_score`. Staging Parquet is never modified. A blank source name may retain a null legal ID with `UNRESOLVED`; named records must have a legal identity.
+
+## Phase 4 role classifications
+
+`data/processed/role_classifications.parquet` contains one deterministic classification for each unique `(source_id, job_title_raw, soc_code_raw)` combination and its `occurrence_count`. `classification_id` and `classification_version` make the decision addressable and reproducible.
+
+Classified DOL mirrors under `data/classified/sources/` preserve every resolved-source field and add nullable Boolean `technical_role`, `role_family`, `role_confidence`, `classification_method`, `classification_rule`, `classification_version`, and `review_status`. A null `technical_role` always uses family `ambiguous` and status `NEEDS_REVIEW`; it is not silently treated as false.

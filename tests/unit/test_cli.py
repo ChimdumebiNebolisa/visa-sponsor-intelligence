@@ -51,6 +51,19 @@ def test_entity_gold_validation_command_writes_report(tmp_path: Path) -> None:
     assert report_path.is_file()
 
 
+def test_role_gold_validation_command_writes_report(tmp_path: Path) -> None:
+    report_path = tmp_path / "role-gold-validation.json"
+
+    result = runner.invoke(
+        app,
+        ["roles", "validate-gold", "--report", str(report_path)],
+    )
+
+    assert result.exit_code == 0
+    assert '"precision": 1.0' in result.stdout
+    assert report_path.is_file()
+
+
 def test_app_command_launches_streamlit_through_python_module(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
