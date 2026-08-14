@@ -9,11 +9,14 @@ from uuid import uuid4
 import httpx
 
 from sponsor_intel.logging import get_logger
-from sponsor_intel.sources.dol_base import DolDisclosureAdapter
+from sponsor_intel.sources.base import SourceAdapter
 from sponsor_intel.sources.dol_lca import DolLcaAdapter
 from sponsor_intel.sources.dol_perm import DolPermAdapter
 from sponsor_intel.sources.errors import DataQualityError
+from sponsor_intel.sources.herd import HerdAdapter
 from sponsor_intel.sources.http_client import OfficialHttpClient
+from sponsor_intel.sources.institution_tables import build_institution_tables
+from sponsor_intel.sources.ipeds import IpedsAdapter
 from sponsor_intel.sources.manifests import (
     ArtifactManifestStore,
     RawArtifactManifestStore,
@@ -30,6 +33,7 @@ from sponsor_intel.sources.models import (
     ValidationStatus,
 )
 from sponsor_intel.sources.registry import SourceRegistry
+from sponsor_intel.sources.uscis_h1b import UscisH1bAdapter
 
 logger = get_logger("sources.pipeline")
 
@@ -45,17 +49,19 @@ def _adapter(
     client: OfficialHttpClient,
     data_root: Path,
     output_root: Path,
-) -> DolDisclosureAdapter:
+) -> SourceAdapter:
     config = registry.get(source_id)
-    adapter_types: dict[str, type[DolDisclosureAdapter]] = {
-        "dol_lca": DolLcaAdapter,
-        "dol_perm": DolPermAdapter,
-    }
-    try:
-        adapter_type = adapter_types[config.adapter]
-    except KeyError as error:
-        raise ValueError(f"Unsupported source adapter: {config.adapter}") from error
-    return adapter_type(config, client, data_root, output_root)
+    if config.adapter == "dol_lca":
+        return DolLcaAdapter(config, client, data_root, output_root)
+    if config.adapter == "dol_perm":
+        return DolPermAdapter(config, client, data_root, output_root)
+    if config.adapter == "uscis_h1b":
+        return UscisH1bAdapter(config, client, data_root, output_root)
+    if config.adapter == "ipeds":
+        return IpedsAdapter(config, client, data_root, output_root)
+    if config.adapter == "herd":
+        return HerdAdapter(config, client, data_root, output_root)
+    raise ValueError(f"Unsupported source adapter: {config.adapter}")
 
 
 def _cached_download(
@@ -260,6 +266,13 @@ class IngestionPipeline:
                         "record_count": record.row_count,
                     },
                 )
+
+        if source_id in {"ipeds", "herd"}:
+            build_institution_tables(
+                self.manifest_store,
+                data_root=self.data_root,
+                output_root=self.output_root,
+            )
 
         return IngestionSummary(
             build_id=build_id,

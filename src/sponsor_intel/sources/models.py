@@ -45,6 +45,10 @@ class SourceConfig(BaseModel):
     partial_year_supported: bool
     parser_version: str
     schema_version: str
+    artifact_url: str | None = None
+    record_layout_url: str | None = None
+    published_through_fiscal_year: int | None = Field(default=None, ge=2022)
+    published_through_quarter: int | None = Field(default=None, ge=1, le=4)
     minimum_row_count: int = Field(ge=1)
     max_download_bytes: int = Field(gt=0)
     max_uncompressed_bytes: int = Field(gt=0)
@@ -62,6 +66,23 @@ class SourceConfig(BaseModel):
             raise ValueError("At least one official domain is required")
         if not self.required_columns:
             raise ValueError("At least one required logical column is required")
+        for label, value in (
+            ("artifact_url", self.artifact_url),
+            ("record_layout_url", self.record_layout_url),
+        ):
+            if value is None:
+                continue
+            direct = urlparse(value)
+            if direct.scheme != "https" or not direct.hostname:
+                raise ValueError(f"{label} must use HTTPS")
+            hostname = direct.hostname.casefold().rstrip(".")
+            allowed = any(
+                hostname == domain.casefold().removeprefix("*.").rstrip(".")
+                or hostname.endswith(f".{domain.casefold().removeprefix('*.').rstrip('.')}")
+                for domain in self.official_domains
+            )
+            if not allowed:
+                raise ValueError(f"{label} must use a configured official domain")
         return self
 
 
@@ -110,6 +131,7 @@ class DiscoveryReport(BaseModel):
     landing_page_url: str
     candidates: tuple[SourceArtifactCandidate, ...]
     selected_candidate_ids: tuple[str, ...]
+    warnings: tuple[str, ...] = ()
 
     @property
     def selected(self) -> tuple[SourceArtifactCandidate, ...]:

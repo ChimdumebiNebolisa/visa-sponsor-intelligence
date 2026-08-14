@@ -2,7 +2,7 @@
 
 A private, evidence-first Streamlit application for exploring historical U.S. employer immigration activity and, in later phases, research-institution data and official policy evidence.
 
-This repository contains the Phase 0 foundation and Phase 1 DOL LCA/PERM ingestion. It discovers official disclosure files, preserves immutable raw artifacts, validates source layouts, and writes provenance-rich Parquet staging data. Entity resolution, role classification, scoring, and OpenAI API calls are not part of Phase 1.
+This repository contains the Phase 0 foundation, Phase 1 DOL LCA/PERM ingestion, and Phase 2 USCIS/IPEDS/HERD ingestion. It discovers official files, preserves immutable raw artifacts, validates source layouts, and writes provenance-rich Parquet data. Entity resolution, role classification, scoring, and OpenAI API calls remain later-phase work.
 
 ## Requirements
 
@@ -27,6 +27,9 @@ uv run sponsor-intel sources list
 uv run sponsor-intel sources discover --source dol_lca --from-fy 2022
 uv run sponsor-intel ingest --source dol_lca --from-fy 2022
 uv run sponsor-intel ingest --source dol_perm --from-fy 2022
+uv run sponsor-intel ingest --source ipeds --from-fy 2022
+uv run sponsor-intel ingest --source herd --from-fy 2022
+uv run sponsor-intel ingest --source uscis_h1b --from-fy 2022
 uv run sponsor-intel app
 ```
 
@@ -54,7 +57,7 @@ Where GNU Make is installed, the equivalent aliases are `make setup`, `make lint
 - `tests/` contains unit and integration tests; fixtures must be small and sanitized.
 - `docs/` contains durable architecture and operations documentation.
 
-Generated raw workbooks, Parquet files, reports, and manifests are ignored by Git. A verified full Phase 1 build on August 14, 2026 selected 11 official artifacts and produced 1,239,005 normalized rows; current partial-year snapshots remain labeled separately from complete fiscal years.
+Generated raw artifacts, Parquet files, reports, and manifests are ignored by Git. A verified full Phase 1 build on August 14, 2026 selected 11 official artifacts and produced 1,239,005 normalized rows. The Phase 2 build added 290,945 USCIS employer-year observations, 5,985 current IPEDS institutions, and 2,736 HERD institution-year/form observations. Current partial-year snapshots remain labeled separately from complete fiscal years.
 
 See `SPEC.md` for the approved product and engineering requirements. The original supplied filename is retained as `sponsorship-intelligence-explorer-spec.md` for traceability.
 
