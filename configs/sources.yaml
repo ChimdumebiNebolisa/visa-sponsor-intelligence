@@ -136,3 +136,152 @@ sources:
       "new_form:fy2024": 114cd625ccc59a6a93d8b04b8029dea32e62b95bd3eaf0d1ec9d1a23b3791cd3
       "standard:fy2025": 9da725a05b76e9ca5c81ab0e1f84bcf16f40d61330e5c7d7bbb3f2528f0236eb
       "standard:fy2026": 9da725a05b76e9ca5c81ab0e1f84bcf16f40d61330e5c7d7bbb3f2528f0236eb
+
+  - id: uscis_h1b
+    adapter: uscis_h1b
+    authority: U.S. Citizenship and Immigration Services
+    landing_page: https://www.uscis.gov/tools/reports-and-studies/h-1b-employer-data-hub
+    artifact_url: "https://bigdataanalyticspub-sb.uscis.dhs.gov/views/H1BEmployerDataHub-Final/H1BPublic.csv?:showVizHome=no"
+    record_layout_url: https://www.uscis.gov/tools/reports-and-studies/understanding-our-h-1b-employer-data-hub
+    published_through_fiscal_year: 2026
+    published_through_quarter: 3
+    minimum_fiscal_year: 2022
+    refresh_cadence: quarterly
+    expected_formats:
+      - csv
+    official_domains:
+      - uscis.gov
+      - uscis.dhs.gov
+    partial_year_supported: true
+    parser_version: "1.0.2"
+    schema_version: uscis_h1b_v1
+    minimum_row_count: 1000
+    max_download_bytes: 134217728
+    max_uncompressed_bytes: 134217728
+    required_columns:
+      employer_name_raw:
+        - Employer (Petitioner) Name
+      fiscal_year:
+        - Fiscal Year
+      naics:
+        - Industry (NAICS) Code
+      measure_name:
+        - Measure Names
+      measure_value:
+        - Measure Values
+      source_row_number:
+        - Line by line
+    optional_columns:
+      tax_id_last_four:
+        - Tax ID
+      city:
+        - Petitioner City
+      state:
+        - Petitioner State
+      zip_code:
+        - Petitioner Zip Code
+    expected_schema_fingerprints:
+      "tableau_fiscal_year:fy2022": 8c0967880905c3ea4ff9436ff1273f9a39c8b61ed2bf8bc9e6b873fbde96a301
+      "tableau_fiscal_year:fy2023": 8c0967880905c3ea4ff9436ff1273f9a39c8b61ed2bf8bc9e6b873fbde96a301
+      "tableau_fiscal_year:fy2024": 8c0967880905c3ea4ff9436ff1273f9a39c8b61ed2bf8bc9e6b873fbde96a301
+      "tableau_fiscal_year:fy2025": 8c0967880905c3ea4ff9436ff1273f9a39c8b61ed2bf8bc9e6b873fbde96a301
+      "tableau_fiscal_year:fy2026": 8c0967880905c3ea4ff9436ff1273f9a39c8b61ed2bf8bc9e6b873fbde96a301
+
+  - id: ipeds
+    adapter: ipeds
+    authority: National Center for Education Statistics
+    landing_page: https://nces.ed.gov/ipeds/datacenter/DataFiles.aspx
+    minimum_fiscal_year: 2022
+    refresh_cadence: annual
+    expected_formats:
+      - zip
+    official_domains:
+      - ed.gov
+    partial_year_supported: false
+    parser_version: "1.0.1"
+    schema_version: ipeds_directory_v1
+    minimum_row_count: 5000
+    max_download_bytes: 33554432
+    max_uncompressed_bytes: 268435456
+    required_columns:
+      ipeds_unitid:
+        - UNITID
+      official_name:
+        - INSTNM
+      city:
+        - CITY
+      state:
+        - STABBR
+      official_url:
+        - WEBADDR
+      sector:
+        - SECTOR
+      control:
+        - CONTROL
+      highest_degree:
+        - HLOFFER
+      active_status:
+        - CYACTIVE
+    optional_columns:
+      system_name:
+        - F1SYSNAM
+      zip_code:
+        - ZIP
+      active_status_code:
+        - ACT
+    expected_schema_fingerprints:
+      "directory:fy2025": 1862b484570a72acb9759351129fbf9184dee20ba8283966cfc5e54aa8acec19
+
+  - id: herd
+    adapter: herd
+    authority: National Center for Science and Engineering Statistics
+    landing_page: https://ncses.nsf.gov/explore-data/microdata/higher-education-research-development
+    minimum_fiscal_year: 2022
+    refresh_cadence: annual
+    expected_formats:
+      - zip
+    official_domains:
+      - nsf.gov
+    partial_year_supported: false
+    parser_version: "1.0.1"
+    schema_version: herd_observation_v1
+    minimum_row_count: 50
+    max_download_bytes: 33554432
+    max_uncompressed_bytes: 536870912
+    required_columns:
+      herd_institution_id:
+        - inst_id
+      survey_year:
+        - year
+      ncses_institution_id:
+        - ncses_inst_id
+      ipeds_unitid:
+        - ipeds_unitid
+      institution_name_raw:
+        - inst_name_long
+      questionnaire_number:
+        - questionnaire_no
+      question:
+        - question
+      row:
+        - row
+      metric_value:
+        - data
+    optional_columns:
+      city:
+        - inst_city
+      state:
+        - inst_state_code
+      zip_code:
+        - inst_zip
+      column:
+        - column
+      status:
+        - status
+    expected_schema_fingerprints:
+      "standard:fy2022": 1cbcbf027b3ed0c621591866b650b3a8b34134347c3d5c404269ed31e21191a2
+      "short:fy2022": 6e481ca35efc41cf3d744241232b328dd69e747761cf3dddb850ceeb9c33daa6
+      "standard:fy2023": 1cbcbf027b3ed0c621591866b650b3a8b34134347c3d5c404269ed31e21191a2
+      "short:fy2023": 6e481ca35efc41cf3d744241232b328dd69e747761cf3dddb850ceeb9c33daa6
+      "standard:fy2024": 1cbcbf027b3ed0c621591866b650b3a8b34134347c3d5c404269ed31e21191a2
+      "short:fy2024": 6e481ca35efc41cf3d744241232b328dd69e747761cf3dddb850ceeb9c33daa6

@@ -6,6 +6,7 @@ from typing import Protocol
 
 from sponsor_intel.sources.models import (
     ArtifactFingerprint,
+    DiscoveryReport,
     DownloadedArtifact,
     NormalizedDataset,
     PersistedDataset,
@@ -17,6 +18,9 @@ from sponsor_intel.sources.models import (
 
 class SourceAdapter(Protocol):
     """Contract every official source adapter must implement."""
+
+    @property
+    def last_discovery_report(self) -> DiscoveryReport | None: ...
 
     def discover(self, context: SourceContext) -> list[SourceArtifactCandidate]: ...
 

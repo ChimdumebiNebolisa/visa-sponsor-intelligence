@@ -10,6 +10,7 @@ __pycache__/
 htmlcov/
 .pyright/
 .streamlit/
+.playwright-cli/
 
 # Generated data and application outputs
 data/raw/

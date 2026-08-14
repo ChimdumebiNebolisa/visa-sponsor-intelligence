@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import tempfile
 import zipfile
 from datetime import UTC, datetime
@@ -26,13 +27,23 @@ def _safe_directory(root: Path, source_id: str, fiscal_year: int) -> Path:
     return target
 
 
-def _validate_xlsx_archive(path: Path, *, max_uncompressed_bytes: int) -> None:
+_FORMAT_SUFFIXES = {"csv": ".csv", "xlsx": ".xlsx", "zip": ".zip"}
+
+
+def _validate_zip_archive(
+    path: Path,
+    *,
+    max_uncompressed_bytes: int,
+    require_xlsx_members: bool = False,
+) -> None:
     try:
         with zipfile.ZipFile(path) as archive:
             infos = archive.infolist()
+            if not infos or len(infos) > 10_000:
+                raise DownloadError(f"ZIP member count is invalid: {path.name}")
             names = {info.filename for info in infos}
             required = {"[Content_Types].xml", "xl/workbook.xml"}
-            if not required.issubset(names):
+            if require_xlsx_members and not required.issubset(names):
                 raise DownloadError(f"File is not a valid XLSX workbook: {path.name}")
             total_uncompressed = 0
             for info in infos:
@@ -42,16 +53,34 @@ def _validate_xlsx_archive(path: Path, *, max_uncompressed_bytes: int) -> None:
                 total_uncompressed += info.file_size
                 if total_uncompressed > max_uncompressed_bytes:
                     raise DownloadError(
-                        f"XLSX expands beyond {max_uncompressed_bytes} bytes: {path.name}"
+                        f"ZIP expands beyond {max_uncompressed_bytes} bytes: {path.name}"
                     )
                 if info.file_size > 10_000_000 and info.compress_size > 0:
                     ratio = info.file_size / info.compress_size
                     if ratio > 1000:
                         raise DownloadError(
-                            f"Suspicious XLSX compression ratio {ratio:.0f}:1: {path.name}"
+                            f"Suspicious ZIP compression ratio {ratio:.0f}:1: {path.name}"
                         )
     except zipfile.BadZipFile as error:
-        raise DownloadError(f"Downloaded file is not a valid ZIP/XLSX: {path.name}") from error
+        raise DownloadError(f"Downloaded file is not a valid ZIP archive: {path.name}") from error
+
+
+def _validate_csv(path: Path) -> None:
+    with path.open("rb") as source:
+        prefix = source.read(4096)
+    if not prefix or b"\x00" in prefix:
+        raise DownloadError(f"Downloaded file is not a valid text CSV: {path.name}")
+    lowered = prefix.lstrip().lower()
+    if lowered.startswith((b"<!doctype html", b"<html")):
+        raise DownloadError(f"Downloaded CSV contains an HTML response: {path.name}")
+
+
+def _safe_file_stem(file_name: str) -> str:
+    stem = Path(file_name).stem
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", stem).strip("._")
+    if not safe:
+        raise DownloadError(f"Artifact filename has no safe stem: {file_name}")
+    return safe[:180]
 
 
 class ArtifactDownloader:
@@ -77,6 +106,20 @@ class ArtifactDownloader:
         return retrying(self._download_once, candidate)
 
     def _download_once(self, candidate: SourceArtifactCandidate) -> DownloadedArtifact:
+        if candidate.source_id != self.config.id:
+            raise DownloadError(
+                f"Candidate source {candidate.source_id} does not match {self.config.id}"
+            )
+        if candidate.expected_format not in self.config.expected_formats:
+            raise DownloadError(
+                f"Unexpected artifact format {candidate.expected_format}: {candidate.file_name}"
+            )
+        try:
+            suffix = _FORMAT_SUFFIXES[candidate.expected_format]
+        except KeyError as error:
+            raise DownloadError(
+                f"Unsupported artifact format {candidate.expected_format}: {candidate.file_name}"
+            ) from error
         target_directory = _safe_directory(
             self.raw_root, candidate.source_id, candidate.fiscal_year
         )
@@ -124,14 +167,22 @@ class ArtifactDownloader:
             if byte_size == 0:
                 raise DownloadError(f"Downloaded artifact is empty: {candidate.download_url}")
             if candidate.expected_format == "xlsx":
-                _validate_xlsx_archive(
+                _validate_zip_archive(
+                    temporary_path,
+                    max_uncompressed_bytes=self.config.max_uncompressed_bytes,
+                    require_xlsx_members=True,
+                )
+            elif candidate.expected_format == "zip":
+                _validate_zip_archive(
                     temporary_path,
                     max_uncompressed_bytes=self.config.max_uncompressed_bytes,
                 )
+            elif candidate.expected_format == "csv":
+                _validate_csv(temporary_path)
 
             checksum = hasher.hexdigest()
-            safe_stem = Path(candidate.file_name).stem
-            final_path = target_directory / f"{safe_stem}-{checksum[:16]}.xlsx"
+            safe_stem = _safe_file_stem(candidate.file_name)
+            final_path = target_directory / f"{safe_stem}-{checksum[:16]}{suffix}"
             cache_hit = final_path.exists()
             if cache_hit:
                 if final_path.stat().st_size != byte_size:
