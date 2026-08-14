@@ -1,0 +1,4 @@
+data_dir: data
+db_path: db/immigration.duckdb
+log_level: INFO
+policy_candidate_limit: 200

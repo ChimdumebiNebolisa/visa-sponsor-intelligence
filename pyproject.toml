@@ -1,0 +1,55 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sponsorship-intelligence-explorer"
+version = "0.1.0"
+description = "Private, evidence-first U.S. employer sponsorship intelligence explorer"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "Proprietary" }
+authors = [{ name = "Mitch" }]
+dependencies = [
+  "pydantic>=2.10,<3",
+  "pyyaml>=6.0,<7",
+  "streamlit>=1.50,<2",
+  "typer>=0.16,<1",
+]
+
+[project.scripts]
+sponsor-intel = "sponsor_intel.cli:main"
+
+[dependency-groups]
+dev = [
+  "pre-commit>=4.0,<5",
+  "pyright>=1.1.390,<2",
+  "pytest>=8.3,<10",
+  "pytest-cov>=6.0,<8",
+  "ruff>=0.9,<1",
+]
+
+[tool.uv]
+required-version = ">=0.11.27,<0.12"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sponsor_intel"]
+
+[tool.pytest.ini_options]
+addopts = "--cov=sponsor_intel --cov-report=term-missing"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "RUF", "SIM", "UP"]
+
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+venvPath = "."
+venv = ".venv"

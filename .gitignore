@@ -1,0 +1,28 @@
+.venv/
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.pyright/
+.streamlit/
+
+# Generated data and application outputs
+data/raw/
+data/staging/
+data/resolved/
+data/processed/
+data/cache/
+db/*.duckdb
+db/*.duckdb.*
+outputs/
+
+# Local editor and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
