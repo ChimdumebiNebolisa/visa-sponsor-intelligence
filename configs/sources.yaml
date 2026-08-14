@@ -1,0 +1,138 @@
+sources:
+  - id: dol_lca
+    adapter: dol_lca
+    authority: U.S. Department of Labor
+    landing_page: https://www.dol.gov/agencies/eta/foreign-labor/performance
+    minimum_fiscal_year: 2022
+    refresh_cadence: quarterly
+    expected_formats:
+      - xlsx
+    official_domains:
+      - dol.gov
+    partial_year_supported: true
+    parser_version: "1.1.0"
+    schema_version: dol_lca_v2
+    minimum_row_count: 1000
+    max_download_bytes: 536870912
+    max_uncompressed_bytes: 8589934592
+    required_columns:
+      case_id:
+        - CASE_NUMBER
+      case_status:
+        - CASE_STATUS
+      employer_name_raw:
+        - EMPLOYER_NAME
+      job_title_raw:
+        - JOB_TITLE
+      soc_code:
+        - SOC_CODE
+      soc_title:
+        - SOC_TITLE
+      worksite_state:
+        - WORKSITE_STATE
+    optional_columns:
+      received_date:
+        - RECEIVED_DATE
+      decision_date:
+        - DECISION_DATE
+      visa_class:
+        - VISA_CLASS
+      full_time:
+        - FULL_TIME_POSITION
+        - FULL_TIME_POSITION_Y_N
+      employment_start_date:
+        - BEGIN_DATE
+        - EMPLOYMENT_START_DATE
+      employment_end_date:
+        - END_DATE
+        - EMPLOYMENT_END_DATE
+      worksite_city:
+        - WORKSITE_CITY
+      worksite_postal_code:
+        - WORKSITE_POSTAL_CODE
+      wage_from:
+        - WAGE_RATE_OF_PAY_FROM
+      wage_to:
+        - WAGE_RATE_OF_PAY_TO
+      wage_unit:
+        - WAGE_UNIT_OF_PAY
+    expected_schema_fingerprints:
+      "standard:fy2022": 84e4a849ecb8dd77467569d98b096f72f447144e7d1e8f21caa89c35a2a41cff
+      "standard:fy2023": 84e4a849ecb8dd77467569d98b096f72f447144e7d1e8f21caa89c35a2a41cff
+      "standard:fy2024": b029afd429eadde12d84e0117d29ed4278956682097306f0d227e73569c92e64
+      "standard:fy2025": a05aef99d3c3f6c48c61ed94e755af8fdbfb6879262445dc609dff92a5b31d21
+      "standard:fy2026": a05aef99d3c3f6c48c61ed94e755af8fdbfb6879262445dc609dff92a5b31d21
+
+  - id: dol_perm
+    adapter: dol_perm
+    authority: U.S. Department of Labor
+    landing_page: https://www.dol.gov/agencies/eta/foreign-labor/performance
+    minimum_fiscal_year: 2022
+    refresh_cadence: quarterly
+    expected_formats:
+      - xlsx
+    official_domains:
+      - dol.gov
+    partial_year_supported: true
+    parser_version: "1.1.0"
+    schema_version: dol_perm_v2
+    minimum_row_count: 1000
+    max_download_bytes: 536870912
+    max_uncompressed_bytes: 8589934592
+    required_columns:
+      case_id:
+        - CASE_NUMBER
+      case_status:
+        - CASE_STATUS
+      employer_name_raw:
+        - EMPLOYER_NAME
+        - EMP_BUSINESS_NAME
+      job_title_raw:
+        - JOB_INFO_JOB_TITLE
+        - JOB_TITLE
+      soc_code:
+        - PW_SOC_CODE
+        - PWD_SOC_CODE
+        - SOC_CODE
+      soc_title:
+        - PW_SOC_TITLE
+        - PWD_SOC_TITLE
+        - SOC_TITLE
+      worksite_state:
+        - WORKSITE_STATE
+        - JOB_INFO_WORK_STATE
+        - PRIMARY_WORKSITE_STATE
+    optional_columns:
+      received_date:
+        - RECEIVED_DATE
+      decision_date:
+        - DECISION_DATE
+      worksite_city:
+        - WORKSITE_CITY
+        - JOB_INFO_WORK_CITY
+        - PRIMARY_WORKSITE_CITY
+      minimum_education:
+        - JOB_INFO_EDUCATION
+        - MINIMUM_EDUCATION
+      major_field:
+        - JOB_INFO_MAJOR
+        - MAJOR_FIELD_OF_STUDY
+      experience_required:
+        - JOB_INFO_EXPERIENCE
+        - EXPERIENCE_REQUIRED
+      foreign_worker_education:
+        - FOREIGN_WORKER_INFO_EDUCATION
+        - FOREIGN_WORKER_EDUCATION
+      priority_date:
+        - PRIORITY_DATE
+    allowed_missing_columns:
+      "new_form:fy2024":
+        - soc_code
+        - soc_title
+    expected_schema_fingerprints:
+      "standard:fy2022": c9efa6738c894c978b9c38c284e99fda1a02d751d7ff365fdf8d6be137eba90e
+      "standard:fy2023": 56157c612aabce33705482f2ab9d803ff41496f4804511c135e21915e4492cde
+      "standard:fy2024": 72905c80509e43b99297f2f23db0e873a50cead4f9fa9466cc25b0a3270b1c1e
+      "new_form:fy2024": 114cd625ccc59a6a93d8b04b8029dea32e62b95bd3eaf0d1ec9d1a23b3791cd3
+      "standard:fy2025": 9da725a05b76e9ca5c81ab0e1f84bcf16f40d61330e5c7d7bbb3f2528f0236eb
+      "standard:fy2026": 9da725a05b76e9ca5c81ab0e1f84bcf16f40d61330e5c7d7bbb3f2528f0236eb

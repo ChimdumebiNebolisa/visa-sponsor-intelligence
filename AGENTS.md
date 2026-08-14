@@ -35,6 +35,18 @@
 - Streamlit smoke test: `uv run python scripts/smoke_streamlit.py`
 - CLI: `uv run sponsor-intel --help`
 - App: `uv run sponsor-intel app`
+- Discover DOL sources: `uv run sponsor-intel sources discover --source dol_lca --from-fy 2022`
+- Ingest DOL sources: `uv run sponsor-intel ingest --source dol_lca --from-fy 2022`
+- Live DOL contracts: `SPONSOR_INTEL_RUN_NETWORK_TESTS=1 uv run pytest tests/contracts`
+
+## Phase 1 source invariants
+
+- DOL quarterly disclosures are cumulative; select only the latest published quarter per fiscal year.
+- Preserve both FY2024 PERM form variants as separate artifacts.
+- Record raw-download provenance before normalization so interrupted builds resume safely.
+- Treat exact duplicate rows and repeated decision dates only through the tested deterministic rules in the normalizer; conflicting duplicate case IDs must fail.
+- Keep current partial fiscal years explicitly labeled and never compare them with complete years without a warning.
+- A source-schema fingerprint change is a visible drift warning; a missing required logical column fails closed.
 
 ## Configuration and safety
 

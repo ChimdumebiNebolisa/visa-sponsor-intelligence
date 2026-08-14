@@ -14,6 +14,8 @@ import typer
 from sponsor_intel import __version__
 from sponsor_intel.config import load_settings
 from sponsor_intel.logging import configure_logging
+from sponsor_intel.sources.pipeline import IngestionPipeline
+from sponsor_intel.sources.registry import DEFAULT_SOURCE_REGISTRY_PATH, SourceRegistry
 
 app = typer.Typer(
     name="sponsor-intel",
@@ -21,6 +23,8 @@ app = typer.Typer(
     no_args_is_help=True,
     rich_markup_mode=None,
 )
+sources_app = typer.Typer(help="Inspect and discover authoritative source artifacts.")
+app.add_typer(sources_app, name="sources")
 
 
 @app.command()
@@ -41,6 +45,83 @@ def config_command(
 
     settings = load_settings(config_file)
     typer.echo(json.dumps(settings.safe_summary(), indent=2, sort_keys=True))
+
+
+@sources_app.command("list")
+def sources_list(
+    registry_path: Annotated[
+        Path,
+        typer.Option("--registry", help="Typed source-registry YAML path."),
+    ] = DEFAULT_SOURCE_REGISTRY_PATH,
+) -> None:
+    """List configured authoritative sources."""
+
+    registry = SourceRegistry.from_yaml(registry_path)
+    payload = [
+        {
+            "id": source.id,
+            "authority": source.authority,
+            "landing_page": source.landing_page,
+            "minimum_fiscal_year": source.minimum_fiscal_year,
+            "refresh_cadence": source.refresh_cadence,
+        }
+        for source in registry.list()
+    ]
+    typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+
+
+@sources_app.command("discover")
+def sources_discover(
+    source: Annotated[str, typer.Option("--source", help="Configured source ID.")],
+    from_fy: Annotated[int, typer.Option("--from-fy", min=2022)] = 2022,
+    registry_path: Annotated[
+        Path,
+        typer.Option("--registry", help="Typed source-registry YAML path."),
+    ] = DEFAULT_SOURCE_REGISTRY_PATH,
+) -> None:
+    """Discover canonical official artifacts without downloading them."""
+
+    registry = SourceRegistry.from_yaml(registry_path)
+    pipeline = IngestionPipeline(registry)
+    report_path, report = pipeline.discover(source, from_fiscal_year=from_fy)
+    payload = report.model_dump(mode="json")
+    payload["report_path"] = str(report_path)
+    payload["selected_candidates"] = [
+        candidate.model_dump(mode="json") | {"candidate_id": candidate.candidate_id}
+        for candidate in report.selected
+    ]
+    typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+
+
+@app.command("ingest")
+def ingest_command(
+    source: Annotated[str, typer.Option("--source", help="Configured source ID.")],
+    from_fy: Annotated[int, typer.Option("--from-fy", min=2022)] = 2022,
+    force_download: Annotated[
+        bool,
+        typer.Option("--force-download", help="Re-fetch even when a validated artifact exists."),
+    ] = False,
+    config_file: Annotated[
+        Path | None,
+        typer.Option("--config", help="Optional YAML configuration path."),
+    ] = None,
+    registry_path: Annotated[
+        Path,
+        typer.Option("--registry", help="Typed source-registry YAML path."),
+    ] = DEFAULT_SOURCE_REGISTRY_PATH,
+) -> None:
+    """Ingest one authoritative source from the requested fiscal year onward."""
+
+    settings = load_settings(config_file)
+    configure_logging(settings.log_level)
+    registry = SourceRegistry.from_yaml(registry_path)
+    pipeline = IngestionPipeline(registry, data_root=settings.data_dir)
+    summary = pipeline.ingest(
+        source,
+        from_fiscal_year=from_fy,
+        force_download=force_download,
+    )
+    typer.echo(json.dumps(summary.model_dump(mode="json"), indent=2, sort_keys=True))
 
 
 @app.command("app")
