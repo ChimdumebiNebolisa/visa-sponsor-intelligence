@@ -44,3 +44,23 @@ All IPEDS source columns remain available in the corresponding staging Parquet.
 `data/processed/herd_observations.parquet` contains one row per HERD institution, survey year, and form. `total_rd`, `federal_rd`, `business_funded_rd`, `institution_funded_rd`, `computing_rd`, and `engineering_rd` are whole U.S. dollars. Missing source values stay null. `rd_personnel` is a headcount when supplied by the standard questionnaire and null when the short form does not collect it.
 
 Institution joins expose `institution_join_method`, `institution_match_confidence`, and `institution_review_status`. Only exact UNITID matches receive an `institution_id`; all other observations remain unmatched and appear in the review report.
+
+## Phase 3 entity tables
+
+### Legal entities
+
+`data/resolved/legal_entities.parquet` has one row per legal identity. `legal_entity_id` is stable for the same inputs and decisions. `legal_name` is the retained canonical source or reviewed name; `normalized_legal_name` is matching evidence. Optional `parent_organization_id` never replaces the legal ID. Location, organization type, institution ID, creation method, and review status explain the identity's provenance.
+
+### Parent organizations
+
+`data/resolved/parent_organizations.parquet` contains only IPEDS system relationships and committed reviewed parent overrides. It includes the canonical parent name, organization type, optional headquarters state, staffing/consulting indicator, creation method, review status, and notes.
+
+### Entity aliases and review queue
+
+`data/resolved/entity_aliases.parquet` preserves `alias_raw` and adds normalized name, core name, acronym, normalized location, occurrence count, legal and parent IDs, candidate legal ID, match method, score, margin, status, feature values, and any reviewer evidence.
+
+`outputs/review/entity_match_review.parquet` is the subset with `REVIEW_REQUIRED` or `REJECTED`. Its `legal_entity_id` identifies the separate provisional source entity. Its `candidate_legal_entity_id` is never an applied merge.
+
+### Resolved source mirrors
+
+Files under `data/resolved/sources/` preserve every staging column and add `legal_entity_id`, `parent_organization_id`, `entity_match_status`, `entity_match_method`, and `entity_match_score`. Staging Parquet is never modified. A blank source name may retain a null legal ID with `UNRESOLVED`; named records must have a legal identity.

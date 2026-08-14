@@ -1,0 +1,144 @@
+schema_version: entity_overrides_v1
+parent_organizations:
+  - parent_organization_id: parent_amazon
+    canonical_name: Amazon
+    organization_type: TECHNOLOGY
+    headquarters_state: WA
+    is_staffing_or_consulting: false
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    notes: Separate observed Amazon legal petitioner names roll up only through this override.
+  - parent_organization_id: parent_meta
+    canonical_name: Meta Platforms
+    organization_type: TECHNOLOGY
+    headquarters_state: CA
+    is_staffing_or_consulting: false
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    notes: Facebook and Meta petitioner identities remain separate legal entities.
+  - parent_organization_id: parent_walmart
+    canonical_name: Walmart
+    organization_type: RETAIL
+    headquarters_state: AR
+    is_staffing_or_consulting: false
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    notes: Wal-Mart Associates spelling variants map to one legal entity below.
+
+legal_entities:
+  - legal_entity_id: legal_amazon_com_services
+    legal_name: Amazon.com Services LLC
+    parent_organization_id: parent_amazon
+    city: Seattle
+    state: WA
+    organization_type: TECHNOLOGY
+  - legal_entity_id: legal_amazon_web_services
+    legal_name: Amazon Web Services, Inc.
+    parent_organization_id: parent_amazon
+    city: Seattle
+    state: WA
+    organization_type: TECHNOLOGY
+  - legal_entity_id: legal_amazon_development_center_us
+    legal_name: Amazon Development Center U.S., Inc.
+    parent_organization_id: parent_amazon
+    city: Seattle
+    state: WA
+    organization_type: TECHNOLOGY
+  - legal_entity_id: legal_amazon_data_services
+    legal_name: Amazon Data Services, Inc.
+    parent_organization_id: parent_amazon
+    city: Seattle
+    state: WA
+    organization_type: TECHNOLOGY
+  - legal_entity_id: legal_meta_platforms
+    legal_name: Meta Platforms, Inc.
+    parent_organization_id: parent_meta
+    city: Menlo Park
+    state: CA
+    organization_type: TECHNOLOGY
+  - legal_entity_id: legal_facebook_inc
+    legal_name: Facebook, Inc.
+    parent_organization_id: parent_meta
+    city: Menlo Park
+    state: CA
+    organization_type: TECHNOLOGY
+  - legal_entity_id: legal_walmart_associates
+    legal_name: Wal-Mart Associates, Inc.
+    parent_organization_id: parent_walmart
+    city: Bentonville
+    state: AR
+    organization_type: RETAIL
+
+aliases:
+  - raw_name: Amazon.com Services LLC
+    legal_entity_id: legal_amazon_com_services
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    reason: Exact legal-name variants occur across DOL and USCIS with consistent petitioner location.
+  - raw_name: AMAZON COM SERVICES LLC
+    legal_entity_id: legal_amazon_com_services
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    reason: USCIS punctuation-normalized form of the same reviewed legal petitioner.
+  - raw_name: Amazon Web Services, Inc.
+    legal_entity_id: legal_amazon_web_services
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    reason: Exact legal petitioner name observed across federal sources.
+  - raw_name: AMAZON WEB SERVICES INC
+    legal_entity_id: legal_amazon_web_services
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    reason: Punctuation-normalized form of the reviewed legal petitioner.
+  - raw_name: Amazon Development Center U.S., Inc.
+    legal_entity_id: legal_amazon_development_center_us
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    reason: Exact legal petitioner name; not interchangeable with other Amazon entities.
+  - raw_name: AMAZON DEVELOPMENT CENTER US INC
+    legal_entity_id: legal_amazon_development_center_us
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    reason: Punctuation-normalized form of the reviewed legal petitioner.
+  - raw_name: Amazon Data Services, Inc
+    legal_entity_id: legal_amazon_data_services
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    reason: Exact legal petitioner name; preserved separately from AWS and Amazon.com Services.
+  - raw_name: Meta Platforms, Inc
+    legal_entity_id: legal_meta_platforms
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    reason: Exact Meta Platforms legal petitioner name.
+  - raw_name: META PLATFORMS INC
+    legal_entity_id: legal_meta_platforms
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    reason: Punctuation-normalized form of the reviewed Meta legal petitioner.
+  - raw_name: FACEBOOK, INC.
+    legal_entity_id: legal_facebook_inc
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    reason: Historical legal petitioner remains distinct while rolling up to the reviewed parent.
+  - raw_name: WAL-MART ASSOCIATES, INC.
+    legal_entity_id: legal_walmart_associates
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    reason: Exact reviewed legal petitioner spelling.
+  - raw_name: WALMART ASSOCIATES, INC.
+    legal_entity_id: legal_walmart_associates
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    reason: Reviewed punctuation and brand-spelling variant for the same petitioner.
+
+rejections:
+  - raw_name: UT SYSTEM
+    candidate_legal_entity_id: legal_ipeds_228778
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    reason: A university system name is not interchangeable with the Austin campus legal entity.
+  - raw_name: STATE UNIVERSITY OF NEW YORK
+    candidate_legal_entity_id: legal_ipeds_196088
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    reason: The SUNY system is not interchangeable with the University at Buffalo campus.

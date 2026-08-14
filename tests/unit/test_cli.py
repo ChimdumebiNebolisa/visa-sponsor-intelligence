@@ -17,6 +17,7 @@ def test_cli_help_starts() -> None:
 
     assert result.exit_code == 0
     assert "evidence-first sponsorship intelligence explorer" in result.stdout
+    assert "entities" in result.stdout
 
 
 def test_cli_version() -> None:
@@ -35,6 +36,19 @@ def test_config_command_redacts_api_key(monkeypatch: pytest.MonkeyPatch) -> None
     assert result.exit_code == 0
     assert secret_value not in result.stdout
     assert '"openai_api_key_configured": true' in result.stdout
+
+
+def test_entity_gold_validation_command_writes_report(tmp_path: Path) -> None:
+    report_path = tmp_path / "gold-validation.json"
+
+    result = runner.invoke(
+        app,
+        ["entities", "validate-gold", "--report", str(report_path)],
+    )
+
+    assert result.exit_code == 0
+    assert '"passed": true' in result.stdout
+    assert report_path.is_file()
 
 
 def test_app_command_launches_streamlit_through_python_module(
