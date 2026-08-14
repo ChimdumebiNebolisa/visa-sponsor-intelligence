@@ -30,3 +30,13 @@ IPEDS discovery records every eligible institutional-directory link but selects 
 HERD standard and short-form archives are disjoint survey populations and are both required for each year. Expenditure values in the microdata are reported in thousands of dollars and are converted to whole U.S. dollars in the canonical observation table. Computing R&D and engineering R&D use the form-specific official questionnaire cells. Personnel is populated only where the standard form provides the total headcount.
 
 HERD-to-IPEDS reconciliation permits exact UNITID joins only. Every match is written to `outputs/reports/institutions/herd_ipeds_join_review.parquet`; unmatched historical or closed institutions remain `NEEDS_REVIEW`. There is no name-based fallback.
+
+## ICE SEVP positive employer report
+
+| ID | Authority | Coverage | Canonical selection | Limitation |
+|---|---|---|---|---|
+| `sevp_opt` | ICE Student and Exchange Visitor Program | Latest published Top 200 employer report, currently 2024 | Highest eligible official report year | Positive, incomplete employer observations only; absence means `UNKNOWN`. |
+
+ICE currently returns HTTP 403 to the bounded non-browser client. Discovery therefore records a warning and uses the reviewed official PDF URL and publication year in `configs/sources.yaml`; download still occurs from `ice.gov` in Chromium, followed by the same byte limit, PDF signature, SHA-256, immutable raw path, manifest, and validation gates. Updating the fallback requires rechecking the official SEVIS What's New page.
+
+The four-page 2024 report must contain exactly 200 ranked employers. It is normalized into one positive row per available `OPT_OR_STEM_OPT`, `OPT`, or `STEM_OPT` count. Blank program cells remain absent/null evidence and are never converted to zero.

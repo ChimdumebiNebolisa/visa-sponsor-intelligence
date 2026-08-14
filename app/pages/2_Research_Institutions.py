@@ -50,7 +50,8 @@ else:
 
 st.info(
     "IPEDS presence supports a potential higher-education cap-exemption label, not a verified "
-    "legal conclusion. Policy and E-Verify fields remain UNKNOWN until reviewed evidence exists."
+    "legal conclusion. Policy fields remain UNKNOWN until reviewed evidence exists; E-Verify "
+    "is shown only where a prioritized exact lookup confirms it."
 )
 render_evidence_notice()
 

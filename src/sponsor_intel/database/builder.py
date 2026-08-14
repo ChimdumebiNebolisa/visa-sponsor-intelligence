@@ -17,8 +17,11 @@ REQUIRED_VIEWS = (
     "vw_h1b_trends",
     "vw_perm_trends",
     "vw_relevant_titles",
+    "vw_everify_evidence",
+    "vw_opt_evidence",
     "vw_policy_evidence",
     "vw_entity_review_queue",
+    "vw_everify_review_queue",
     "vw_policy_review_queue",
     "vw_data_health",
 )
@@ -68,6 +71,11 @@ class DuckDBBuilder:
             "institution_metrics",
             "data_health",
         )
+        optional_tables = (
+            "everify_lookup_priorities",
+            "everify_observations",
+            "opt_employer_observations",
+        )
         aliases_path = self.data_root / "resolved" / "entity_aliases.parquet"
         if not aliases_path.is_file():
             raise ValueError(f"Required resolved table is unavailable: {aliases_path}")
@@ -77,6 +85,66 @@ class DuckDBBuilder:
                 connection.execute(
                     f"CREATE TABLE {table} AS SELECT * FROM read_parquet(?)",
                     [_sql_path(self._table_path(table))],
+                )
+            for table in optional_tables:
+                path = self.data_root / "processed" / f"{table}.parquet"
+                if path.is_file():
+                    connection.execute(
+                        f"CREATE TABLE {table} AS SELECT * FROM read_parquet(?)",
+                        [_sql_path(path)],
+                    )
+            if "everify_observations" not in {
+                row[0] for row in connection.execute("SHOW TABLES").fetchall()
+            }:
+                connection.execute(
+                    """
+                    CREATE TABLE everify_observations AS SELECT
+                        CAST(NULL AS VARCHAR) AS lookup_id,
+                        CAST(NULL AS BIGINT) AS priority_rank,
+                        CAST(NULL AS VARCHAR) AS organization_id,
+                        CAST(NULL AS VARCHAR) AS queried_name,
+                        CAST(NULL AS VARCHAR) AS state,
+                        CAST(NULL AS VARCHAR) AS enrollment_status,
+                        CAST(NULL AS VARCHAR) AS matched_name,
+                        CAST(NULL AS VARCHAR) AS matched_dba,
+                        CAST(NULL AS VARCHAR) AS enrollment_date,
+                        CAST(NULL AS VARCHAR) AS termination_date,
+                        CAST(NULL AS VARCHAR) AS workforce_size,
+                        CAST(NULL AS BIGINT) AS hiring_site_count,
+                        CAST(NULL AS VARCHAR) AS hiring_site_locations,
+                        CAST(NULL AS VARCHAR) AS retrieved_at,
+                        CAST(NULL AS DOUBLE) AS match_confidence,
+                        CAST(NULL AS VARCHAR) AS match_method,
+                        CAST(NULL AS VARCHAR) AS review_status,
+                        CAST(NULL AS VARCHAR) AS review_reason,
+                        CAST(NULL AS VARCHAR) AS source_url,
+                        CAST(NULL AS VARCHAR) AS source_evidence_json
+                    WHERE false
+                    """
+                )
+            if "opt_employer_observations" not in {
+                row[0] for row in connection.execute("SHOW TABLES").fetchall()
+            }:
+                connection.execute(
+                    """
+                    CREATE TABLE opt_employer_observations AS SELECT
+                        CAST(NULL AS VARCHAR) AS observation_id,
+                        CAST(NULL AS VARCHAR) AS organization_id,
+                        CAST(NULL AS INTEGER) AS report_year,
+                        CAST(NULL AS INTEGER) AS rank,
+                        CAST(NULL AS VARCHAR) AS employer_name_raw,
+                        CAST(NULL AS VARCHAR) AS program_type,
+                        CAST(NULL AS BIGINT) AS reported_count,
+                        CAST(NULL AS BOOLEAN) AS is_positive,
+                        CAST(NULL AS VARCHAR) AS source_artifact_id,
+                        CAST(NULL AS VARCHAR) AS source_url,
+                        CAST(NULL AS VARCHAR) AS retrieved_at,
+                        CAST(NULL AS VARCHAR) AS coverage_note,
+                        CAST(NULL AS VARCHAR) AS match_method,
+                        CAST(NULL AS DOUBLE) AS match_confidence,
+                        CAST(NULL AS VARCHAR) AS review_status
+                    WHERE false
+                    """
                 )
             connection.execute(
                 "CREATE TABLE entity_aliases AS SELECT * FROM read_parquet(?)",
@@ -92,6 +160,12 @@ class DuckDBBuilder:
             connection.execute("CREATE INDEX idx_perm_org ON perm_cases_resolved(organization_id)")
             connection.execute(
                 "CREATE INDEX idx_uscis_org ON h1b_petitions_resolved(organization_id)"
+            )
+            connection.execute(
+                "CREATE INDEX idx_everify_org ON everify_observations(organization_id)"
+            )
+            connection.execute(
+                "CREATE INDEX idx_opt_org ON opt_employer_observations(organization_id)"
             )
             connection.execute("CREATE VIEW vw_employer_explorer AS SELECT * FROM employer_metrics")
             connection.execute(
@@ -212,6 +286,12 @@ class DuckDBBuilder:
                 """
             )
             connection.execute(
+                "CREATE VIEW vw_everify_evidence AS SELECT * FROM everify_observations"
+            )
+            connection.execute(
+                "CREATE VIEW vw_opt_evidence AS SELECT * FROM opt_employer_observations"
+            )
+            connection.execute(
                 """
                 CREATE VIEW vw_entity_review_queue AS
                 SELECT *
@@ -227,6 +307,12 @@ class DuckDBBuilder:
                     CAST(NULL AS VARCHAR) AS review_status,
                     CAST(NULL AS VARCHAR) AS reason
                 WHERE false
+                """
+            )
+            connection.execute(
+                """
+                CREATE VIEW vw_everify_review_queue AS
+                SELECT * FROM everify_observations WHERE review_status = 'NEEDS_REVIEW'
                 """
             )
             connection.execute("CREATE VIEW vw_data_health AS SELECT * FROM data_health")

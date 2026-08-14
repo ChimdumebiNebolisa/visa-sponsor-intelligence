@@ -17,6 +17,7 @@ from sponsor_intel.database.builder import DuckDBBuilder
 from sponsor_intel.entity_resolution.models import EntityResolutionConfig
 from sponsor_intel.entity_resolution.pipeline import EntityResolutionPipeline
 from sponsor_intel.entity_resolution.validation import validate_gold_dataset
+from sponsor_intel.evidence.pipeline import Phase6Pipeline
 from sponsor_intel.logging import configure_logging
 from sponsor_intel.metrics.pipeline import MetricsPipeline
 from sponsor_intel.role_classification.models import RoleTaxonomyConfig
@@ -36,11 +37,13 @@ entities_app = typer.Typer(help="Build and validate legal-entity resolution tabl
 roles_app = typer.Typer(help="Build and validate deterministic role classifications.")
 metrics_app = typer.Typer(help="Build processed employer and institution metrics.")
 database_app = typer.Typer(help="Build the DuckDB presentation database.")
+evidence_app = typer.Typer(help="Build positive OPT and prioritized E-Verify evidence.")
 app.add_typer(sources_app, name="sources")
 app.add_typer(entities_app, name="entities")
 app.add_typer(roles_app, name="roles")
 app.add_typer(metrics_app, name="metrics")
 app.add_typer(database_app, name="db")
+app.add_typer(evidence_app, name="evidence")
 
 
 @app.command()
@@ -275,6 +278,42 @@ def database_build(
         data_root=settings.data_dir,
         database_path=settings.db_path,
     ).build()
+    typer.echo(json.dumps(summary.model_dump(mode="json"), indent=2, sort_keys=True))
+
+
+@evidence_app.command("build")
+def evidence_build(
+    everify_limit: Annotated[
+        int,
+        typer.Option(
+            "--everify-limit",
+            min=0,
+            help="Maximum prioritized E-Verify lookups; zero performs no live lookups.",
+        ),
+    ] = 0,
+    force_opt_download: Annotated[
+        bool,
+        typer.Option(
+            "--force-opt-download",
+            help="Re-fetch the current official ICE report instead of using its immutable cache.",
+        ),
+    ] = False,
+    config_file: Annotated[
+        Path | None,
+        typer.Option("--config", help="Optional application configuration path."),
+    ] = None,
+) -> None:
+    """Build Phase 6 evidence, enriched metrics, and the presentation database."""
+
+    settings = load_settings(config_file)
+    configure_logging(settings.log_level)
+    summary = Phase6Pipeline(
+        data_root=settings.data_dir,
+        database_path=settings.db_path,
+    ).build(
+        everify_limit=everify_limit,
+        force_opt_download=force_opt_download,
+    )
     typer.echo(json.dumps(summary.model_dump(mode="json"), indent=2, sort_keys=True))
 
 

@@ -43,4 +43,30 @@ Measured on the development laptop, a filtered employer query completed in 1.52 
 
 When FY2026 is present, the application must continue showing the partial-period warning. Rebuilding metrics or the database is safe; outputs are written to temporary files and atomically replaced after successful completion.
 
+## Phase 6 E-Verify and OPT workflow
+
+Install the pinned Chromium browser once after dependency setup:
+
+```bash
+uv run playwright install chromium
+```
+
+Build the ICE evidence and queue without making any E-Verify request:
+
+```bash
+uv run sponsor-intel evidence build --everify-limit 0
+```
+
+Run an explicitly bounded live batch only after reviewing `data/processed/everify_lookup_priorities.parquet`:
+
+```bash
+uv run sponsor-intel evidence build --everify-limit 10
+```
+
+The builder selects a full legal entity name, blocks unsafe short queries, forces the official Tableau dashboard to its last-30-years range, waits for each committed query's results, and enforces at least five seconds between query commits. Each lookup is cached for 90 days under `data/cache/everify/`. Re-running a fresh lookup uses the cache and does not contact E-Verify.
+
+Review `outputs/review/everify_match_review.parquet` and `outputs/review/opt_entity_review.parquet`. An E-Verify `NO_MATCH` is retained as raw lookup evidence but maps to explorer `UNKNOWN`. `AMBIGUOUS`, `ERROR`, and unsafe short-name results require review. OPT output contains positive observations only; unlinked or absent employer names remain `UNKNOWN`.
+
+The command refreshes metrics and DuckDB after evidence persistence. `outputs/reports/evidence/phase6_summary.json` records the queue, lookup, linkage, and review counts.
+
 Full release and scheduled-workflow procedures will be added with the corresponding implementation phases.

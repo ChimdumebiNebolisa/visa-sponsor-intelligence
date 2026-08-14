@@ -1,4 +1,28 @@
 sources:
+  - id: sevp_opt
+    adapter: sevp_opt
+    authority: U.S. Immigration and Customs Enforcement, Student and Exchange Visitor Program
+    landing_page: https://www.ice.gov/sevis/whats-new
+    artifact_url: https://www.ice.gov/doclib/sevis/btn/2024/2024_Top200_Employers_OPT_STEM_OPT_Students.pdf
+    published_through_fiscal_year: 2024
+    minimum_fiscal_year: 2022
+    refresh_cadence: annual
+    expected_formats:
+      - pdf
+    official_domains:
+      - ice.gov
+    partial_year_supported: false
+    parser_version: "1.0.0"
+    schema_version: sevp_opt_top_employers_v1
+    minimum_row_count: 200
+    max_download_bytes: 16777216
+    max_uncompressed_bytes: 67108864
+    required_columns:
+      employer_name_raw:
+        - Top 200 Employer Names
+      reported_count:
+        - Number of Students Participating
+
   - id: dol_lca
     adapter: dol_lca
     authority: U.S. Department of Labor

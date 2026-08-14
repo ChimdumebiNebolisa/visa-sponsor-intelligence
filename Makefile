@@ -1,7 +1,8 @@
-.PHONY: setup test test-contract lint typecheck smoke metrics db app
+.PHONY: setup test test-contract lint typecheck smoke metrics evidence db app
 
 setup:
 	uv sync --frozen
+	uv run playwright install chromium
 
 test:
 	uv run pytest
@@ -21,6 +22,9 @@ smoke:
 
 metrics:
 	uv run sponsor-intel metrics build
+
+evidence:
+	uv run sponsor-intel evidence build --everify-limit 0
 
 db:
 	uv run sponsor-intel db build

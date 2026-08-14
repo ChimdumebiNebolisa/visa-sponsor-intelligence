@@ -12,7 +12,7 @@ import polars as pl
 from sponsor_intel.metrics.models import MetricsBuildSummary
 from sponsor_intel.sources.manifests import write_json_atomic
 
-METRIC_VERSION = "raw_metrics_v1"
+METRIC_VERSION = "raw_metrics_v2"
 
 
 def _write_parquet_atomic(frame: pl.DataFrame, target: Path) -> None:
@@ -657,8 +657,147 @@ def _source_health(
     )
 
 
+def _phase6_frames(data_root: Path) -> tuple[pl.DataFrame | None, pl.DataFrame | None]:
+    processed = data_root / "processed"
+    everify_path = processed / "everify_observations.parquet"
+    opt_path = processed / "opt_employer_observations.parquet"
+    everify = pl.read_parquet(everify_path) if everify_path.is_file() else None
+    opt = pl.read_parquet(opt_path) if opt_path.is_file() else None
+    return everify, opt
+
+
+def _enrich_phase6_metrics(
+    frame: pl.DataFrame,
+    *,
+    everify: pl.DataFrame | None,
+    opt: pl.DataFrame | None,
+) -> pl.DataFrame:
+    result = frame
+    if everify is not None and not everify.is_empty():
+        latest_everify = (
+            everify.filter(pl.col("organization_id").is_not_null())
+            .sort(["organization_id", "retrieved_at"])
+            .group_by("organization_id", maintain_order=True)
+            .last()
+            .select(
+                "organization_id",
+                pl.when(
+                    pl.col("enrollment_status").is_in(["CONFIRMED_ACTIVE", "CONFIRMED_INACTIVE"])
+                )
+                .then(pl.col("enrollment_status"))
+                .otherwise(pl.lit("UNKNOWN"))
+                .alias("_everify_status"),
+                pl.col("enrollment_status").alias("everify_lookup_status"),
+                pl.col("retrieved_at").alias("everify_retrieved_at"),
+                pl.col("source_url").alias("everify_source_url"),
+                pl.col("match_confidence").alias("everify_match_confidence"),
+                pl.col("review_status").alias("everify_review_status"),
+            )
+        )
+        result = (
+            result.join(latest_everify, on="organization_id", how="left")
+            .with_columns(
+                pl.coalesce("_everify_status", "everify_status").alias("everify_status"),
+                pl.col("everify_lookup_status").fill_null("NOT_CHECKED"),
+            )
+            .drop("_everify_status")
+        )
+    else:
+        result = result.with_columns(
+            pl.lit("NOT_CHECKED").alias("everify_lookup_status"),
+            pl.lit(None, dtype=pl.String).alias("everify_retrieved_at"),
+            pl.lit(None, dtype=pl.String).alias("everify_source_url"),
+            pl.lit(None, dtype=pl.Float64).alias("everify_match_confidence"),
+            pl.lit(None, dtype=pl.String).alias("everify_review_status"),
+        )
+    if opt is not None and not opt.is_empty():
+        latest_opt = (
+            opt.filter(
+                pl.col("organization_id").is_not_null()
+                & pl.col("is_positive")
+                & (pl.col("program_type") == "OPT_OR_STEM_OPT")
+            )
+            .sort(
+                ["organization_id", "report_year", "rank"],
+                descending=[False, True, False],
+            )
+            .group_by("organization_id", maintain_order=True)
+            .first()
+            .select(
+                "organization_id",
+                pl.lit("OBSERVED_POSITIVE").alias("_known_opt_observation"),
+                pl.col("report_year").alias("opt_report_year"),
+                pl.col("reported_count").alias("opt_reported_count"),
+                pl.col("rank").alias("opt_report_rank"),
+                pl.col("source_url").alias("opt_source_url"),
+            )
+        )
+        result = (
+            result.join(latest_opt, on="organization_id", how="left")
+            .with_columns(
+                pl.coalesce("_known_opt_observation", "known_opt_observation").alias(
+                    "known_opt_observation"
+                )
+            )
+            .drop("_known_opt_observation")
+        )
+    else:
+        result = result.with_columns(
+            pl.lit(None, dtype=pl.Int32).alias("opt_report_year"),
+            pl.lit(None, dtype=pl.Int64).alias("opt_reported_count"),
+            pl.lit(None, dtype=pl.Int64).alias("opt_report_rank"),
+            pl.lit(None, dtype=pl.String).alias("opt_source_url"),
+        )
+    return result.with_columns(pl.lit(METRIC_VERSION).alias("metric_version"))
+
+
+def _append_phase6_health(
+    health: pl.DataFrame,
+    *,
+    everify: pl.DataFrame | None,
+    opt: pl.DataFrame | None,
+) -> pl.DataFrame:
+    rows: list[dict[str, object]] = []
+    if opt is not None and not opt.is_empty():
+        rows.append(
+            {
+                "source_id": "sevp_opt",
+                "row_count": opt.height,
+                "earliest_year": opt["report_year"].min(),
+                "latest_year": opt["report_year"].max(),
+                "latest_complete_fiscal_year": opt["report_year"].max(),
+                "current_partial_fiscal_year": None,
+                "current_partial_quarter": None,
+                "has_partial_period": False,
+                "evidence_class": "OBSERVED_GOVERNMENT_RECORD",
+                "freshness_warning": (
+                    "Positive-only Top 200 coverage; absence from the report means UNKNOWN."
+                ),
+            }
+        )
+    if everify is not None and not everify.is_empty():
+        years = everify["retrieved_at"].str.slice(0, 4).cast(pl.Int32, strict=False)
+        rows.append(
+            {
+                "source_id": "everify",
+                "row_count": everify.height,
+                "earliest_year": years.min(),
+                "latest_year": years.max(),
+                "latest_complete_fiscal_year": None,
+                "current_partial_fiscal_year": None,
+                "current_partial_quarter": None,
+                "has_partial_period": False,
+                "evidence_class": "OBSERVED_GOVERNMENT_RECORD",
+                "freshness_warning": "Lookup coverage is prioritized, cached, and incomplete.",
+            }
+        )
+    if not rows:
+        return health
+    return pl.concat([health, pl.DataFrame(rows)], how="vertical_relaxed").sort("source_id")
+
+
 class MetricsPipeline:
-    """Create all Phase 5 processed tables without scoring missing evidence."""
+    """Create processed tables and conservatively attach available Phase 6 evidence."""
 
     def __init__(
         self,
@@ -683,6 +822,14 @@ class MetricsPipeline:
         employer_metrics = _employer_metrics(dimension, institutions, lca, perm, uscis)
         institution_metrics = _institution_metrics(institutions, parents, herd, lca, perm, uscis)
         data_health = _source_health(lca, perm, uscis, institutions, herd)
+        everify, opt = _phase6_frames(self.data_root)
+        employer_metrics = _enrich_phase6_metrics(employer_metrics, everify=everify, opt=opt)
+        institution_metrics = _enrich_phase6_metrics(
+            institution_metrics.with_columns(pl.lit("UNKNOWN").alias("known_opt_observation")),
+            everify=everify,
+            opt=opt,
+        )
+        data_health = _append_phase6_health(data_health, everify=everify, opt=opt)
 
         processed = self.data_root / "processed"
         outputs = {

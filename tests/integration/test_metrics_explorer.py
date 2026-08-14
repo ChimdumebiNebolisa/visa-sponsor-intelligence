@@ -5,6 +5,7 @@ import duckdb
 import polars as pl
 
 from sponsor_intel.database.builder import REQUIRED_VIEWS, DuckDBBuilder
+from sponsor_intel.evidence.everify import EVERIFY_OBSERVATION_SCHEMA
 from sponsor_intel.metrics.pipeline import MetricsPipeline
 from sponsor_intel.services import DuckDBExplorerService, EmployerFilters, InstitutionFilters
 
@@ -245,4 +246,115 @@ def test_metrics_database_services_and_exports(tmp_path: Path) -> None:
     parquet_export = service.export_employers(EmployerFilters(search="Acme"), "parquet")
     assert csv_export.startswith(b"organization_id,")
     assert pl.read_parquet(parquet_export).height == 1
+    service.close()
+
+
+def test_phase6_evidence_enriches_signals_without_treating_no_match_as_no(
+    tmp_path: Path,
+) -> None:
+    data_root = tmp_path / "data"
+    output_root = tmp_path / "outputs"
+    database_path = tmp_path / "db" / "phase6.duckdb"
+    _build_fixture(data_root)
+    MetricsPipeline(data_root=data_root, output_root=output_root).build()
+    processed = data_root / "processed"
+    everify_rows = [
+        {
+            "lookup_id": "everify_acme",
+            "priority_rank": 1,
+            "queried_name": "Acme Labs LLC",
+            "legal_entity_id": "legal_acme_labs",
+            "parent_organization_id": "parent_acme",
+            "organization_id": "parent_acme",
+            "state": "CA",
+            "enrollment_status": "CONFIRMED_ACTIVE",
+            "enrollment_date": "01/02/2020",
+            "termination_date": None,
+            "workforce_size": "100 to 499",
+            "hiring_site_count": 3,
+            "hiring_site_locations": "CA,TX",
+            "matched_name": "Acme Labs LLC",
+            "matched_dba": None,
+            "retrieved_at": "2026-08-14T00:00:00+00:00",
+            "match_confidence": 1.0,
+            "match_method": "EXACT_EMPLOYER_NAME",
+            "review_status": "NOT_REQUIRED",
+            "review_reason": None,
+            "source_url": "https://www.e-verify.gov/e-verify-employer-search",
+            "source_evidence_json": "[]",
+            "cache_hit": False,
+            "evidence_class": "OBSERVED_GOVERNMENT_RECORD",
+        },
+        {
+            "lookup_id": "everify_university",
+            "priority_rank": 2,
+            "queried_name": "State University",
+            "legal_entity_id": "legal_university",
+            "parent_organization_id": None,
+            "organization_id": "legal_university",
+            "state": "IL",
+            "enrollment_status": "NO_MATCH",
+            "enrollment_date": None,
+            "termination_date": None,
+            "workforce_size": None,
+            "hiring_site_count": None,
+            "hiring_site_locations": None,
+            "matched_name": None,
+            "matched_dba": None,
+            "retrieved_at": "2026-08-14T00:00:00+00:00",
+            "match_confidence": 0.0,
+            "match_method": "NO_RESULTS",
+            "review_status": "NOT_REQUIRED",
+            "review_reason": "No result is not evidence of non-enrollment",
+            "source_url": "https://www.e-verify.gov/e-verify-employer-search",
+            "source_evidence_json": "[]",
+            "cache_hit": False,
+            "evidence_class": "OBSERVED_GOVERNMENT_RECORD",
+        },
+    ]
+    pl.DataFrame(everify_rows, schema=EVERIFY_OBSERVATION_SCHEMA).write_parquet(
+        processed / "everify_observations.parquet"
+    )
+    pl.DataFrame(
+        {
+            "observation_id": ["opt_acme_total"],
+            "source_artifact_id": ["opt_artifact"],
+            "source_id": ["sevp_opt"],
+            "report_year": [2024],
+            "rank": [1],
+            "employer_name_raw": ["Acme"],
+            "program_type": ["OPT_OR_STEM_OPT"],
+            "reported_count": [1234],
+            "is_positive": [True],
+            "source_url": ["https://www.ice.gov/report.pdf"],
+            "landing_page_url": ["https://www.ice.gov/sevis/whats-new"],
+            "retrieved_at": ["2026-08-14T00:00:00+00:00"],
+            "source_sha256": ["a" * 64],
+            "coverage_note": ["Positive-only Top 200 coverage"],
+            "evidence_class": ["OBSERVED_GOVERNMENT_RECORD"],
+            "employer_name_normalized": ["ACME"],
+            "legal_entity_id": [None],
+            "parent_organization_id": ["parent_acme"],
+            "organization_id": ["parent_acme"],
+            "match_method": ["EXACT_PARENT_NAME"],
+            "match_confidence": [1.0],
+            "review_status": ["NOT_REQUIRED"],
+            "review_reason": [None],
+        }
+    ).write_parquet(processed / "opt_employer_observations.parquet")
+
+    MetricsPipeline(data_root=data_root, output_root=output_root).build()
+    DuckDBBuilder(data_root=data_root, database_path=database_path).build()
+    service = DuckDBExplorerService(database_path)
+
+    acme = service.list_employers(EmployerFilters(search="Acme"))
+    university = service.list_employers(EmployerFilters(search="State University"))
+    assert acme["everify_status"].item() == "CONFIRMED_ACTIVE"
+    assert acme["known_opt_observation"].item() == "OBSERVED_POSITIVE"
+    assert university["everify_status"].item() == "UNKNOWN"
+    assert university["everify_lookup_status"].item() == "NO_MATCH"
+    detail = service.get_organization_detail("parent_acme")
+    assert detail is not None
+    assert detail.everify_evidence.height == 1
+    assert detail.opt_evidence.height == 1
     service.close()
