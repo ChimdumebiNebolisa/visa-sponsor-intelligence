@@ -2,7 +2,7 @@
 
 A private, evidence-first Streamlit application for exploring historical U.S. employer immigration activity and, in later phases, research-institution data and official policy evidence.
 
-This repository currently contains the Phase 0 foundation. It intentionally performs no source discovery, downloads, ingestion, entity resolution, scoring, or OpenAI API calls.
+This repository contains the Phase 0 foundation and Phase 1 DOL LCA/PERM ingestion. It discovers official disclosure files, preserves immutable raw artifacts, validates source layouts, and writes provenance-rich Parquet staging data. Entity resolution, role classification, scoring, and OpenAI API calls are not part of Phase 1.
 
 ## Requirements
 
@@ -23,10 +23,14 @@ Copy `.env.example` to `.env` only when local overrides are needed. Do not put r
 ```bash
 uv run sponsor-intel --help
 uv run sponsor-intel config
+uv run sponsor-intel sources list
+uv run sponsor-intel sources discover --source dol_lca --from-fy 2022
+uv run sponsor-intel ingest --source dol_lca --from-fy 2022
+uv run sponsor-intel ingest --source dol_perm --from-fy 2022
 uv run sponsor-intel app
 ```
 
-The Phase 0 app is an honest shell: it reports that no evidence data has been loaded and uses `UNKNOWN` rather than displaying a negative conclusion.
+The Streamlit app remains an honest shell until the Phase 5 query layer is built. It uses `UNKNOWN` rather than turning absent evidence into a negative conclusion.
 
 ## Quality checks
 
@@ -44,10 +48,13 @@ Where GNU Make is installed, the equivalent aliases are `make setup`, `make lint
 
 - `src/sponsor_intel/` contains domain-neutral application code.
 - `src/sponsor_intel/services/` is the boundary between user interfaces and future analytical storage.
+- `src/sponsor_intel/sources/` implements official-domain discovery, immutable downloads, schema validation, normalization, and manifests.
 - `app/` contains the minimal Streamlit multipage shell and never issues SQL directly.
 - `configs/` contains safe non-secret configuration.
 - `tests/` contains unit and integration tests; fixtures must be small and sanitized.
 - `docs/` contains durable architecture and operations documentation.
+
+Generated raw workbooks, Parquet files, reports, and manifests are ignored by Git. A verified full Phase 1 build on August 14, 2026 selected 11 official artifacts and produced 1,239,005 normalized rows; current partial-year snapshots remain labeled separately from complete fiscal years.
 
 See `SPEC.md` for the approved product and engineering requirements. The original supplied filename is retained as `sponsorship-intelligence-explorer-spec.md` for traceability.
 

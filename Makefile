@@ -1,10 +1,13 @@
-.PHONY: setup test lint typecheck smoke app
+.PHONY: setup test test-contract lint typecheck smoke app
 
 setup:
 	uv sync --frozen
 
 test:
 	uv run pytest
+
+test-contract:
+	SPONSOR_INTEL_RUN_NETWORK_TESTS=1 uv run pytest tests/contracts
 
 lint:
 	uv run ruff format --check .

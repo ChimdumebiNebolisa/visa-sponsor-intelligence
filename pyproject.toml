@@ -11,10 +11,17 @@ requires-python = ">=3.12,<3.13"
 license = { text = "Proprietary" }
 authors = [{ name = "Mitch" }]
 dependencies = [
+  "fastexcel>=0.16,<1",
+  "httpx>=0.28,<1",
+  "polars>=1.35,<2",
+  "pyarrow>=20,<25",
   "pydantic>=2.10,<3",
   "pyyaml>=6.0,<7",
+  "selectolax>=0.3,<1",
   "streamlit>=1.50,<2",
+  "tenacity>=9,<10",
   "typer>=0.16,<1",
+  "xlsx2csv>=0.8,<1",
 ]
 
 [project.scripts]
@@ -27,6 +34,7 @@ dev = [
   "pytest>=8.3,<10",
   "pytest-cov>=6.0,<8",
   "ruff>=0.9,<1",
+  "xlsxwriter>=3.2,<4",
 ]
 
 [tool.uv]
@@ -38,6 +46,9 @@ packages = ["src/sponsor_intel"]
 [tool.pytest.ini_options]
 addopts = "--cov=sponsor_intel --cov-report=term-missing"
 testpaths = ["tests"]
+markers = [
+  "network: contract tests that access authoritative external sources",
+]
 
 [tool.ruff]
 line-length = 100
