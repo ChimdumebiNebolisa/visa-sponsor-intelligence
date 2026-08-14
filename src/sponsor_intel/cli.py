@@ -13,6 +13,9 @@ import typer
 
 from sponsor_intel import __version__
 from sponsor_intel.config import load_settings
+from sponsor_intel.entity_resolution.models import EntityResolutionConfig
+from sponsor_intel.entity_resolution.pipeline import EntityResolutionPipeline
+from sponsor_intel.entity_resolution.validation import validate_gold_dataset
 from sponsor_intel.logging import configure_logging
 from sponsor_intel.sources.pipeline import IngestionPipeline
 from sponsor_intel.sources.registry import DEFAULT_SOURCE_REGISTRY_PATH, SourceRegistry
@@ -24,7 +27,9 @@ app = typer.Typer(
     rich_markup_mode=None,
 )
 sources_app = typer.Typer(help="Inspect and discover authoritative source artifacts.")
+entities_app = typer.Typer(help="Build and validate legal-entity resolution tables.")
 app.add_typer(sources_app, name="sources")
+app.add_typer(entities_app, name="entities")
 
 
 @app.command()
@@ -122,6 +127,64 @@ def ingest_command(
         force_download=force_download,
     )
     typer.echo(json.dumps(summary.model_dump(mode="json"), indent=2, sort_keys=True))
+
+
+@entities_app.command("build")
+def entities_build(
+    config_file: Annotated[
+        Path | None,
+        typer.Option("--config", help="Optional application configuration path."),
+    ] = None,
+    registry_path: Annotated[
+        Path,
+        typer.Option("--registry", help="Typed source-registry YAML path."),
+    ] = DEFAULT_SOURCE_REGISTRY_PATH,
+    resolution_config: Annotated[
+        Path,
+        typer.Option("--resolution-config", help="Entity-resolution thresholds YAML."),
+    ] = Path("configs/entity_resolution.yaml"),
+    overrides: Annotated[
+        Path,
+        typer.Option("--overrides", help="Audited entity decisions YAML."),
+    ] = Path("configs/entity_overrides.yaml"),
+) -> None:
+    """Build legal entities, parents, aliases, and the review queue."""
+
+    settings = load_settings(config_file)
+    configure_logging(settings.log_level)
+    registry = SourceRegistry.from_yaml(registry_path)
+    pipeline = EntityResolutionPipeline(
+        registry,
+        data_root=settings.data_dir,
+        config_path=resolution_config,
+        overrides_path=overrides,
+    )
+    summary = pipeline.build()
+    typer.echo(json.dumps(summary.model_dump(mode="json"), indent=2, sort_keys=True))
+
+
+@entities_app.command("validate-gold")
+def entities_validate_gold(
+    gold_path: Annotated[
+        Path,
+        typer.Option("--gold", help="Reviewed entity-pair gold CSV."),
+    ] = Path("tests/fixtures/entity_resolution_gold.csv"),
+    resolution_config: Annotated[
+        Path,
+        typer.Option("--resolution-config", help="Entity-resolution thresholds YAML."),
+    ] = Path("configs/entity_resolution.yaml"),
+    report_path: Annotated[
+        Path,
+        typer.Option("--report", help="Machine-readable validation report path."),
+    ] = Path("outputs/reports/entities/gold_validation.json"),
+) -> None:
+    """Validate auto-match precision and parent/legal separation."""
+
+    config = EntityResolutionConfig.from_yaml(resolution_config)
+    result = validate_gold_dataset(gold_path, config, report_path=report_path)
+    typer.echo(json.dumps(result.model_dump(mode="json"), indent=2, sort_keys=True))
+    if not result.passed:
+        raise typer.Exit(1)
 
 
 @app.command("app")

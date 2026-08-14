@@ -1,0 +1,32 @@
+schema_version: entity_resolution_v1
+normalization_version: "1.0.0"
+high_confidence_threshold: 0.97
+review_threshold: 0.80
+minimum_margin: 0.05
+candidate_limit: 25
+location_agreement_required_for_fuzzy_auto: true
+legal_suffixes:
+  - LLC
+  - LLP
+  - LP
+  - INC
+  - INCORPORATED
+  - CORP
+  - CORPORATION
+  - CO
+  - COMPANY
+  - LTD
+  - LIMITED
+  - PLC
+abbreviations:
+  "&": AND
+  UNIV: UNIVERSITY
+  CTR: CENTER
+  SVCS: SERVICES
+  SVC: SERVICE
+  TECH: TECHNOLOGY
+  TECHNOLOGIES: TECHNOLOGY
+  CORP: CORPORATION
+  CO: COMPANY
+  INCORPORATED: INC
+  LTD: LIMITED

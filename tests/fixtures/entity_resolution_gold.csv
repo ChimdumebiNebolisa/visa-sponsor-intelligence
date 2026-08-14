@@ -1,0 +1,201 @@
+category,left_name,right_name,left_city,right_city,left_state,right_state,expected_match,ambiguous,parent_legal_pair
+tech,"Amazon.com Services, LLC",AMAZON COM SERVICES LLC,Seattle,Seattle,WA,WA,true,false,false
+tech,"Amazon Web Services, Inc.",AMAZON WEB SERVICES INC,Seattle,Seattle,WA,WA,true,false,false
+tech,"Amazon Data Services, Inc.",AMAZON DATA SERVICES INC,Seattle,Seattle,WA,WA,true,false,false
+tech,"Amazon Development Center U.S., Inc.",AMAZON DEVELOPMENT CENTER US INC,Seattle,Seattle,WA,WA,true,false,false
+tech,"Meta Platforms, Inc.",META PLATFORMS INC,Menlo Park,Menlo Park,CA,CA,true,false,false
+tech,"Facebook, Inc.",FACEBOOK INC,Menlo Park,Menlo Park,CA,CA,true,false,false
+tech,"Google, LLC",GOOGLE LLC,Mountain View,Mountain View,CA,CA,true,false,false
+tech,"Microsoft Corporation",MICROSOFT CORP,Redmond,Redmond,WA,WA,true,false,false
+tech,"Apple, Inc.",APPLE INC,Cupertino,Cupertino,CA,CA,true,false,false
+tech,"NVIDIA Corporation",NVIDIA CORP,Santa Clara,Santa Clara,CA,CA,true,false,false
+tech,"Intel Corporation",INTEL CORP,Santa Clara,Santa Clara,CA,CA,true,false,false
+tech,"Oracle America, Inc.",ORACLE AMERICA INC,Austin,Austin,TX,TX,true,false,false
+tech,"Salesforce, Inc.",SALESFORCE INC,San Francisco,San Francisco,CA,CA,true,false,false
+tech,"Adobe, Inc.",ADOBE INC,San Jose,San Jose,CA,CA,true,false,false
+tech,"Cisco Systems, Inc.",CISCO SYSTEMS INC,San Jose,San Jose,CA,CA,true,false,false
+tech,"IBM Corporation",IBM CORP,Armonk,Armonk,NY,NY,true,false,false
+tech,"Uber Technologies, Inc.",UBER TECHNOLOGY INC,San Francisco,San Francisco,CA,CA,true,false,false
+tech,"Airbnb, Inc.",AIRBNB INC,San Francisco,San Francisco,CA,CA,true,false,false
+tech,"LinkedIn Corporation",LINKEDIN CORP,Sunnyvale,Sunnyvale,CA,CA,true,false,false
+tech,"Netflix, Inc.",NETFLIX INC,Los Gatos,Los Gatos,CA,CA,true,false,false
+tech,"PayPal, Inc.",PAYPAL INC,San Jose,San Jose,CA,CA,true,false,false
+tech,"eBay, Inc.",EBAY INC,San Jose,San Jose,CA,CA,true,false,false
+tech,"Block, Inc.",BLOCK INC,Oakland,Oakland,CA,CA,true,false,false
+tech,"Stripe, Inc.",STRIPE INC,South San Francisco,South San Francisco,CA,CA,true,false,false
+tech,"Twilio, Inc.",TWILIO INC,San Francisco,San Francisco,CA,CA,true,false,false
+tech,"Snowflake, Inc.",SNOWFLAKE INC,Bozeman,Bozeman,MT,MT,true,false,false
+tech,"Databricks, Inc.",DATABRICKS INC,San Francisco,San Francisco,CA,CA,true,false,false
+tech,"Palantir Technologies, Inc.",PALANTIR TECHNOLOGY INC,Denver,Denver,CO,CO,true,false,false
+tech,"Dropbox, Inc.",DROPBOX INC,San Francisco,San Francisco,CA,CA,true,false,false
+tech,"Zoom Video Communications, Inc.",ZOOM VIDEO COMMUNICATIONS INC,San Jose,San Jose,CA,CA,true,false,false
+tech,"ServiceNow, Inc.",SERVICENOW INC,Santa Clara,Santa Clara,CA,CA,true,false,false
+tech,"Workday, Inc.",WORKDAY INC,Pleasanton,Pleasanton,CA,CA,true,false,false
+tech,"Atlassian US, Inc.",ATLASSIAN US INC,San Francisco,San Francisco,CA,CA,true,false,false
+tech,"GitHub, Inc.",GITHUB INC,San Francisco,San Francisco,CA,CA,true,false,false
+tech,"GitLab, Inc.",GITLAB INC,San Francisco,San Francisco,CA,CA,true,false,false
+tech,"Red Hat, Inc.",RED HAT INC,Raleigh,Raleigh,NC,NC,true,false,false
+tech,"SAP America, Inc.",SAP AMERICA INC,Newtown Square,Newtown Square,PA,PA,true,false,false
+tech,"Qualcomm Technologies, Inc.",QUALCOMM TECHNOLOGY INC,San Diego,San Diego,CA,CA,true,false,false
+tech,"Broadcom, Inc.",BROADCOM INC,Palo Alto,Palo Alto,CA,CA,true,false,false
+tech,"Micron Technology, Inc.",MICRON TECH INC,Boise,Boise,ID,ID,true,false,false
+tech,"Dell USA, L.P.",DELL USA LP,Round Rock,Round Rock,TX,TX,true,false,false
+tech,"Hewlett Packard Enterprise Company",HEWLETT PACKARD ENTERPRISE CO,Spring,Spring,TX,TX,true,false,false
+tech,"HP, Inc.",HP INC,Palo Alto,Palo Alto,CA,CA,true,false,false
+tech,"Intuit, Inc.",INTUIT INC,Mountain View,Mountain View,CA,CA,true,false,false
+tech,"Robinhood Markets, Inc.",ROBINHOOD MARKETS INC,Menlo Park,Menlo Park,CA,CA,true,false,false
+tech,"Coinbase, Inc.",COINBASE INC,San Francisco,San Francisco,CA,CA,true,false,false
+tech,"DoorDash, Inc.",DOORDASH INC,San Francisco,San Francisco,CA,CA,true,false,false
+tech,"Lyft, Inc.",LYFT INC,San Francisco,San Francisco,CA,CA,true,false,false
+tech,"Pinterest, Inc.",PINTEREST INC,San Francisco,San Francisco,CA,CA,true,false,false
+tech,"Snap, Inc.",SNAP INC,Santa Monica,Santa Monica,CA,CA,true,false,false
+universities,Harvard University,HARVARD UNIV,Cambridge,Cambridge,MA,MA,true,false,false
+universities,Stanford University,STANFORD UNIV,Stanford,Stanford,CA,CA,true,false,false
+universities,Massachusetts Institute of Technology,MASSACHUSETTS INSTITUTE OF TECHNOLOGY,Cambridge,Cambridge,MA,MA,true,false,false
+universities,California Institute of Technology,CALIFORNIA INSTITUTE OF TECHNOLOGY,Pasadena,Pasadena,CA,CA,true,false,false
+universities,Princeton University,PRINCETON UNIV,Princeton,Princeton,NJ,NJ,true,false,false
+universities,Yale University,YALE UNIV,New Haven,New Haven,CT,CT,true,false,false
+universities,Columbia University in the City of New York,COLUMBIA UNIV IN THE CITY OF NEW YORK,New York,New York,NY,NY,true,false,false
+universities,University of Pennsylvania,UNIV OF PENNSYLVANIA,Philadelphia,Philadelphia,PA,PA,true,false,false
+universities,Duke University,DUKE UNIV,Durham,Durham,NC,NC,true,false,false
+universities,Northwestern University,NORTHWESTERN UNIV,Evanston,Evanston,IL,IL,true,false,false
+universities,University of Chicago,UNIV OF CHICAGO,Chicago,Chicago,IL,IL,true,false,false
+universities,Cornell University,CORNELL UNIV,Ithaca,Ithaca,NY,NY,true,false,false
+universities,Brown University,BROWN UNIV,Providence,Providence,RI,RI,true,false,false
+universities,Dartmouth College,DARTMOUTH COLLEGE,Hanover,Hanover,NH,NH,true,false,false
+universities,Rice University,RICE UNIV,Houston,Houston,TX,TX,true,false,false
+universities,Vanderbilt University,VANDERBILT UNIV,Nashville,Nashville,TN,TN,true,false,false
+universities,Washington University in St Louis,WASHINGTON UNIV IN ST LOUIS,Saint Louis,Saint Louis,MO,MO,true,false,false
+universities,Johns Hopkins University,JOHNS HOPKINS UNIV,Baltimore,Baltimore,MD,MD,true,false,false
+universities,Carnegie Mellon University,CARNEGIE MELLON UNIV,Pittsburgh,Pittsburgh,PA,PA,true,false,false
+universities,Emory University,EMORY UNIV,Atlanta,Atlanta,GA,GA,true,false,false
+universities,Georgetown University,GEORGETOWN UNIV,Washington,Washington,DC,DC,true,false,false
+universities,New York University,NEW YORK UNIV,New York,New York,NY,NY,true,false,false
+universities,University of Michigan-Ann Arbor,UNIV OF MICHIGAN ANN ARBOR,Ann Arbor,Ann Arbor,MI,MI,true,false,false
+universities,University of Virginia-Main Campus,UNIV OF VIRGINIA MAIN CAMPUS,Charlottesville,Charlottesville,VA,VA,true,false,false
+universities,University of North Carolina at Chapel Hill,UNIV OF NORTH CAROLINA AT CHAPEL HILL,Chapel Hill,Chapel Hill,NC,NC,true,false,false
+universities,University of California-Berkeley,UNIV OF CALIFORNIA BERKELEY,Berkeley,Berkeley,CA,CA,true,false,false
+universities,University of California-Los Angeles,UNIV OF CALIFORNIA LOS ANGELES,Los Angeles,Los Angeles,CA,CA,true,false,false
+universities,University of California-San Diego,UNIV OF CALIFORNIA SAN DIEGO,La Jolla,La Jolla,CA,CA,true,false,false
+universities,University of California-San Francisco,UNIV OF CALIFORNIA SAN FRANCISCO,San Francisco,San Francisco,CA,CA,true,false,false
+universities,University of Washington-Seattle Campus,UNIV OF WASHINGTON SEATTLE CAMPUS,Seattle,Seattle,WA,WA,true,false,false
+universities,University of Wisconsin-Madison,UNIV OF WISCONSIN MADISON,Madison,Madison,WI,WI,true,false,false
+universities,University of Illinois Urbana-Champaign,UNIV OF ILLINOIS URBANA CHAMPAIGN,Champaign,Champaign,IL,IL,true,false,false
+universities,University of Texas at Austin,UNIV OF TEXAS AT AUSTIN,Austin,Austin,TX,TX,true,false,false
+universities,Texas A & M University-College Station,TEXAS A AND M UNIV COLLEGE STATION,College Station,College Station,TX,TX,true,false,false
+universities,Georgia Institute of Technology-Main Campus,GEORGIA INSTITUTE OF TECHNOLOGY MAIN CAMPUS,Atlanta,Atlanta,GA,GA,true,false,false
+universities,Purdue University-Main Campus,PURDUE UNIV MAIN CAMPUS,West Lafayette,West Lafayette,IN,IN,true,false,false
+universities,Ohio State University-Main Campus,OHIO STATE UNIV MAIN CAMPUS,Columbus,Columbus,OH,OH,true,false,false
+universities,Pennsylvania State University-Main Campus,PENNSYLVANIA STATE UNIV MAIN CAMPUS,University Park,University Park,PA,PA,true,false,false
+universities,University of Minnesota-Twin Cities,UNIV OF MINNESOTA TWIN CITIES,Minneapolis,Minneapolis,MN,MN,true,false,false
+universities,University of Maryland-College Park,UNIV OF MARYLAND COLLEGE PARK,College Park,College Park,MD,MD,true,false,false
+universities,University of Florida,UNIV OF FLORIDA,Gainesville,Gainesville,FL,FL,true,false,false
+universities,Florida State University,FLORIDA STATE UNIV,Tallahassee,Tallahassee,FL,FL,true,false,false
+universities,Arizona State University Campus Immersion,ARIZONA STATE UNIV CAMPUS IMMERSION,Tempe,Tempe,AZ,AZ,true,false,false
+universities,University of Arizona,UNIV OF ARIZONA,Tucson,Tucson,AZ,AZ,true,false,false
+universities,University of Colorado Boulder,UNIV OF COLORADO BOULDER,Boulder,Boulder,CO,CO,true,false,false
+universities,University of Oregon,UNIV OF OREGON,Eugene,Eugene,OR,OR,true,false,false
+universities,University of Utah,UNIV OF UTAH,Salt Lake City,Salt Lake City,UT,UT,true,false,false
+universities,University at Buffalo,UNIV AT BUFFALO,Buffalo,Buffalo,NY,NY,true,false,false
+universities,Rutgers University-New Brunswick,RUTGERS UNIV NEW BRUNSWICK,New Brunswick,New Brunswick,NJ,NJ,true,false,false
+universities,Boston University,BOSTON UNIV,Boston,Boston,MA,MA,true,false,false
+systems,University of Texas System,University of Texas at Austin,Austin,Austin,TX,TX,false,true,true
+systems,State University of New York,State University of New York at Buffalo,Buffalo,Buffalo,NY,NY,false,true,true
+systems,University of California System,University of California Berkeley,Berkeley,Berkeley,CA,CA,false,true,true
+systems,California State University System,California State University Fresno,Fresno,Fresno,CA,CA,false,true,true
+systems,University System of Georgia,University of Georgia,Athens,Athens,GA,GA,false,true,true
+systems,Texas A and M University System,Texas A and M University College Station,College Station,College Station,TX,TX,false,true,true
+systems,University of Wisconsin System,University of Wisconsin Madison,Madison,Madison,WI,WI,false,true,true
+systems,University of North Carolina System,University of North Carolina at Chapel Hill,Chapel Hill,Chapel Hill,NC,NC,false,true,true
+systems,University of Illinois System,University of Illinois Urbana Champaign,Champaign,Champaign,IL,IL,false,true,true
+systems,University of Colorado System,University of Colorado Boulder,Boulder,Boulder,CO,CO,false,true,true
+systems,University of Massachusetts System,University of Massachusetts Amherst,Amherst,Amherst,MA,MA,false,true,true
+systems,University of Missouri System,University of Missouri Columbia,Columbia,Columbia,MO,MO,false,true,true
+systems,University of Alabama System,University of Alabama at Birmingham,Birmingham,Birmingham,AL,AL,false,true,true
+systems,University of Alaska System,University of Alaska Fairbanks,Fairbanks,Fairbanks,AK,AK,false,true,true
+systems,University of Hawaii System,University of Hawaii at Manoa,Honolulu,Honolulu,HI,HI,false,true,true
+systems,University of Maryland System,University of Maryland College Park,College Park,College Park,MD,MD,false,true,true
+systems,University of Maine System,University of Maine Orono,Orono,Orono,ME,ME,false,true,true
+systems,University of Nebraska System,University of Nebraska Lincoln,Lincoln,Lincoln,NE,NE,false,true,true
+systems,University of Nevada System,University of Nevada Reno,Reno,Reno,NV,NV,false,true,true
+systems,University of Tennessee System,University of Tennessee Knoxville,Knoxville,Knoxville,TN,TN,false,true,true
+systems,University of Arkansas System,University of Arkansas Fayetteville,Fayetteville,Fayetteville,AR,AR,false,true,true
+systems,University of Louisiana System,University of Louisiana at Lafayette,Lafayette,Lafayette,LA,LA,false,true,true
+systems,University of Montana System,University of Montana Missoula,Missoula,Missoula,MT,MT,false,true,true
+systems,University of South Carolina System,University of South Carolina Columbia,Columbia,Columbia,SC,SC,false,true,true
+systems,University of Houston System,University of Houston Main Campus,Houston,Houston,TX,TX,false,true,true
+hospitals_medical,"Mayo Clinic, Inc.",MAYO CLINIC INC,Rochester,Rochester,MN,MN,true,false,false
+hospitals_medical,"Cleveland Clinic Foundation",CLEVELAND CLINIC FOUNDATION,Cleveland,Cleveland,OH,OH,true,false,false
+hospitals_medical,"Massachusetts General Hospital",MASSACHUSETTS GENERAL HOSPITAL,Boston,Boston,MA,MA,true,false,false
+hospitals_medical,"Brigham and Women's Hospital",BRIGHAM AND WOMEN S HOSPITAL,Boston,Boston,MA,MA,true,false,false
+hospitals_medical,"NewYork-Presbyterian Hospital",NEWYORK PRESBYTERIAN HOSPITAL,New York,New York,NY,NY,true,false,false
+hospitals_medical,"Cedars-Sinai Medical Center",CEDARS SINAI MEDICAL CTR,Los Angeles,Los Angeles,CA,CA,true,false,false
+hospitals_medical,"Memorial Sloan Kettering Cancer Center",MEMORIAL SLOAN KETTERING CANCER CTR,New York,New York,NY,NY,true,false,false
+hospitals_medical,"MD Anderson Cancer Center",MD ANDERSON CANCER CTR,Houston,Houston,TX,TX,true,false,false
+hospitals_medical,"Children's Hospital of Philadelphia",CHILDREN S HOSPITAL OF PHILADELPHIA,Philadelphia,Philadelphia,PA,PA,true,false,false
+hospitals_medical,"Boston Children's Hospital",BOSTON CHILDREN S HOSPITAL,Boston,Boston,MA,MA,true,false,false
+hospitals_medical,"Seattle Children's Hospital",SEATTLE CHILDREN S HOSPITAL,Seattle,Seattle,WA,WA,true,false,false
+hospitals_medical,"St. Jude Children's Research Hospital",ST JUDE CHILDREN S RESEARCH HOSPITAL,Memphis,Memphis,TN,TN,true,false,false
+hospitals_medical,"Hospital for Special Surgery",HOSPITAL FOR SPECIAL SURGERY,New York,New York,NY,NY,true,false,false
+hospitals_medical,"Northwestern Memorial Hospital",NORTHWESTERN MEMORIAL HOSPITAL,Chicago,Chicago,IL,IL,true,false,false
+hospitals_medical,"Rush University Medical Center",RUSH UNIV MEDICAL CTR,Chicago,Chicago,IL,IL,true,false,false
+hospitals_medical,"Baylor College of Medicine",BAYLOR COLLEGE OF MEDICINE,Houston,Houston,TX,TX,true,false,false
+hospitals_medical,"Houston Methodist Hospital",HOUSTON METHODIST HOSPITAL,Houston,Houston,TX,TX,true,false,false
+hospitals_medical,"UCSF Medical Center",UCSF MEDICAL CTR,San Francisco,San Francisco,CA,CA,true,false,false
+hospitals_medical,"Stanford Health Care",STANFORD HEALTH CARE,Stanford,Stanford,CA,CA,true,false,false
+hospitals_medical,"Duke University Hospital",DUKE UNIV HOSPITAL,Durham,Durham,NC,NC,true,false,false
+hospitals_medical,"Vanderbilt University Medical Center",VANDERBILT UNIV MEDICAL CTR,Nashville,Nashville,TN,TN,true,false,false
+hospitals_medical,"NYU Langone Hospitals",NYU LANGONE HOSPITALS,New York,New York,NY,NY,true,false,false
+hospitals_medical,"Mount Sinai Hospital",MOUNT SINAI HOSPITAL,New York,New York,NY,NY,true,false,false
+hospitals_medical,"Johns Hopkins Hospital",JOHNS HOPKINS HOSPITAL,Baltimore,Baltimore,MD,MD,true,false,false
+hospitals_medical,"University of Michigan Health",UNIV OF MICHIGAN HEALTH,Ann Arbor,Ann Arbor,MI,MI,true,false,false
+research_labs,"Brookhaven National Laboratory",BROOKHAVEN NATIONAL LABORATORY,Upton,Upton,NY,NY,true,false,false
+research_labs,"Argonne National Laboratory",ARGONNE NATIONAL LABORATORY,Lemont,Lemont,IL,IL,true,false,false
+research_labs,"Oak Ridge National Laboratory",OAK RIDGE NATIONAL LABORATORY,Oak Ridge,Oak Ridge,TN,TN,true,false,false
+research_labs,"Lawrence Berkeley National Laboratory",LAWRENCE BERKELEY NATIONAL LABORATORY,Berkeley,Berkeley,CA,CA,true,false,false
+research_labs,"Lawrence Livermore National Laboratory",LAWRENCE LIVERMORE NATIONAL LABORATORY,Livermore,Livermore,CA,CA,true,false,false
+research_labs,"Los Alamos National Laboratory",LOS ALAMOS NATIONAL LABORATORY,Los Alamos,Los Alamos,NM,NM,true,false,false
+research_labs,"Sandia National Laboratories",SANDIA NATIONAL LABORATORIES,Albuquerque,Albuquerque,NM,NM,true,false,false
+research_labs,"Pacific Northwest National Laboratory",PACIFIC NORTHWEST NATIONAL LABORATORY,Richland,Richland,WA,WA,true,false,false
+research_labs,"National Renewable Energy Laboratory",NATIONAL RENEWABLE ENERGY LABORATORY,Golden,Golden,CO,CO,true,false,false
+research_labs,"Fermi National Accelerator Laboratory",FERMI NATIONAL ACCELERATOR LABORATORY,Batavia,Batavia,IL,IL,true,false,false
+research_labs,"SLAC National Accelerator Laboratory",SLAC NATIONAL ACCELERATOR LABORATORY,Menlo Park,Menlo Park,CA,CA,true,false,false
+research_labs,"Idaho National Laboratory",IDAHO NATIONAL LABORATORY,Idaho Falls,Idaho Falls,ID,ID,true,false,false
+research_labs,"Ames National Laboratory",AMES NATIONAL LABORATORY,Ames,Ames,IA,IA,true,false,false
+research_labs,"National Center for Atmospheric Research",NATIONAL CTR FOR ATMOSPHERIC RESEARCH,Boulder,Boulder,CO,CO,true,false,false
+research_labs,"Cold Spring Harbor Laboratory",COLD SPRING HARBOR LABORATORY,Cold Spring Harbor,Cold Spring Harbor,NY,NY,true,false,false
+research_labs,"Salk Institute for Biological Studies",SALK INSTITUTE FOR BIOLOGICAL STUDIES,La Jolla,La Jolla,CA,CA,true,false,false
+research_labs,"Broad Institute, Inc.",BROAD INSTITUTE INC,Cambridge,Cambridge,MA,MA,true,false,false
+research_labs,"Whitehead Institute for Biomedical Research",WHITEHEAD INSTITUTE FOR BIOMEDICAL RESEARCH,Cambridge,Cambridge,MA,MA,true,false,false
+research_labs,"J. Craig Venter Institute",J CRAIG VENTER INSTITUTE,La Jolla,La Jolla,CA,CA,true,false,false
+research_labs,"Howard Hughes Medical Institute",HOWARD HUGHES MEDICAL INSTITUTE,Chevy Chase,Chevy Chase,MD,MD,true,false,false
+research_labs,"Carnegie Institution for Science",CARNEGIE INSTITUTION FOR SCIENCE,Washington,Washington,DC,DC,true,false,false
+research_labs,"Allen Institute, Inc.",ALLEN INSTITUTE INC,Seattle,Seattle,WA,WA,true,false,false
+research_labs,"Battelle Memorial Institute",BATTELLE MEMORIAL INSTITUTE,Columbus,Columbus,OH,OH,true,false,false
+research_labs,"The Jackson Laboratory",JACKSON LABORATORY,Bar Harbor,Bar Harbor,ME,ME,true,false,false
+research_labs,"Woods Hole Oceanographic Institution",WOODS HOLE OCEANOGRAPHIC INSTITUTION,Woods Hole,Woods Hole,MA,MA,true,false,false
+staffing_consulting,"Cognizant Technology Solutions U.S. Corporation",COGNIZANT TECHNOLOGY SOLUTIONS US CORP,College Station,College Station,TX,TX,true,false,false
+staffing_consulting,"Infosys Limited",INFOSYS LTD,Richardson,Richardson,TX,TX,true,false,false
+staffing_consulting,"Tata Consultancy Services Limited",TATA CONSULTANCY SERVICES LTD,Rockville,Rockville,MD,MD,true,false,false
+staffing_consulting,"Wipro Limited",WIPRO LTD,East Brunswick,East Brunswick,NJ,NJ,true,false,false
+staffing_consulting,"Accenture LLP",ACCENTURE LLP,Chicago,Chicago,IL,IL,true,false,false
+staffing_consulting,"Deloitte Consulting LLP",DELOITTE CONSULTING LLP,Arlington,Arlington,VA,VA,true,false,false
+staffing_consulting,"Ernst & Young U.S. LLP",ERNST AND YOUNG US LLP,New York,New York,NY,NY,true,false,false
+staffing_consulting,"KPMG LLP",KPMG LLP,New York,New York,NY,NY,true,false,false
+staffing_consulting,"PricewaterhouseCoopers Advisory Services LLC",PRICEWATERHOUSECOOPERS ADVISORY SERVICES LLC,New York,New York,NY,NY,true,false,false
+staffing_consulting,"Capgemini America, Inc.",CAPGEMINI AMERICA INC,New York,New York,NY,NY,true,false,false
+staffing_consulting,"HCL America, Inc.",HCL AMERICA INC,Sunnyvale,Sunnyvale,CA,CA,true,false,false
+staffing_consulting,"Tech Mahindra Americas, Inc.",TECH MAHINDRA AMERICAS INC,Plano,Plano,TX,TX,true,false,false
+staffing_consulting,"NTT Data, Inc.",NTT DATA INC,Plano,Plano,TX,TX,true,false,false
+staffing_consulting,"Mphasis Corporation",MPHASIS CORP,New York,New York,NY,NY,true,false,false
+staffing_consulting,"Larsen & Toubro Infotech Limited",LARSEN AND TOUBRO INFOTECH LTD,Edison,Edison,NJ,NJ,true,false,false
+staffing_consulting,"Randstad Technologies, LLC",RANDSTAD TECHNOLOGY LLC,Atlanta,Atlanta,GA,GA,true,false,false
+staffing_consulting,"Robert Half International, Inc.",ROBERT HALF INTERNATIONAL INC,Menlo Park,Menlo Park,CA,CA,true,false,false
+staffing_consulting,"TEKsystems, Inc.",TEKSYSTEMS INC,Hanover,Hanover,MD,MD,true,false,false
+staffing_consulting,"Kforce, Inc.",KFORCE INC,Tampa,Tampa,FL,FL,true,false,false
+staffing_consulting,"Insight Global, LLC",INSIGHT GLOBAL LLC,Atlanta,Atlanta,GA,GA,true,false,false
+staffing_consulting,"Apex Systems, LLC",APEX SYSTEMS LLC,Glen Allen,Glen Allen,VA,VA,true,false,false
+staffing_consulting,"EPAM Systems, Inc.",EPAM SYSTEMS INC,Newtown,Newtown,PA,PA,true,false,false
+staffing_consulting,"Slalom, LLC",SLALOM LLC,Seattle,Seattle,WA,WA,true,false,false
+staffing_consulting,"Booz Allen Hamilton, Inc.",BOOZ ALLEN HAMILTON INC,McLean,McLean,VA,VA,true,false,false
+staffing_consulting,"McKinsey & Company, Inc.",MCKINSEY AND COMPANY INC,New York,New York,NY,NY,true,false,false
