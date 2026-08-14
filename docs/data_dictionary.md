@@ -70,3 +70,17 @@ Files under `data/resolved/sources/` preserve every staging column and add `lega
 `data/processed/role_classifications.parquet` contains one deterministic classification for each unique `(source_id, job_title_raw, soc_code_raw)` combination and its `occurrence_count`. `classification_id` and `classification_version` make the decision addressable and reproducible.
 
 Classified DOL mirrors under `data/classified/sources/` preserve every resolved-source field and add nullable Boolean `technical_role`, `role_family`, `role_confidence`, `classification_method`, `classification_rule`, `classification_version`, and `review_status`. A null `technical_role` always uses family `ambiguous` and status `NEEDS_REVIEW`; it is not silently treated as false.
+
+## Phase 5 processed metrics and presentation views
+
+`lca_cases_resolved.parquet`, `perm_cases_resolved.parquet`, and `h1b_petitions_resolved.parquet` are compact processed case/evidence tables. They retain source artifact, file, ingestion time, fiscal period, legal entity, parent organization, and `organization_id`. `organization_id` is the reviewed parent when one exists and otherwise the legal entity; it never replaces either identity field.
+
+`employer_metrics.parquet` has one row per parent-or-legal organization scope. It contains the legal-entity count; organization type and state; raw LCA, relevant LCA, relevant certified PERM, and USCIS petition counts; active and last-observed years; technical-family/title summaries; worksite states; source coverage; partial-period markers; and `metric_version = raw_metrics_v1`. Its legal-entity counts sum to the full legal-entity table. The 26 blank-name USCIS observations retain null identity and are excluded from organization aggregation rather than guessed.
+
+`institution_metrics.parquet` has one row per IPEDS institution and joins the latest available HERD measures plus immigration counts at the institution's legal petitioner. Research expenditures remain separate fields for total, federal, computing, and engineering R&D. IPEDS institutions receive `POTENTIALLY_CAP_EXEMPT_HIGHER_ED`; this is not a verified cap-exemption decision.
+
+`data_health.parquet` reports source row counts, coverage years, the latest complete year, and current partial year/quarter. Phase 5 identifies FY2025 as the latest complete immigration year and FY2026 as partial; DOL is currently available through Q2.
+
+Every explorer row displays `evidence_classes`. Raw source presence is `OBSERVED_GOVERNMENT_RECORD`; an aggregation is `DERIVED_METRIC`. E-Verify, OPT, and institution-policy values remain `UNKNOWN`, while Phase 8 scores remain null with `NOT_SCORED`. These placeholders must not be presented as negative evidence.
+
+`db/immigration.duckdb` materializes the processed tables and the ten required views: `vw_employer_explorer`, `vw_institution_explorer`, `vw_organization_detail`, `vw_h1b_trends`, `vw_perm_trends`, `vw_relevant_titles`, `vw_policy_evidence`, `vw_entity_review_queue`, `vw_policy_review_queue`, and `vw_data_health`. Policy views are intentionally empty until Phase 7 rather than populated with inferred facts.

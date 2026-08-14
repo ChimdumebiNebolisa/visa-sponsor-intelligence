@@ -13,10 +13,12 @@ import typer
 
 from sponsor_intel import __version__
 from sponsor_intel.config import load_settings
+from sponsor_intel.database.builder import DuckDBBuilder
 from sponsor_intel.entity_resolution.models import EntityResolutionConfig
 from sponsor_intel.entity_resolution.pipeline import EntityResolutionPipeline
 from sponsor_intel.entity_resolution.validation import validate_gold_dataset
 from sponsor_intel.logging import configure_logging
+from sponsor_intel.metrics.pipeline import MetricsPipeline
 from sponsor_intel.role_classification.models import RoleTaxonomyConfig
 from sponsor_intel.role_classification.pipeline import RoleClassificationPipeline
 from sponsor_intel.role_classification.validation import validate_role_gold
@@ -32,9 +34,13 @@ app = typer.Typer(
 sources_app = typer.Typer(help="Inspect and discover authoritative source artifacts.")
 entities_app = typer.Typer(help="Build and validate legal-entity resolution tables.")
 roles_app = typer.Typer(help="Build and validate deterministic role classifications.")
+metrics_app = typer.Typer(help="Build processed employer and institution metrics.")
+database_app = typer.Typer(help="Build the DuckDB presentation database.")
 app.add_typer(sources_app, name="sources")
 app.add_typer(entities_app, name="entities")
 app.add_typer(roles_app, name="roles")
+app.add_typer(metrics_app, name="metrics")
+app.add_typer(database_app, name="db")
 
 
 @app.command()
@@ -237,6 +243,39 @@ def roles_validate_gold(
     typer.echo(json.dumps(result.model_dump(mode="json"), indent=2, sort_keys=True))
     if not result.passed:
         raise typer.Exit(1)
+
+
+@metrics_app.command("build")
+def metrics_build(
+    config_file: Annotated[
+        Path | None,
+        typer.Option("--config", help="Optional application configuration path."),
+    ] = None,
+) -> None:
+    """Build raw employer and institution metrics from resolved evidence."""
+
+    settings = load_settings(config_file)
+    configure_logging(settings.log_level)
+    summary = MetricsPipeline(data_root=settings.data_dir).build()
+    typer.echo(json.dumps(summary.model_dump(mode="json"), indent=2, sort_keys=True))
+
+
+@database_app.command("build")
+def database_build(
+    config_file: Annotated[
+        Path | None,
+        typer.Option("--config", help="Optional application configuration path."),
+    ] = None,
+) -> None:
+    """Materialize processed tables and presentation views in DuckDB."""
+
+    settings = load_settings(config_file)
+    configure_logging(settings.log_level)
+    summary = DuckDBBuilder(
+        data_root=settings.data_dir,
+        database_path=settings.db_path,
+    ).build()
+    typer.echo(json.dumps(summary.model_dump(mode="json"), indent=2, sort_keys=True))
 
 
 @app.command("app")

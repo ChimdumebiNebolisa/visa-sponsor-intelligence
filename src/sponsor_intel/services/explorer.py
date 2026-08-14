@@ -1,11 +1,19 @@
-"""Read-only query boundary for the employer explorer user interface."""
+"""Read-only DuckDB query boundary for the Streamlit explorer."""
 
 from __future__ import annotations
 
+import io
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal, Protocol, runtime_checkable
 
-EvidenceStatus = Literal["UNKNOWN"]
+import duckdb
+import polars as pl
+
+from sponsor_intel.config import load_settings
+
+EvidenceStatus = Literal["UNKNOWN", "AVAILABLE"]
+ExportFormat = Literal["csv", "parquet"]
 
 EVIDENCE_DISCLAIMER = (
     "This product reports historical and official evidence. It does not provide legal advice "
@@ -15,7 +23,7 @@ EVIDENCE_DISCLAIMER = (
 
 @dataclass(frozen=True, slots=True)
 class ExplorerStatus:
-    """Current availability state for the explorer presentation layer."""
+    """Current availability and partial-period state for the application."""
 
     phase: str
     build_id: str
@@ -23,33 +31,598 @@ class ExplorerStatus:
     evidence_status: EvidenceStatus
     message: str
     disclaimer: str
+    latest_complete_fiscal_year: int | None = None
+    current_partial_fiscal_year: int | None = None
+    current_partial_quarter: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class OverviewMetrics:
+    """Coverage metrics shown on the application overview."""
+
+    legal_entity_count: int
+    parent_organization_count: int
+    institution_count: int
+    relevant_lca_count: int
+    relevant_certified_perm_count: int
+    reviewed_policy_institution_count: int
+    unresolved_entity_match_count: int
+    source_coverage: pl.DataFrame
+
+
+@dataclass(frozen=True, slots=True)
+class EmployerFilters:
+    """Safe, parameterized filters for the employer explorer."""
+
+    search: str = ""
+    organization_types: tuple[str, ...] = ()
+    states: tuple[str, ...] = ()
+    everify_statuses: tuple[str, ...] = ()
+    opt_statuses: tuple[str, ...] = ()
+    cap_exemption_statuses: tuple[str, ...] = ()
+    evidence_confidences: tuple[str, ...] = ()
+    role_family: str | None = None
+    minimum_relevant_lca: int = 0
+    minimum_relevant_perm: int = 0
+    minimum_initial_approvals: int = 0
+    minimum_last_activity_year: int | None = None
+    exclude_known_staffing_consulting: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class InstitutionFilters:
+    """Safe, parameterized filters for the institution explorer."""
+
+    search: str = ""
+    controls: tuple[str, ...] = ()
+    states: tuple[str, ...] = ()
+    cap_exemption_statuses: tuple[str, ...] = ()
+    minimum_total_rd: int = 0
+    minimum_computing_rd: int = 0
+    minimum_engineering_rd: int = 0
+    minimum_relevant_lca: int = 0
+    minimum_relevant_perm: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class OrganizationDetail:
+    """Identity, immigration, title, wage, and provenance evidence for one organization."""
+
+    summary: pl.DataFrame
+    legal_entities: pl.DataFrame
+    aliases: pl.DataFrame
+    h1b_trends: pl.DataFrame
+    perm_trends: pl.DataFrame
+    relevant_titles: pl.DataFrame
+    case_statuses: pl.DataFrame
+    worksite_states: pl.DataFrame
+    wage_summary: pl.DataFrame
+    institutions: pl.DataFrame
+    provenance: pl.DataFrame
 
 
 @runtime_checkable
 class ExplorerService(Protocol):
     """Contract that keeps presentation code independent of analytical storage."""
 
-    def get_status(self) -> ExplorerStatus:
-        """Return data availability and evidence semantics for the current build."""
+    def get_status(self) -> ExplorerStatus: ...
 
-        ...
+    def get_overview(self) -> OverviewMetrics: ...
+
+    def list_employers(
+        self, filters: EmployerFilters | None = None, *, limit: int | None = 500
+    ) -> pl.DataFrame: ...
+
+    def list_institutions(
+        self, filters: InstitutionFilters | None = None, *, limit: int | None = 500
+    ) -> pl.DataFrame: ...
+
+    def employer_facets(self) -> dict[str, list[str]]: ...
+
+    def institution_facets(self) -> dict[str, list[str]]: ...
+
+    def search_organizations(self, search: str, *, limit: int = 50) -> pl.DataFrame: ...
+
+    def get_organization_detail(self, organization_id: str) -> OrganizationDetail | None: ...
+
+    def export_employers(self, filters: EmployerFilters, file_format: ExportFormat) -> bytes: ...
+
+    def export_institutions(
+        self, filters: InstitutionFilters, file_format: ExportFormat
+    ) -> bytes: ...
+
+
+def _empty() -> pl.DataFrame:
+    return pl.DataFrame()
 
 
 class FoundationExplorerService:
-    """Phase 0 implementation that never fabricates unavailable evidence."""
+    """Fallback that never fabricates evidence when a database has not been built."""
 
     def get_status(self) -> ExplorerStatus:
         return ExplorerStatus(
-            phase="Phase 0",
-            build_id="foundation",
+            phase="Phase 5",
+            build_id="database-unavailable",
             data_available=False,
             evidence_status="UNKNOWN",
-            message="No source data has been ingested. Evidence remains UNKNOWN.",
+            message="No presentation database has been built. Evidence remains UNKNOWN.",
             disclaimer=EVIDENCE_DISCLAIMER,
         )
 
+    def get_overview(self) -> OverviewMetrics:
+        return OverviewMetrics(0, 0, 0, 0, 0, 0, 0, _empty())
 
-def get_explorer_service() -> ExplorerService:
-    """Construct the current read-only explorer service."""
+    def list_employers(
+        self, filters: EmployerFilters | None = None, *, limit: int | None = 500
+    ) -> pl.DataFrame:
+        return _empty()
 
-    return FoundationExplorerService()
+    def list_institutions(
+        self, filters: InstitutionFilters | None = None, *, limit: int | None = 500
+    ) -> pl.DataFrame:
+        return _empty()
+
+    def employer_facets(self) -> dict[str, list[str]]:
+        return {}
+
+    def institution_facets(self) -> dict[str, list[str]]:
+        return {}
+
+    def search_organizations(self, search: str, *, limit: int = 50) -> pl.DataFrame:
+        return _empty()
+
+    def get_organization_detail(self, organization_id: str) -> OrganizationDetail | None:
+        return None
+
+    def export_employers(self, filters: EmployerFilters, file_format: ExportFormat) -> bytes:
+        return b""
+
+    def export_institutions(self, filters: InstitutionFilters, file_format: ExportFormat) -> bytes:
+        return b""
+
+
+def _placeholders(values: tuple[str, ...]) -> str:
+    return ", ".join("?" for _ in values)
+
+
+def _serialized(frame: pl.DataFrame, file_format: ExportFormat) -> bytes:
+    if file_format == "csv":
+        return frame.write_csv().encode("utf-8")
+    buffer = io.BytesIO()
+    frame.write_parquet(buffer, compression="zstd")
+    return buffer.getvalue()
+
+
+class DuckDBExplorerService:
+    """Parameterized read-only queries over processed presentation views."""
+
+    def __init__(self, database_path: Path) -> None:
+        if not database_path.is_file():
+            raise ValueError(f"Presentation database is unavailable: {database_path}")
+        self.database_path = database_path
+        self._connection = duckdb.connect(str(self.database_path), read_only=True)
+
+    def _query(self, sql: str, parameters: list[object] | None = None) -> pl.DataFrame:
+        return self._connection.execute(sql, parameters or []).pl()
+
+    def close(self) -> None:
+        """Release the read-only database handle."""
+
+        self._connection.close()
+
+    def get_status(self) -> ExplorerStatus:
+        health = self._query(
+            """
+            SELECT
+                max(latest_complete_fiscal_year) AS latest_complete_fiscal_year,
+                max(current_partial_fiscal_year) AS current_partial_fiscal_year,
+                max(current_partial_quarter) AS current_partial_quarter
+            FROM vw_data_health
+            WHERE source_id IN ('dol_lca', 'dol_perm', 'uscis_h1b')
+            """
+        ).to_dicts()[0]
+        partial = health["current_partial_fiscal_year"]
+        message = "Processed government and institution metrics are available."
+        if partial is not None:
+            message += (
+                f" FY{partial} is partial and must not be compared directly with complete years."
+            )
+        return ExplorerStatus(
+            phase="Phase 5",
+            build_id="raw_metrics_v1",
+            data_available=True,
+            evidence_status="AVAILABLE",
+            message=message,
+            disclaimer=EVIDENCE_DISCLAIMER,
+            latest_complete_fiscal_year=health["latest_complete_fiscal_year"],
+            current_partial_fiscal_year=partial,
+            current_partial_quarter=health["current_partial_quarter"],
+        )
+
+    def get_overview(self) -> OverviewMetrics:
+        counts = self._query(
+            """
+            SELECT
+                (SELECT count(*) FROM legal_entities) AS legal_entity_count,
+                (SELECT count(*) FROM parent_organizations) AS parent_organization_count,
+                (SELECT count(*) FROM institutions) AS institution_count,
+                (SELECT coalesce(sum(relevant_lca_count), 0) FROM employer_metrics)
+                    AS relevant_lca_count,
+                (SELECT coalesce(sum(relevant_certified_perm_count), 0) FROM employer_metrics)
+                    AS relevant_certified_perm_count,
+                0 AS reviewed_policy_institution_count,
+                (SELECT count(*) FROM vw_entity_review_queue) AS unresolved_entity_match_count
+            """
+        ).to_dicts()[0]
+        return OverviewMetrics(
+            **counts,
+            source_coverage=self._query("SELECT * FROM vw_data_health ORDER BY source_id"),
+        )
+
+    @staticmethod
+    def _employer_where(filters: EmployerFilters) -> tuple[str, list[object]]:
+        clauses = [
+            "relevant_lca_count >= ?",
+            "relevant_certified_perm_count >= ?",
+            "initial_approvals >= ?",
+        ]
+        parameters: list[object] = [
+            filters.minimum_relevant_lca,
+            filters.minimum_relevant_perm,
+            filters.minimum_initial_approvals,
+        ]
+        if filters.search.strip():
+            clauses.append(
+                "(organization_name ILIKE ? OR organization_id IN ("
+                "SELECT coalesce(parent_organization_id, legal_entity_id) "
+                "FROM legal_entities WHERE legal_name ILIKE ?"
+                ") OR organization_id IN ("
+                "SELECT coalesce(parent_organization_id, legal_entity_id) "
+                "FROM entity_aliases WHERE alias_raw ILIKE ?"
+                "))"
+            )
+            term = f"%{filters.search.strip()}%"
+            parameters.extend([term, term, term])
+        for column, values in (
+            ("organization_type", filters.organization_types),
+            ("state", filters.states),
+            ("everify_status", filters.everify_statuses),
+            ("known_opt_observation", filters.opt_statuses),
+            ("cap_exemption_status", filters.cap_exemption_statuses),
+            ("evidence_confidence", filters.evidence_confidences),
+        ):
+            if values:
+                clauses.append(f"{column} IN ({_placeholders(values)})")
+                parameters.extend(values)
+        if filters.role_family:
+            clauses.append(
+                "(list_contains(lca_role_families, ?) OR list_contains(perm_role_families, ?))"
+            )
+            parameters.extend([filters.role_family, filters.role_family])
+        if filters.minimum_last_activity_year is not None:
+            clauses.append("last_observed_activity_year >= ?")
+            parameters.append(filters.minimum_last_activity_year)
+        if filters.exclude_known_staffing_consulting:
+            clauses.append("coalesce(is_staffing_or_consulting, false) IS FALSE")
+        return " AND ".join(clauses), parameters
+
+    def list_employers(
+        self, filters: EmployerFilters | None = None, *, limit: int | None = 500
+    ) -> pl.DataFrame:
+        selected = filters if filters is not None else EmployerFilters()
+        where, parameters = self._employer_where(selected)
+        limit_sql = "" if limit is None else " LIMIT ?"
+        if limit is not None:
+            parameters.append(max(1, min(limit, 10_000)))
+        return self._query(
+            f"""
+            SELECT
+                organization_id,
+                organization_name,
+                legal_entity_count,
+                organization_type,
+                state,
+                everify_status,
+                known_opt_observation,
+                relevant_lca_count,
+                initial_approvals,
+                relevant_certified_perm_count,
+                last_lca_activity_year,
+                last_perm_activity_year,
+                cap_exemption_status,
+                source_coverage_ratio,
+                evidence_confidence,
+                h1b_activity_score,
+                immigration_evidence_score,
+                has_partial_period,
+                current_partial_fiscal_year,
+                metric_version,
+                evidence_classes
+            FROM vw_employer_explorer
+            WHERE {where}
+            ORDER BY relevant_lca_count DESC, initial_approvals DESC, organization_name
+            {limit_sql}
+            """,
+            parameters,
+        )
+
+    @staticmethod
+    def _institution_where(filters: InstitutionFilters) -> tuple[str, list[object]]:
+        clauses = [
+            "total_rd >= ?",
+            "computing_rd >= ?",
+            "engineering_rd >= ?",
+            "relevant_lca_count >= ?",
+            "relevant_certified_perm_count >= ?",
+        ]
+        parameters: list[object] = [
+            filters.minimum_total_rd,
+            filters.minimum_computing_rd,
+            filters.minimum_engineering_rd,
+            filters.minimum_relevant_lca,
+            filters.minimum_relevant_perm,
+        ]
+        if filters.search.strip():
+            clauses.append("(official_name ILIKE ? OR parent_system ILIKE ?)")
+            term = f"%{filters.search.strip()}%"
+            parameters.extend([term, term])
+        for column, values in (
+            ("control", filters.controls),
+            ("state", filters.states),
+            ("cap_exemption_status", filters.cap_exemption_statuses),
+        ):
+            if values:
+                clauses.append(f"{column} IN ({_placeholders(values)})")
+                parameters.extend(values)
+        return " AND ".join(clauses), parameters
+
+    def list_institutions(
+        self, filters: InstitutionFilters | None = None, *, limit: int | None = 500
+    ) -> pl.DataFrame:
+        selected = filters if filters is not None else InstitutionFilters()
+        where, parameters = self._institution_where(selected)
+        limit_sql = "" if limit is None else " LIMIT ?"
+        if limit is not None:
+            parameters.append(max(1, min(limit, 10_000)))
+        return self._query(
+            f"""
+            SELECT
+                institution_id,
+                organization_id,
+                official_name,
+                parent_system,
+                control,
+                ipeds_unitid,
+                state,
+                survey_year AS latest_herd_year,
+                total_rd,
+                computing_rd,
+                engineering_rd,
+                federal_rd,
+                relevant_lca_count,
+                relevant_certified_perm_count,
+                initial_approvals,
+                everify_status,
+                cap_exemption_status,
+                research_staff_h1b_policy,
+                research_staff_permanent_residence_policy,
+                general_staff_permanent_residence_policy,
+                perm_support,
+                eb1b_support,
+                policy_review_status,
+                research_pathway_score,
+                metric_version,
+                evidence_classes
+            FROM vw_institution_explorer
+            WHERE {where}
+            ORDER BY total_rd DESC, relevant_lca_count DESC, official_name
+            {limit_sql}
+            """,
+            parameters,
+        )
+
+    def employer_facets(self) -> dict[str, list[str]]:
+        result: dict[str, list[str]] = {}
+        for name, column in (
+            ("organization_types", "organization_type"),
+            ("states", "state"),
+            ("everify_statuses", "everify_status"),
+            ("opt_statuses", "known_opt_observation"),
+            ("cap_exemption_statuses", "cap_exemption_status"),
+            ("evidence_confidences", "evidence_confidence"),
+        ):
+            result[name] = self._query(
+                f"SELECT DISTINCT {column} AS value FROM vw_employer_explorer "
+                f"WHERE {column} IS NOT NULL ORDER BY value"
+            )["value"].to_list()
+        result["role_families"] = self._query(
+            """
+            SELECT DISTINCT role_family AS value
+            FROM vw_relevant_titles
+            WHERE role_family IS NOT NULL
+            ORDER BY value
+            """
+        )["value"].to_list()
+        return result
+
+    def institution_facets(self) -> dict[str, list[str]]:
+        result: dict[str, list[str]] = {}
+        for name, column in (
+            ("controls", "control"),
+            ("states", "state"),
+            ("cap_exemption_statuses", "cap_exemption_status"),
+        ):
+            result[name] = self._query(
+                f"SELECT DISTINCT {column} AS value FROM vw_institution_explorer "
+                f"WHERE {column} IS NOT NULL ORDER BY value"
+            )["value"].to_list()
+        return result
+
+    def search_organizations(self, search: str, *, limit: int = 50) -> pl.DataFrame:
+        term = f"%{search.strip()}%"
+        return self._query(
+            """
+            SELECT organization_id, organization_name, organization_type, state
+            FROM vw_employer_explorer
+            WHERE organization_name ILIKE ? OR organization_id IN (
+                SELECT coalesce(parent_organization_id, legal_entity_id)
+                FROM entity_aliases
+                WHERE alias_raw ILIKE ?
+            )
+            ORDER BY relevant_lca_count DESC, organization_name
+            LIMIT ?
+            """,
+            [term, term, max(1, min(limit, 100))],
+        )
+
+    def get_organization_detail(self, organization_id: str) -> OrganizationDetail | None:
+        summary = self._query(
+            "SELECT * FROM vw_organization_detail WHERE organization_id = ?", [organization_id]
+        )
+        if summary.is_empty():
+            return None
+        legal_entities = self._query(
+            """
+            SELECT legal_entity_id, legal_name, city, state, postal_code, organization_type,
+                institution_id, review_status
+            FROM legal_entities
+            WHERE parent_organization_id = ? OR legal_entity_id = ?
+            ORDER BY legal_name
+            """,
+            [organization_id, organization_id],
+        )
+        aliases = self._query(
+            """
+            SELECT alias_raw, source_id, city, state, match_method, match_score, review_status
+            FROM entity_aliases
+            WHERE parent_organization_id = ? OR legal_entity_id = ?
+            ORDER BY occurrence_count DESC, alias_raw
+            LIMIT 500
+            """,
+            [organization_id, organization_id],
+        )
+        case_statuses = self._query(
+            """
+            SELECT source_id, case_status, count(*) AS case_count,
+                'DERIVED_METRIC' AS evidence_class
+            FROM (
+                SELECT 'dol_lca' AS source_id, case_status FROM lca_cases_resolved
+                    WHERE organization_id = ?
+                UNION ALL
+                SELECT 'dol_perm' AS source_id, case_status FROM perm_cases_resolved
+                    WHERE organization_id = ?
+            )
+            GROUP BY source_id, case_status
+            ORDER BY source_id, case_count DESC
+            """,
+            [organization_id, organization_id],
+        )
+        worksite_states = self._query(
+            """
+            SELECT source_id, worksite_state, count(*) AS case_count,
+                'DERIVED_METRIC' AS evidence_class
+            FROM (
+                SELECT 'dol_lca' AS source_id, worksite_state FROM lca_cases_resolved
+                    WHERE organization_id = ?
+                UNION ALL
+                SELECT 'dol_perm' AS source_id, worksite_state FROM perm_cases_resolved
+                    WHERE organization_id = ?
+            )
+            WHERE worksite_state IS NOT NULL
+            GROUP BY source_id, worksite_state
+            ORDER BY case_count DESC, source_id, worksite_state
+            """,
+            [organization_id, organization_id],
+        )
+        wage_summary = self._query(
+            """
+            SELECT source_id, wage_unit, count(*) AS observation_count,
+                quantile_cont(wage_from, 0.25) AS wage_p25,
+                median(wage_from) AS wage_median,
+                quantile_cont(wage_from, 0.75) AS wage_p75,
+                'DERIVED_METRIC' AS evidence_class
+            FROM (
+                SELECT 'dol_lca' AS source_id, wage_unit, wage_from FROM lca_cases_resolved
+                    WHERE organization_id = ?
+                UNION ALL
+                SELECT 'dol_perm' AS source_id, wage_unit, wage_from FROM perm_cases_resolved
+                    WHERE organization_id = ?
+            )
+            WHERE wage_from > 0 AND wage_unit IS NOT NULL
+            GROUP BY source_id, wage_unit
+            ORDER BY source_id, observation_count DESC
+            """,
+            [organization_id, organization_id],
+        )
+        provenance = self._query(
+            """
+            SELECT source_id, source_artifact_id, source_file_name, fiscal_year,
+                bool_or(is_partial_period) AS is_partial_period, max(ingested_at) AS ingested_at,
+                count(*) AS record_count, 'OBSERVED_GOVERNMENT_RECORD' AS evidence_class
+            FROM (
+                SELECT 'dol_lca' AS source_id, source_artifact_id, source_file_name,
+                    fiscal_year, is_partial_period, ingested_at
+                FROM lca_cases_resolved WHERE organization_id = ?
+                UNION ALL
+                SELECT 'dol_perm' AS source_id, source_artifact_id, source_file_name,
+                    fiscal_year, is_partial_period, ingested_at
+                FROM perm_cases_resolved WHERE organization_id = ?
+                UNION ALL
+                SELECT 'uscis_h1b' AS source_id, source_artifact_id, source_file_name,
+                    fiscal_year, is_partial_period, ingested_at
+                FROM h1b_petitions_resolved WHERE organization_id = ?
+            )
+            GROUP BY source_id, source_artifact_id, source_file_name, fiscal_year
+            ORDER BY source_id, fiscal_year
+            """,
+            [organization_id, organization_id, organization_id],
+        )
+        return OrganizationDetail(
+            summary=summary,
+            legal_entities=legal_entities,
+            aliases=aliases,
+            h1b_trends=self._query(
+                "SELECT * FROM vw_h1b_trends WHERE organization_id = ? ORDER BY fiscal_year",
+                [organization_id],
+            ),
+            perm_trends=self._query(
+                "SELECT * FROM vw_perm_trends WHERE organization_id = ? ORDER BY fiscal_year",
+                [organization_id],
+            ),
+            relevant_titles=self._query(
+                """
+                SELECT * FROM vw_relevant_titles
+                WHERE organization_id = ?
+                ORDER BY record_count DESC, source_id, job_title_raw
+                LIMIT 500
+                """,
+                [organization_id],
+            ),
+            case_statuses=case_statuses,
+            worksite_states=worksite_states,
+            wage_summary=wage_summary,
+            institutions=self._query(
+                """
+                SELECT * FROM vw_institution_explorer
+                WHERE organization_id = ?
+                ORDER BY total_rd DESC, official_name
+                """,
+                [organization_id],
+            ),
+            provenance=provenance,
+        )
+
+    def export_employers(self, filters: EmployerFilters, file_format: ExportFormat) -> bytes:
+        return _serialized(self.list_employers(filters, limit=None), file_format)
+
+    def export_institutions(self, filters: InstitutionFilters, file_format: ExportFormat) -> bytes:
+        return _serialized(self.list_institutions(filters, limit=None), file_format)
+
+
+def get_explorer_service(*, database_path: Path | None = None) -> ExplorerService:
+    """Construct the DuckDB service, or an honest unavailable-data fallback."""
+
+    selected = database_path if database_path is not None else load_settings().db_path
+    if not selected.is_file():
+        return FoundationExplorerService()
+    return DuckDBExplorerService(selected)
