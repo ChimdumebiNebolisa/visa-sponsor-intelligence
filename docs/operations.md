@@ -105,6 +105,23 @@ uv run sponsor-intel db build
 
 Raw pages, discovery responses, and extraction responses are cached. Processed completed-document metadata is reusable for 24 hours, so those documents need no discovery, network, or OpenAI call on an immediate replay. Exact failed source URLs use a matching 24-hour retry backoff recorded in the error report. After 24 hours, sources are fetched again and unchanged text still produces no extraction call. Deleting cache files is not part of normal recovery; rerun the same command after a transient failure and the content-addressed completed work will be reused.
 
+## Phase 8 scoring and comparison
+
+Rebuild scores from the checked-in formula configuration, then refresh DuckDB:
+
+```bash
+uv run sponsor-intel scores build
+uv run sponsor-intel db build
+```
+
+The score command atomically rewrites processed metrics and `employer_scores.parquet`. Invalid
+weights or mappings fail before any output is replaced. Re-running unchanged evidence and
+configuration is deterministic. Verify the formula contract with
+`uv run pytest tests/unit/test_scoring.py tests/integration/test_metrics_explorer.py` and inspect
+the Compare page with one to five organizations. Unknown scores, partial coverage, raw counts,
+score version, and explanations must remain visible. Scores must be described only as historical
+evidence strength, never as legal probability.
+
 The OpenAI live contract is intentionally opt-in and must run only where a secret key is available:
 
 ```bash

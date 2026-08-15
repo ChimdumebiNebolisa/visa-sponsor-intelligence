@@ -10,9 +10,15 @@ from typing import cast
 import polars as pl
 
 from sponsor_intel.metrics.models import MetricsBuildSummary
+from sponsor_intel.scoring import (
+    DEFAULT_SCORING_CONFIG_PATH,
+    ScoringConfig,
+    score_employers,
+    score_institutions,
+)
 from sponsor_intel.sources.manifests import write_json_atomic
 
-METRIC_VERSION = "raw_metrics_v3"
+METRIC_VERSION = "scored_metrics_v1"
 
 
 def _write_parquet_atomic(frame: pl.DataFrame, target: Path) -> None:
@@ -479,15 +485,37 @@ def _legal_program_metrics(
     prefix: str,
     relevant: pl.Expr,
 ) -> pl.DataFrame:
-    return (
+    aggregate = (
         frame.filter(pl.col("legal_entity_id").is_not_null())
         .group_by("legal_entity_id")
         .agg(
             pl.len().alias(f"{prefix}_case_count"),
             relevant.cast(pl.Int64).sum().alias(f"relevant_{prefix}_count"),
+            pl.col("fiscal_year").n_unique().alias(f"{prefix}_active_years"),
             pl.col("fiscal_year").max().alias(f"last_{prefix}_activity_year"),
         )
     )
+    title = (
+        frame.filter(
+            pl.col("legal_entity_id").is_not_null()
+            & relevant
+            & pl.col("job_title_raw").is_not_null()
+        )
+        .group_by("legal_entity_id", "job_title_raw")
+        .len(name="title_count")
+        .sort(
+            ["legal_entity_id", "title_count", "job_title_raw"],
+            descending=[False, True, False],
+        )
+        .group_by("legal_entity_id", maintain_order=True)
+        .first()
+        .select(
+            "legal_entity_id",
+            pl.col("job_title_raw").alias(f"top_{prefix}_technical_title"),
+            pl.col("title_count").alias(f"top_{prefix}_technical_title_count"),
+        )
+    )
+    return aggregate.join(title, on="legal_entity_id", how="left")
 
 
 def _institution_metrics(
@@ -521,10 +549,12 @@ def _institution_metrics(
         uscis.filter(pl.col("legal_entity_id").is_not_null())
         .group_by("legal_entity_id")
         .agg(
+            pl.len().alias("uscis_employer_year_rows"),
             pl.col("initial_approvals").sum(),
             pl.col("initial_denials").sum(),
             pl.col("continuing_approvals").sum(),
             pl.col("continuing_denials").sum(),
+            pl.col("fiscal_year").n_unique().alias("uscis_active_years"),
             pl.col("fiscal_year").max().alias("last_uscis_activity_year"),
         )
     )
@@ -561,15 +591,34 @@ def _institution_metrics(
         "rd_personnel",
         "lca_case_count",
         "relevant_lca_count",
+        "lca_active_years",
         "perm_case_count",
         "relevant_certified_perm_count",
+        "perm_active_years",
+        "uscis_employer_year_rows",
         "initial_approvals",
         "initial_denials",
         "continuing_approvals",
         "continuing_denials",
+        "uscis_active_years",
     ]
     return (
-        result.with_columns([pl.col(column).fill_null(0) for column in counts])
+        result.with_columns(
+            pl.col("survey_year").is_not_null().alias("has_herd_data"),
+            (pl.col("survey_year").is_not_null() & pl.col("total_rd").is_not_null()).alias(
+                "has_total_rd_data"
+            ),
+            (pl.col("survey_year").is_not_null() & pl.col("federal_rd").is_not_null()).alias(
+                "has_federal_rd_data"
+            ),
+            (pl.col("survey_year").is_not_null() & pl.col("computing_rd").is_not_null()).alias(
+                "has_computing_rd_data"
+            ),
+            (pl.col("survey_year").is_not_null() & pl.col("engineering_rd").is_not_null()).alias(
+                "has_engineering_rd_data"
+            ),
+        )
+        .with_columns([pl.col(column).fill_null(0) for column in counts])
         .with_columns(
             pl.lit("UNKNOWN").alias("everify_status"),
             pl.lit("POTENTIALLY_CAP_EXEMPT_HIGHER_ED").alias("cap_exemption_status"),
@@ -926,16 +975,18 @@ def _append_phase7_health(
 
 
 class MetricsPipeline:
-    """Create processed tables and attach reviewed evidence through Phase 7."""
+    """Create processed tables, reviewed evidence, and versioned Phase 8 scores."""
 
     def __init__(
         self,
         *,
         data_root: Path = Path("data"),
         output_root: Path = Path("outputs"),
+        scoring_config_path: Path = DEFAULT_SCORING_CONFIG_PATH,
     ) -> None:
         self.data_root = data_root
         self.output_root = output_root
+        self.scoring_config_path = scoring_config_path
 
     def build(self) -> MetricsBuildSummary:
         resolved_root = self.data_root / "resolved"
@@ -969,6 +1020,13 @@ class MetricsPipeline:
             documents=policy_documents,
             facts=policy_facts,
         )
+        scoring_config = ScoringConfig.from_yaml(self.scoring_config_path)
+        employer_metrics = score_employers(employer_metrics, scoring_config)
+        institution_metrics = score_institutions(
+            institution_metrics,
+            policy_facts,
+            scoring_config,
+        )
 
         processed = self.data_root / "processed"
         outputs = {
@@ -979,6 +1037,31 @@ class MetricsPipeline:
             "perm_cases_resolved.parquet": perm,
             "h1b_petitions_resolved.parquet": uscis,
             "employer_metrics.parquet": employer_metrics,
+            "employer_scores.parquet": employer_metrics.select(
+                "organization_id",
+                "score_version",
+                "stem_opt_readiness_score",
+                "stem_opt_readiness_status",
+                "stem_opt_readiness_coverage",
+                "stem_opt_readiness_confidence",
+                "stem_opt_readiness_explanation",
+                "h1b_history_score",
+                "h1b_history_coverage",
+                "h1b_history_confidence",
+                "h1b_history_grade",
+                "h1b_history_explanation",
+                "green_card_history_score",
+                "green_card_history_coverage",
+                "green_card_history_confidence",
+                "green_card_history_grade",
+                "green_card_history_explanation",
+                "immigration_evidence_score",
+                "immigration_evidence_coverage",
+                "immigration_evidence_confidence",
+                "immigration_evidence_grade",
+                "immigration_evidence_explanation",
+                "metric_version",
+            ),
             "institution_metrics.parquet": institution_metrics,
             "data_health.parquet": data_health,
         }

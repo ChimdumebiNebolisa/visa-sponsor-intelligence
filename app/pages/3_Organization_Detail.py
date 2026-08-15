@@ -99,14 +99,55 @@ with research_tab:
             "are shown here."
         )
 with signals_tab:
+    st.dataframe(
+        {
+            "Component": [
+                "STEM OPT readiness",
+                "H-1B history",
+                "Green-card history",
+                "Immigration evidence composite",
+            ],
+            "Score": [
+                summary["stem_opt_readiness_score"],
+                summary["h1b_history_score"],
+                summary["green_card_history_score"],
+                summary["immigration_evidence_score"],
+            ],
+            "Coverage": [
+                summary["stem_opt_readiness_coverage"],
+                summary["h1b_history_coverage"],
+                summary["green_card_history_coverage"],
+                summary["immigration_evidence_coverage"],
+            ],
+            "Confidence": [
+                summary["stem_opt_readiness_confidence"],
+                summary["h1b_history_confidence"],
+                summary["green_card_history_confidence"],
+                summary["immigration_evidence_confidence"],
+            ],
+            "Grade/status": [
+                summary["stem_opt_readiness_status"],
+                summary["h1b_history_grade"],
+                summary["green_card_history_grade"],
+                summary["immigration_evidence_grade"],
+            ],
+            "Explanation": [
+                summary["stem_opt_readiness_explanation"],
+                summary["h1b_history_explanation"],
+                summary["green_card_history_explanation"],
+                summary["immigration_evidence_explanation"],
+            ],
+        },
+        width="stretch",
+        hide_index=True,
+    )
+    st.caption(f"Score version: {summary['score_version']}")
     st.write(
         {
             "E-Verify": summary["everify_status"],
             "Known OPT observation": summary["known_opt_observation"],
             "Cap exemption": summary["cap_exemption_status"],
             "Evidence confidence": summary["evidence_confidence"],
-            "H-1B activity score": summary["h1b_activity_score"],
-            "Immigration evidence score": summary["immigration_evidence_score"],
         }
     )
     st.caption(
@@ -123,7 +164,10 @@ with signals_tab:
         st.info("No linked positive report observation; status remains UNKNOWN.")
     else:
         st.dataframe(detail.opt_evidence.to_arrow(), width="stretch", hide_index=True)
-    st.info("Composite scores remain unscored until Phase 8.")
+    st.info(
+        "Scores describe the strength and coverage of observed evidence. They are not legal "
+        "assessments or probabilities of sponsorship."
+    )
 with provenance_tab:
     st.dataframe(detail.provenance.to_arrow(), width="stretch", hide_index=True)
     render_evidence_notice()

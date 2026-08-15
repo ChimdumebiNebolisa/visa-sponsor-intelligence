@@ -64,12 +64,15 @@ def test_role_gold_validation_command_writes_report(tmp_path: Path) -> None:
     assert report_path.is_file()
 
 
-def test_metrics_and_database_command_groups_are_available() -> None:
+def test_metrics_scores_and_database_command_groups_are_available() -> None:
     metrics = runner.invoke(app, ["metrics", "--help"])
+    scores = runner.invoke(app, ["scores", "--help"])
     database = runner.invoke(app, ["db", "--help"])
 
     assert metrics.exit_code == 0
     assert "build" in metrics.stdout
+    assert scores.exit_code == 0
+    assert "build" in scores.stdout
     assert database.exit_code == 0
     assert "build" in database.stdout
 
