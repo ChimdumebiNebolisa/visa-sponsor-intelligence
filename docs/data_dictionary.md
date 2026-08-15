@@ -114,3 +114,14 @@ to their raw inputs in `employer_metrics.parquet`.
 reviewed policy support, and the research pathway composite. Policy scores use only exact, current,
 human-reviewed official facts. `score_version = evidence_scores_v1_2026_08` identifies the formula
 configuration; see `docs/scoring.md` for the complete definitions.
+
+## Phase 9 quality and release metadata
+
+`quality_checks.parquet` contains one row per freshness, schema, duplicate, identity, role, policy,
+score, or output check. It records `PASS`, `WARN`, or `FAIL`, whether the check blocks publication,
+the measured value, threshold, details, stable build ID, and check time. DuckDB publishes the table
+as `vw_quality_checks`; the Data Health page shows it beside `data_health.parquet`.
+
+`outputs/reports/quality/data_quality.json` is the machine-readable release decision.
+`build_metadata.json` records the build ID, manifest checksum, metric/score versions, counts, and
+quality result. `outputs/release/checksums.sha256` covers every private release asset.

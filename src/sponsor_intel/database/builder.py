@@ -24,6 +24,7 @@ REQUIRED_VIEWS = (
     "vw_everify_review_queue",
     "vw_policy_review_queue",
     "vw_data_health",
+    "vw_quality_checks",
 )
 
 
@@ -79,6 +80,7 @@ class DuckDBBuilder:
             "policy_documents",
             "policy_facts",
             "policy_review_queue",
+            "quality_checks",
         )
         aliases_path = self.data_root / "resolved" / "entity_aliases.parquet"
         if not aliases_path.is_file():
@@ -205,6 +207,24 @@ class DuckDBBuilder:
                         CAST(NULL AS VARCHAR) AS valid_from,
                         CAST(NULL AS VARCHAR) AS valid_to,
                         CAST(NULL AS BOOLEAN) AS is_current
+                    WHERE false
+                    """
+                )
+            if "quality_checks" not in {
+                row[0] for row in connection.execute("SHOW TABLES").fetchall()
+            }:
+                connection.execute(
+                    """
+                    CREATE TABLE quality_checks AS SELECT
+                        CAST(NULL AS VARCHAR) AS check_id,
+                        CAST(NULL AS VARCHAR) AS category,
+                        CAST(NULL AS VARCHAR) AS status,
+                        CAST(NULL AS BOOLEAN) AS critical,
+                        CAST(NULL AS DOUBLE) AS value,
+                        CAST(NULL AS VARCHAR) AS threshold,
+                        CAST(NULL AS VARCHAR) AS details,
+                        CAST(NULL AS VARCHAR) AS build_id,
+                        CAST(NULL AS VARCHAR) AS checked_at
                     WHERE false
                     """
                 )
@@ -425,6 +445,7 @@ class DuckDBBuilder:
                 """
             )
             connection.execute("CREATE VIEW vw_data_health AS SELECT * FROM data_health")
+            connection.execute("CREATE VIEW vw_quality_checks AS SELECT * FROM quality_checks")
             connection.execute("CHECKPOINT")
             employer_row = connection.execute(
                 "SELECT count(*) FROM vw_employer_explorer"

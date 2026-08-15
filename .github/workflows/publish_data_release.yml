@@ -1,0 +1,71 @@
+name: Publish private data release
+
+on:
+  workflow_call:
+    inputs:
+      run_id:
+        required: false
+        type: string
+        default: ""
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Successful refresh workflow run containing private-data-release"
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: private-data-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download current refresh assets
+        if: inputs.run_id == ''
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: private-data-release
+          path: outputs/release
+
+      - name: Download assets from a selected successful run
+        if: inputs.run_id != ''
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: private-data-release
+          path: outputs/release
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Verify checksums and quality result
+        run: |
+          cd outputs/release
+          sha256sum --check checksums.sha256
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("data-quality.json").read_text(encoding="utf-8"))
+          if report.get("passed") is not True or report.get("critical_failure_count") != 0:
+              raise SystemExit("Critical quality gates failed; publication is blocked")
+          PY
+
+      - name: Publish private repository release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BUILD_DATE="$(python -c 'import json; print(json.load(open("outputs/release/build-metadata.json"))["generated_at"].split("T")[0])')"
+          TAG="data-${BUILD_DATE}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" outputs/release/* --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" outputs/release/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Private sponsorship data ${BUILD_DATE}" \
+              --notes "Quality-approved private V1 data artifacts. See data-quality.json and checksums.sha256."
+          fi

@@ -25,6 +25,8 @@ from sponsor_intel.policy.discovery import PolicySeedRegistry
 from sponsor_intel.policy.evaluation import evaluate_policy_benchmark
 from sponsor_intel.policy.pipeline import PolicyPipeline, create_exact_fact_review_decisions
 from sponsor_intel.policy.ranking import build_policy_candidates
+from sponsor_intel.quality import QualityReporter
+from sponsor_intel.releases import build_release_bundle
 from sponsor_intel.role_classification.models import RoleTaxonomyConfig
 from sponsor_intel.role_classification.pipeline import RoleClassificationPipeline
 from sponsor_intel.role_classification.validation import validate_role_gold
@@ -45,6 +47,9 @@ scores_app = typer.Typer(help="Build versioned evidence-strength scores and cove
 database_app = typer.Typer(help="Build the DuckDB presentation database.")
 evidence_app = typer.Typer(help="Build positive OPT and prioritized E-Verify evidence.")
 policy_app = typer.Typer(help="Rank, extract, review, and evaluate institution policy evidence.")
+quality_app = typer.Typer(help="Build publication-blocking data-quality reports.")
+refresh_app = typer.Typer(help="Run complete government or policy refresh workflows.")
+release_app = typer.Typer(help="Package quality-approved private data-release assets.")
 app.add_typer(sources_app, name="sources")
 app.add_typer(entities_app, name="entities")
 app.add_typer(roles_app, name="roles")
@@ -53,6 +58,9 @@ app.add_typer(scores_app, name="scores")
 app.add_typer(database_app, name="db")
 app.add_typer(evidence_app, name="evidence")
 app.add_typer(policy_app, name="policy")
+app.add_typer(quality_app, name="quality")
+app.add_typer(refresh_app, name="refresh")
+app.add_typer(release_app, name="release")
 
 
 @app.command()
@@ -504,6 +512,144 @@ def policy_evaluate(
     typer.echo(json.dumps(result.model_dump(mode="json"), indent=2, sort_keys=True))
     if not result.passed:
         raise typer.Exit(1)
+
+
+@quality_app.command("report")
+def quality_report(
+    config_file: Annotated[
+        Path | None,
+        typer.Option("--config", help="Optional application configuration path."),
+    ] = None,
+) -> None:
+    """Measure freshness, schema, identity, role, policy, and score publication gates."""
+
+    settings = load_settings(config_file)
+    report = QualityReporter(data_root=settings.data_dir).build()
+    typer.echo(json.dumps(report.model_dump(mode="json"), indent=2, sort_keys=True))
+    if not report.passed:
+        raise typer.Exit(1)
+
+
+@release_app.command("bundle")
+def release_bundle() -> None:
+    """Package the current quality-approved build as private release assets."""
+
+    bundle = build_release_bundle()
+    typer.echo(
+        json.dumps(
+            {
+                "release_root": str(bundle.release_root),
+                "assets": [str(path) for path in bundle.assets],
+                "checksums_path": str(bundle.checksums_path),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+
+
+@refresh_app.command("government")
+def refresh_government(
+    everify_limit: Annotated[
+        int,
+        typer.Option(
+            "--everify-limit",
+            min=0,
+            help="Explicitly bounded live E-Verify lookups; zero is the scheduled default.",
+        ),
+    ] = 0,
+    config_file: Annotated[
+        Path | None,
+        typer.Option("--config", help="Optional application configuration path."),
+    ] = None,
+) -> None:
+    """Refresh all official government/institution sources and rebuild V1 outputs."""
+
+    settings = load_settings(config_file)
+    configure_logging(settings.log_level)
+    registry = SourceRegistry.from_yaml(DEFAULT_SOURCE_REGISTRY_PATH)
+    ingestion = IngestionPipeline(registry, data_root=settings.data_dir)
+    for source_id in ("dol_lca", "dol_perm", "uscis_h1b", "ipeds", "herd"):
+        ingestion.ingest(source_id, from_fiscal_year=2022)
+    EntityResolutionPipeline(registry, data_root=settings.data_dir).build()
+    RoleClassificationPipeline(data_root=settings.data_dir).build()
+    Phase6Pipeline(
+        data_root=settings.data_dir,
+        database_path=settings.db_path,
+    ).build(everify_limit=everify_limit)
+    report = QualityReporter(data_root=settings.data_dir).build()
+    if not report.passed:
+        typer.echo(json.dumps(report.model_dump(mode="json"), indent=2, sort_keys=True))
+        raise typer.Exit(1)
+    database = DuckDBBuilder(
+        data_root=settings.data_dir,
+        database_path=settings.db_path,
+    ).build()
+    typer.echo(
+        json.dumps(
+            {
+                "quality": report.model_dump(mode="json"),
+                "database": database.model_dump(mode="json"),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+
+
+@refresh_app.command("policies")
+def refresh_policies(
+    config_file: Annotated[
+        Path | None,
+        typer.Option("--config", help="Optional application configuration path."),
+    ] = None,
+) -> None:
+    """Refresh official institution policies and rebuild reviewed product outputs."""
+
+    settings = load_settings(config_file)
+    configure_logging(settings.log_level)
+    if settings.openai_policy_model is None:
+        raise typer.BadParameter("OPENAI_POLICY_MODEL is required")
+    if settings.openai_api_key is None:
+        raise typer.BadParameter("OPENAI_API_KEY is required")
+    policy = PolicyPipeline(
+        model=settings.openai_policy_model,
+        api_key=settings.openai_api_key.get_secret_value(),
+        data_root=settings.data_dir,
+    ).build(
+        candidate_limit=settings.policy_candidate_limit,
+        enrichment_limit=settings.policy_candidate_limit,
+        progress=typer.echo,
+    )
+    evaluation = evaluate_policy_benchmark(
+        facts_path=settings.data_dir / "processed" / "policy_facts.parquet",
+        documents_path=settings.data_dir / "processed" / "policy_documents.parquet",
+        benchmark_path=Path("tests/fixtures/policy_extraction_benchmark.jsonl"),
+        report_path=Path("outputs/reports/policy/evaluation.json"),
+    )
+    if not evaluation.passed:
+        raise typer.Exit(1)
+    MetricsPipeline(data_root=settings.data_dir).build()
+    report = QualityReporter(data_root=settings.data_dir).build()
+    if not report.passed:
+        typer.echo(json.dumps(report.model_dump(mode="json"), indent=2, sort_keys=True))
+        raise typer.Exit(1)
+    database = DuckDBBuilder(
+        data_root=settings.data_dir,
+        database_path=settings.db_path,
+    ).build()
+    typer.echo(
+        json.dumps(
+            {
+                "policy": policy.model_dump(mode="json"),
+                "evaluation": evaluation.model_dump(mode="json"),
+                "quality": report.model_dump(mode="json"),
+                "database": database.model_dump(mode="json"),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
 
 
 @app.command("app")

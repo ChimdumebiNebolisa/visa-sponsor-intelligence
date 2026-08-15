@@ -64,10 +64,13 @@ def test_role_gold_validation_command_writes_report(tmp_path: Path) -> None:
     assert report_path.is_file()
 
 
-def test_metrics_scores_and_database_command_groups_are_available() -> None:
+def test_build_and_operations_command_groups_are_available() -> None:
     metrics = runner.invoke(app, ["metrics", "--help"])
     scores = runner.invoke(app, ["scores", "--help"])
     database = runner.invoke(app, ["db", "--help"])
+    quality = runner.invoke(app, ["quality", "--help"])
+    refresh = runner.invoke(app, ["refresh", "--help"])
+    release = runner.invoke(app, ["release", "--help"])
 
     assert metrics.exit_code == 0
     assert "build" in metrics.stdout
@@ -75,6 +78,12 @@ def test_metrics_scores_and_database_command_groups_are_available() -> None:
     assert "build" in scores.stdout
     assert database.exit_code == 0
     assert "build" in database.stdout
+    assert quality.exit_code == 0
+    assert "report" in quality.stdout
+    assert refresh.exit_code == 0
+    assert "government" in refresh.stdout and "policies" in refresh.stdout
+    assert release.exit_code == 0
+    assert "bundle" in release.stdout
 
 
 def test_app_command_launches_streamlit_through_python_module(

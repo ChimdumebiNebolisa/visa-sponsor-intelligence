@@ -1,0 +1,91 @@
+name: Quarterly government data refresh
+
+on:
+  schedule:
+    - cron: "17 8 1 1,4,7,10 *"
+  workflow_dispatch:
+    inputs:
+      everify_limit:
+        description: "Explicit live E-Verify lookup limit (scheduled default is zero)"
+        required: false
+        default: "0"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: government-data-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+
+      - name: Install locked dependencies and browser
+        run: |
+          uv sync --frozen
+          uv run playwright install --with-deps chromium
+
+      - name: Restore reviewed policy state and reusable caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/sponsor-intel-release
+          if gh release view --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release download --repo "$GITHUB_REPOSITORY" \
+              --pattern "processed-parquet.zip" \
+              --pattern "build-state.zip" \
+              --pattern "source-manifests.zip" \
+              --dir /tmp/sponsor-intel-release
+            unzip -o /tmp/sponsor-intel-release/processed-parquet.zip -d .
+            unzip -o /tmp/sponsor-intel-release/build-state.zip -d .
+            unzip -o /tmp/sponsor-intel-release/source-manifests.zip -d .
+          fi
+
+      - name: Refresh authoritative sources and rebuild
+        env:
+          EVERIFY_LIMIT: ${{ inputs.everify_limit || '0' }}
+          SPONSOR_INTEL_LOG_LEVEL: INFO
+        run: uv run sponsor-intel refresh government --everify-limit "$EVERIFY_LIMIT"
+
+      - name: Run live official-source contracts
+        env:
+          SPONSOR_INTEL_RUN_NETWORK_TESTS: "1"
+        run: uv run pytest tests/contracts -m network
+
+      - name: Confirm publication quality gates
+        run: uv run sponsor-intel quality report
+
+      - name: Build private release assets
+        run: uv run sponsor-intel release bundle
+
+      - name: Upload quality-approved release input
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: private-data-release
+          path: outputs/release/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: refresh
+    permissions:
+      actions: read
+      contents: write
+    uses: ./.github/workflows/publish_data_release.yml
