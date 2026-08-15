@@ -2,7 +2,7 @@
 
 A private, evidence-first Streamlit application for exploring historical U.S. employer immigration activity, research-institution data, E-Verify enrollment evidence, positive OPT/STEM OPT observations, and reviewed official institution policies.
 
-This repository contains the Phase 0 foundation through Phase 7: official source ingestion, institution reconciliation, legal-entity resolution, deterministic technical-role classification, processed metrics, a DuckDB query layer, the raw evidence explorer, positive-only ICE OPT evidence, prioritized E-Verify lookups, and reviewed official-policy extraction. It preserves immutable raw evidence, the raw-name to legal-entity to parent-organization chain, versioned SOC/title decisions, retrieval evidence, review queues, and explicit partial-period labels. Scoring remains later-phase work.
+This repository contains the Phase 0 foundation through Phase 8: official source ingestion, institution reconciliation, legal-entity resolution, deterministic technical-role classification, processed metrics, a DuckDB query layer, the evidence explorer, positive-only ICE OPT evidence, prioritized E-Verify lookups, reviewed official-policy extraction, versioned nullable evidence-strength scores, and five-organization comparison. It preserves immutable raw evidence, the raw-name to legal-entity to parent-organization chain, versioned SOC/title and score decisions, retrieval evidence, review queues, explicit coverage, and partial-period labels.
 
 ## Requirements
 
@@ -41,6 +41,7 @@ uv run sponsor-intel policy build --enrichment-limit 200
 uv run sponsor-intel policy review-exact --fact-ids outputs/review/policy_fact_ids.txt --reviewer-id "operator-id" --note "Official URL, current page, scope, value, and exact excerpt reviewed."
 uv run sponsor-intel policy evaluate
 uv run sponsor-intel metrics build
+uv run sponsor-intel scores build
 uv run sponsor-intel db build
 uv run sponsor-intel app
 ```
@@ -71,13 +72,14 @@ Where GNU Make is installed, the equivalent aliases include `make setup`, `make 
 - `src/sponsor_intel/metrics/` builds processed employer, institution, case, and source-health tables.
 - `src/sponsor_intel/evidence/` builds positive OPT observations and cached, rate-limited E-Verify evidence.
 - `src/sponsor_intel/policy/` ranks candidates, discovers and fetches official documents, performs schema-constrained extraction, validates exact evidence, caches unchanged results, and applies review decisions.
+- `src/sponsor_intel/scoring/` applies the versioned formulas in `configs/scoring.yaml` without converting missing evidence to zero.
 - `src/sponsor_intel/database/` materializes the required DuckDB presentation views.
 - `app/` contains the Streamlit overview, employer, institution, and organization-detail explorer and never issues SQL directly.
 - `configs/` contains safe non-secret configuration.
 - `tests/` contains unit and integration tests; fixtures must be small and sanitized.
 - `docs/` contains durable architecture and operations documentation.
 
-Generated raw artifacts, Parquet files, reports, manifests, and DuckDB databases are ignored by Git; the small auditable review-decision file is versioned. A verified full Phase 1 build on August 14, 2026 selected 11 official artifacts and produced 1,239,005 normalized rows. Phase 2 added 290,945 USCIS employer-year observations, 5,985 current IPEDS institutions, and 2,736 HERD institution-year/form observations. Phase 3 resolved 1,535,935 source rows into 202,867 legal entities and 431 parents. Phase 4 classified all 1,239,005 DOL records, including 707,240 technical and 13,040 ambiguous records. Phase 5 groups the legal identities into 201,000 employer rows and exposes 451,158 relevant LCA records plus 240,666 relevant certified PERM records. Phase 6 parsed all 200 employers and 589 positive observations in ICE's 2024 report, linked 92 employers conservatively, built 97,893 E-Verify priorities, and completed a 10-employer live batch with six confirmed active, one confirmed inactive, two review-required ambiguities, and one no-match retained as `UNKNOWN`. Phase 7 ranked 200 institutions, extracted 4,370 current facts for 190 institutions, and published 100 manually reviewed official facts across 100 distinct institutions. Its 30-institution benchmark passes at 100 percent precision and coverage with no unsupported accepted fact. FY2025 is the latest complete immigration year; FY2026 Q2 DOL and current USCIS snapshots are visibly partial.
+Generated raw artifacts, Parquet files, reports, manifests, and DuckDB databases are ignored by Git; the small auditable review-decision file is versioned. A verified full Phase 1 build on August 14, 2026 selected 11 official artifacts and produced 1,239,005 normalized rows. Phase 2 added 290,945 USCIS employer-year observations, 5,985 current IPEDS institutions, and 2,736 HERD institution-year/form observations. Phase 3 resolved 1,535,935 source rows into 202,867 legal entities and 431 parents. Phase 4 classified all 1,239,005 DOL records, including 707,240 technical and 13,040 ambiguous records. Phase 5 groups the legal identities into 201,000 employer rows and exposes 451,158 relevant LCA records plus 240,666 relevant certified PERM records. Phase 6 parsed all 200 employers and 589 positive observations in ICE's 2024 report, linked 92 employers conservatively, built 97,893 E-Verify priorities, and completed a 10-employer live batch with six confirmed active, one confirmed inactive, two review-required ambiguities, and one no-match retained as `UNKNOWN`. Phase 7 ranked 200 institutions, extracted 4,370 current facts for 190 institutions, and published 100 manually reviewed official facts across 100 distinct institutions. Its 30-institution benchmark passes at 100 percent precision and coverage with no unsupported accepted fact. Phase 8 adds configuration-reproducible component and composite scores, explicit confidence/coverage, explanations, and side-by-side comparison while retaining every raw metric. FY2025 is the latest complete immigration year; FY2026 Q2 DOL and current USCIS snapshots are visibly partial.
 
 See `SPEC.md` for the approved product and engineering requirements. The original supplied filename is retained as `sponsorship-intelligence-explorer-spec.md` for traceability.
 

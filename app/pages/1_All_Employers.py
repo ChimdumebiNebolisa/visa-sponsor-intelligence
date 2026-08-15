@@ -9,7 +9,10 @@ service = configure_page("All Employers")
 facets = service.employer_facets()
 
 st.title("All Employers")
-st.caption("Raw evidence metrics are shown before any Phase 8 scoring.")
+st.caption(
+    "Raw evidence remains visible beside nullable, versioned evidence-strength scores. "
+    "UNKNOWN is not scored as zero."
+)
 
 with st.sidebar:
     st.subheader("Employer filters")

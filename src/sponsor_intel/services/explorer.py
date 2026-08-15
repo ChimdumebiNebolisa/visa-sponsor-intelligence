@@ -136,6 +136,8 @@ class ExplorerService(Protocol):
 
     def search_organizations(self, search: str, *, limit: int = 50) -> pl.DataFrame: ...
 
+    def compare_organizations(self, organization_ids: tuple[str, ...]) -> pl.DataFrame: ...
+
     def get_organization_detail(self, organization_id: str) -> OrganizationDetail | None: ...
 
     def get_evidence_review(self, *, limit: int = 500) -> EvidenceReviewQueues: ...
@@ -156,7 +158,7 @@ class FoundationExplorerService:
 
     def get_status(self) -> ExplorerStatus:
         return ExplorerStatus(
-            phase="Phase 7",
+            phase="Phase 8",
             build_id="database-unavailable",
             data_available=False,
             evidence_status="UNKNOWN",
@@ -184,6 +186,9 @@ class FoundationExplorerService:
         return {}
 
     def search_organizations(self, search: str, *, limit: int = 50) -> pl.DataFrame:
+        return _empty()
+
+    def compare_organizations(self, organization_ids: tuple[str, ...]) -> pl.DataFrame:
         return _empty()
 
     def get_organization_detail(self, organization_id: str) -> OrganizationDetail | None:
@@ -245,9 +250,11 @@ class DuckDBExplorerService:
             message += (
                 f" FY{partial} is partial and must not be compared directly with complete years."
             )
+        build = self._query("SELECT max(metric_version) AS metric_version FROM employer_metrics")
+        build_id = build["metric_version"].item() or "scored_metrics_v1"
         return ExplorerStatus(
-            phase="Phase 7",
-            build_id="raw_metrics_v3",
+            phase="Phase 8",
+            build_id=build_id,
             data_available=True,
             evidence_status="AVAILABLE",
             message=message,
@@ -363,8 +370,28 @@ class DuckDBExplorerService:
                 cap_exemption_status,
                 source_coverage_ratio,
                 evidence_confidence,
+                stem_opt_readiness_score,
+                stem_opt_readiness_status,
+                stem_opt_readiness_coverage,
+                stem_opt_readiness_confidence,
+                stem_opt_readiness_explanation,
+                h1b_history_score,
+                h1b_history_coverage,
+                h1b_history_confidence,
+                h1b_history_grade,
+                h1b_history_explanation,
                 h1b_activity_score,
+                green_card_history_score,
+                green_card_history_coverage,
+                green_card_history_confidence,
+                green_card_history_grade,
+                green_card_history_explanation,
                 immigration_evidence_score,
+                immigration_evidence_coverage,
+                immigration_evidence_confidence,
+                immigration_evidence_grade,
+                immigration_evidence_explanation,
+                score_version,
                 has_partial_period,
                 current_partial_fiscal_year,
                 metric_version,
@@ -446,7 +473,32 @@ class DuckDBExplorerService:
                 perm_support,
                 eb1b_support,
                 policy_review_status,
+                stem_opt_readiness_score,
+                stem_opt_readiness_status,
+                stem_opt_readiness_coverage,
+                h1b_history_score,
+                h1b_history_coverage,
+                h1b_history_grade,
+                green_card_history_score,
+                green_card_history_coverage,
+                green_card_history_grade,
+                immigration_evidence_score,
+                immigration_evidence_coverage,
+                immigration_evidence_confidence,
+                immigration_evidence_grade,
+                research_strength_score,
+                research_strength_coverage,
+                research_strength_confidence,
+                research_strength_grade,
+                policy_support_score,
+                policy_support_coverage,
+                policy_support_confidence,
+                policy_support_grade,
                 research_pathway_score,
+                research_pathway_coverage,
+                research_pathway_confidence,
+                research_pathway_grade,
+                score_version,
                 metric_version,
                 evidence_classes
             FROM vw_institution_explorer
@@ -509,6 +561,102 @@ class DuckDBExplorerService:
             LIMIT ?
             """,
             [term, term, max(1, min(limit, 100))],
+        )
+
+    def compare_organizations(self, organization_ids: tuple[str, ...]) -> pl.DataFrame:
+        """Return one evidence-first comparison row for each of at most five organizations."""
+
+        selected = tuple(dict.fromkeys(value for value in organization_ids if value.strip()))
+        if not selected:
+            return _empty()
+        if len(selected) > 5:
+            raise ValueError("Comparison supports at most five organizations")
+        result = self._query(
+            f"""
+            SELECT
+                e.organization_id,
+                e.organization_name,
+                e.organization_type,
+                e.state,
+                e.everify_status,
+                e.known_opt_observation,
+                e.opt_report_year,
+                e.opt_reported_count,
+                e.lca_case_count,
+                e.relevant_lca_count,
+                e.lca_active_years,
+                e.initial_approvals,
+                e.initial_denials,
+                e.uscis_active_years,
+                e.last_lca_activity_year,
+                e.last_uscis_activity_year,
+                e.perm_case_count,
+                e.relevant_certified_perm_count,
+                e.perm_active_years,
+                e.last_perm_activity_year,
+                e.top_perm_technical_title,
+                e.top_perm_technical_title_count,
+                e.cap_exemption_status,
+                e.stem_opt_readiness_score,
+                e.stem_opt_readiness_status,
+                e.stem_opt_readiness_coverage,
+                e.h1b_history_score,
+                e.h1b_history_coverage,
+                e.h1b_history_grade,
+                e.h1b_history_explanation,
+                e.green_card_history_score,
+                e.green_card_history_coverage,
+                e.green_card_history_grade,
+                e.green_card_history_explanation,
+                e.immigration_evidence_score,
+                e.immigration_evidence_coverage,
+                e.immigration_evidence_confidence,
+                e.immigration_evidence_grade,
+                e.immigration_evidence_explanation,
+                e.evidence_confidence,
+                e.score_version,
+                i.official_name AS research_institution,
+                i.total_rd,
+                i.computing_rd,
+                i.engineering_rd,
+                i.federal_rd,
+                i.research_staff_h1b_policy,
+                i.research_staff_permanent_residence_policy,
+                i.perm_support,
+                i.eb1b_support,
+                i.policy_review_status,
+                i.research_strength_score,
+                i.research_strength_coverage,
+                i.research_strength_grade,
+                i.research_strength_explanation,
+                i.policy_support_score,
+                i.policy_support_coverage,
+                i.policy_support_grade,
+                i.policy_support_explanation,
+                i.research_pathway_score,
+                i.research_pathway_coverage,
+                i.research_pathway_confidence,
+                i.research_pathway_grade,
+                i.research_pathway_explanation
+            FROM vw_employer_explorer AS e
+            LEFT JOIN LATERAL (
+                SELECT *
+                FROM vw_institution_explorer AS candidate
+                WHERE candidate.organization_id = e.organization_id
+                ORDER BY candidate.total_rd DESC NULLS LAST, candidate.official_name
+                LIMIT 1
+            ) AS i ON TRUE
+            WHERE e.organization_id IN ({_placeholders(selected)})
+            """,
+            list(selected),
+        )
+        order = pl.DataFrame(
+            {"organization_id": selected, "_selection_order": range(len(selected))}
+        )
+        return (
+            result.join(order, on="organization_id", how="left")
+            .sort("_selection_order")
+            .drop("_selection_order")
         )
 
     def get_organization_detail(self, organization_id: str) -> OrganizationDetail | None:

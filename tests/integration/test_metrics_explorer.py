@@ -3,6 +3,7 @@ from time import perf_counter
 
 import duckdb
 import polars as pl
+import pytest
 
 from sponsor_intel.database.builder import REQUIRED_VIEWS, DuckDBBuilder
 from sponsor_intel.evidence.everify import EVERIFY_OBSERVATION_SCHEMA
@@ -194,6 +195,7 @@ def test_metrics_database_services_and_exports(tmp_path: Path) -> None:
     _build_fixture(data_root)
 
     metrics = MetricsPipeline(data_root=data_root, output_root=output_root).build()
+    assert (data_root / "processed" / "employer_scores.parquet").is_file()
     database = DuckDBBuilder(data_root=data_root, database_path=database_path).build()
 
     assert metrics.employer_count == 2
@@ -241,6 +243,18 @@ def test_metrics_database_services_and_exports(tmp_path: Path) -> None:
     institution_detail = service.get_organization_detail("legal_university")
     assert institution_detail is not None
     assert institution_detail.institutions.height == 1
+
+    comparison = service.compare_organizations(("parent_acme", "legal_university"))
+    assert comparison["organization_id"].to_list() == ["parent_acme", "legal_university"]
+    assert (
+        comparison.filter(pl.col("organization_id") == "parent_acme")["h1b_history_score"].item()
+        is not None
+    )
+    institution_comparison = comparison.filter(pl.col("organization_id") == "legal_university")
+    assert institution_comparison["research_institution"].item() == "State University"
+    assert institution_comparison["research_strength_coverage"].item() == 1
+    with pytest.raises(ValueError, match="at most five"):
+        service.compare_organizations(tuple(f"organization-{index}" for index in range(6)))
 
     csv_export = service.export_employers(EmployerFilters(search="Acme"), "csv")
     parquet_export = service.export_employers(EmployerFilters(search="Acme"), "parquet")
