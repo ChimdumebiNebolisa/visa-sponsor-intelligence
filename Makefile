@@ -1,4 +1,4 @@
-.PHONY: setup test test-contract lint typecheck smoke metrics evidence db app
+.PHONY: setup test test-contract lint typecheck smoke metrics evidence policy policy-evaluate db app
 
 setup:
 	uv sync --frozen
@@ -25,6 +25,12 @@ metrics:
 
 evidence:
 	uv run sponsor-intel evidence build --everify-limit 0
+
+policy:
+	uv run sponsor-intel policy build --enrichment-limit 200
+
+policy-evaluate:
+	uv run sponsor-intel policy evaluate
 
 db:
 	uv run sponsor-intel db build

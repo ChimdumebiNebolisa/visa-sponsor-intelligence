@@ -1,0 +1,39 @@
+name: Policy live contract
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: policy-live-contract
+  cancel-in-progress: false
+
+jobs:
+  structured-output:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+
+      - name: Install locked dependencies
+        run: uv sync --frozen
+
+      - name: Run one charged Structured Outputs contract and cached replay
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_POLICY_MODEL: gpt-5.6-luna
+          RUN_LIVE_OPENAI_POLICY_TEST: "1"
+        run: uv run pytest tests/contracts/test_phase7_policy_contracts.py

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
 DEFAULT_CONFIG_PATH = Path("configs/settings.yaml")
@@ -98,7 +99,20 @@ def load_settings(
     selected_path = config_path if config_path is not None else DEFAULT_CONFIG_PATH
     values = _read_yaml(selected_path)
 
-    source_environment = os.environ if environ is None else environ
+    if environ is None:
+        dotenv_environment: dict[str, str] = {}
+        for dotenv_path in (Path(".env"), Path(".env.local")):
+            if dotenv_path.is_file():
+                dotenv_environment.update(
+                    {
+                        key: value
+                        for key, value in dotenv_values(dotenv_path).items()
+                        if isinstance(value, str)
+                    }
+                )
+        source_environment: Mapping[str, str] = dotenv_environment | dict(os.environ)
+    else:
+        source_environment = environ
     normalized_environment = {key.upper(): value for key, value in source_environment.items()}
     for environment_name, field_name in _ENVIRONMENT_FIELDS.items():
         if environment_name in normalized_environment:
