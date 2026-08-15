@@ -69,4 +69,46 @@ Review `outputs/review/everify_match_review.parquet` and `outputs/review/opt_ent
 
 The command refreshes metrics and DuckDB after evidence persistence. `outputs/reports/evidence/phase6_summary.json` records the queue, lookup, linkage, and review counts.
 
+## Phase 7 institution policy workflow
+
+Keep the OpenAI key in the ignored `.env.local` or a secret process environment:
+
+```text
+OPENAI_API_KEY=...
+OPENAI_POLICY_MODEL=gpt-5.6-luna
+```
+
+Generate and inspect the deterministic candidate set before making API calls:
+
+```bash
+uv run sponsor-intel policy candidates
+```
+
+Run a bounded build. The V1 production run uses 200 candidates; a smaller limit is useful for an operator check:
+
+```bash
+uv run sponsor-intel policy build --enrichment-limit 10
+uv run sponsor-intel policy build --enrichment-limit 200
+```
+
+Inspect `data/processed/policy_documents.parquet`, `policy_facts.parquet`, `policy_review_queue.parquet`, and `outputs/reports/policy/errors.json`. Confirm the domain, page currency, campus or system scope, fact value, and exact excerpt before recording review decisions. The bounded helper does not accept cap-exemption or general-staff permanent-residence conclusions:
+
+```bash
+uv run sponsor-intel policy review-exact \
+  --fact-ids outputs/review/policy_fact_ids.txt \
+  --reviewer-id "operator-id" \
+  --note "Official URL, current page, scope, affirmative value, and exact excerpt reviewed."
+uv run sponsor-intel policy evaluate
+uv run sponsor-intel metrics build
+uv run sponsor-intel db build
+```
+
+Raw pages, discovery responses, and extraction responses are cached. Processed completed-document metadata is reusable for 24 hours, so those documents need no discovery, network, or OpenAI call on an immediate replay. Exact failed source URLs use a matching 24-hour retry backoff recorded in the error report. After 24 hours, sources are fetched again and unchanged text still produces no extraction call. Deleting cache files is not part of normal recovery; rerun the same command after a transient failure and the content-addressed completed work will be reused.
+
+The OpenAI live contract is intentionally opt-in and must run only where a secret key is available:
+
+```bash
+RUN_LIVE_OPENAI_POLICY_TEST=1 uv run pytest tests/contracts/test_phase7_policy_contracts.py
+```
+
 Full release and scheduled-workflow procedures will be added with the corresponding implementation phases.

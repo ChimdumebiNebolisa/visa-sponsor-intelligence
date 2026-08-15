@@ -12,7 +12,7 @@ import polars as pl
 from sponsor_intel.metrics.models import MetricsBuildSummary
 from sponsor_intel.sources.manifests import write_json_atomic
 
-METRIC_VERSION = "raw_metrics_v2"
+METRIC_VERSION = "raw_metrics_v3"
 
 
 def _write_parquet_atomic(frame: pl.DataFrame, target: Path) -> None:
@@ -796,8 +796,137 @@ def _append_phase6_health(
     return pl.concat([health, pl.DataFrame(rows)], how="vertical_relaxed").sort("source_id")
 
 
+def _phase7_frames(data_root: Path) -> tuple[pl.DataFrame | None, pl.DataFrame | None]:
+    processed = data_root / "processed"
+    documents_path = processed / "policy_documents.parquet"
+    facts_path = processed / "policy_facts.parquet"
+    documents = pl.read_parquet(documents_path) if documents_path.is_file() else None
+    facts = pl.read_parquet(facts_path) if facts_path.is_file() else None
+    return documents, facts
+
+
+def _enrich_phase7_institution_metrics(
+    frame: pl.DataFrame,
+    *,
+    facts: pl.DataFrame | None,
+) -> pl.DataFrame:
+    if facts is None or facts.is_empty():
+        return frame
+    accepted = facts.filter(
+        (pl.col("human_review_status") == "REVIEWED_ACCEPTED")
+        & pl.col("exact_excerpt_verified")
+        & pl.col("is_current")
+        & pl.col("valid_to").is_null()
+        & pl.col("source_url").str.starts_with("https://")
+    )
+    statuses = facts.group_by("institution_id").agg(
+        pl.col("human_review_status").eq("REVIEWED_ACCEPTED").any().alias("_has_reviewed_policy"),
+        pl.col("human_review_status").eq("NEEDS_REVIEW").any().alias("_has_pending_policy"),
+    )
+    result = frame.join(statuses, on="institution_id", how="left")
+    if accepted.is_empty():
+        return result.with_columns(
+            pl.when(pl.col("_has_pending_policy").fill_null(False))
+            .then(pl.lit("NEEDS_REVIEW"))
+            .otherwise(pl.col("policy_review_status"))
+            .alias("policy_review_status"),
+        ).drop("_has_reviewed_policy", "_has_pending_policy")
+
+    latest = (
+        accepted.sort(["institution_id", "fact_type", "valid_from"])
+        .group_by(["institution_id", "fact_type"], maintain_order=True)
+        .last()
+        .select("institution_id", "fact_type", "fact_value")
+    )
+    wide = latest.pivot(on="fact_type", index="institution_id", values="fact_value")
+    mappings = {
+        "h1b_research_staff_eligible": "research_staff_h1b_policy",
+        "pr_research_staff_eligible": "research_staff_permanent_residence_policy",
+        "pr_general_staff_eligible": "general_staff_permanent_residence_policy",
+        "perm_supported": "perm_support",
+        "eb1b_supported": "eb1b_support",
+    }
+    selected = ["institution_id"]
+    expressions: list[pl.Expr] = []
+    for fact_type, target in mappings.items():
+        if fact_type in wide.columns:
+            expressions.append(pl.col(fact_type).alias(f"_{target}"))
+            selected.append(fact_type)
+        else:
+            expressions.append(pl.lit(None, dtype=pl.String).alias(f"_{target}"))
+    policy_values = (
+        wide.select(selected)
+        .with_columns(expressions)
+        .select("institution_id", *[f"_{target}" for target in mappings.values()])
+    )
+    result = result.join(policy_values, on="institution_id", how="left")
+    return (
+        result.with_columns(
+            *[pl.coalesce(f"_{target}", target).alias(target) for target in mappings.values()],
+            pl.when(pl.col("_has_reviewed_policy").fill_null(False))
+            .then(pl.lit("REVIEWED"))
+            .when(pl.col("_has_pending_policy").fill_null(False))
+            .then(pl.lit("NEEDS_REVIEW"))
+            .otherwise(pl.col("policy_review_status"))
+            .alias("policy_review_status"),
+            pl.when(pl.col("_has_reviewed_policy").fill_null(False))
+            .then(
+                pl.concat_str(
+                    "evidence_classes",
+                    pl.lit("REVIEWED_OFFICIAL_POLICY"),
+                    separator="|",
+                )
+            )
+            .otherwise(pl.col("evidence_classes"))
+            .alias("evidence_classes"),
+        )
+        .drop(
+            "_has_reviewed_policy",
+            "_has_pending_policy",
+            *[f"_{target}" for target in mappings.values()],
+        )
+        .with_columns(pl.lit(METRIC_VERSION).alias("metric_version"))
+    )
+
+
+def _append_phase7_health(
+    health: pl.DataFrame,
+    *,
+    documents: pl.DataFrame | None,
+    facts: pl.DataFrame | None,
+) -> pl.DataFrame:
+    if documents is None or documents.is_empty():
+        return health
+    retrieved_years = documents["retrieved_at"].str.slice(0, 4).cast(pl.Int32, strict=False)
+    accepted_count = (
+        facts.filter(pl.col("human_review_status") == "REVIEWED_ACCEPTED").height
+        if facts is not None and not facts.is_empty()
+        else 0
+    )
+    row = pl.DataFrame(
+        [
+            {
+                "source_id": "institution_policy",
+                "row_count": documents.height,
+                "earliest_year": retrieved_years.min(),
+                "latest_year": retrieved_years.max(),
+                "latest_complete_fiscal_year": None,
+                "current_partial_fiscal_year": None,
+                "current_partial_quarter": None,
+                "has_partial_period": False,
+                "evidence_class": "REVIEWED_OFFICIAL_POLICY",
+                "freshness_warning": (
+                    f"{accepted_count} facts are human-reviewed and accepted; all other "
+                    "extractions remain outside product signals."
+                ),
+            }
+        ]
+    )
+    return pl.concat([health, row], how="vertical_relaxed").sort("source_id")
+
+
 class MetricsPipeline:
-    """Create processed tables and conservatively attach available Phase 6 evidence."""
+    """Create processed tables and attach reviewed evidence through Phase 7."""
 
     def __init__(
         self,
@@ -830,6 +959,16 @@ class MetricsPipeline:
             opt=opt,
         )
         data_health = _append_phase6_health(data_health, everify=everify, opt=opt)
+        policy_documents, policy_facts = _phase7_frames(self.data_root)
+        institution_metrics = _enrich_phase7_institution_metrics(
+            institution_metrics,
+            facts=policy_facts,
+        )
+        data_health = _append_phase7_health(
+            data_health,
+            documents=policy_documents,
+            facts=policy_facts,
+        )
 
         processed = self.data_root / "processed"
         outputs = {

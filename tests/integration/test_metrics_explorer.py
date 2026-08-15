@@ -358,3 +358,83 @@ def test_phase6_evidence_enriches_signals_without_treating_no_match_as_no(
     assert detail.everify_evidence.height == 1
     assert detail.opt_evidence.height == 1
     service.close()
+
+
+def test_phase7_reviewed_policy_enriches_metrics_database_and_detail(tmp_path: Path) -> None:
+    data_root = tmp_path / "data"
+    output_root = tmp_path / "outputs"
+    database_path = tmp_path / "db" / "phase7.duckdb"
+    _build_fixture(data_root)
+    processed = data_root / "processed"
+    source_url = "https://state.example.edu/h1b-policy"
+    pl.DataFrame(
+        {
+            "policy_document_id": ["doc-state"],
+            "institution_id": ["ipeds:100001"],
+            "document_type": ["h1b_sponsorship_policy"],
+            "title": ["H-1B sponsorship policy"],
+            "url": [source_url],
+            "official_domain": ["state.example.edu"],
+            "retrieved_at": ["2026-08-14T00:00:00+00:00"],
+            "http_status": [200],
+            "content_type": ["text/html"],
+            "content_sha256": ["a" * 64],
+            "text_sha256": ["b" * 64],
+            "published_or_updated_date": ["2026-08-01"],
+            "raw_path": ["data/raw/policy/a.html"],
+            "parsed_text_path": ["data/staging/policy/b.txt"],
+            "is_current": [True],
+            "parse_status": ["PARSED"],
+            "discovery_method": ["REVIEWED_SEED"],
+            "suspicious_text": [False],
+            "cache_hit": [False],
+        }
+    ).write_parquet(processed / "policy_documents.parquet")
+    pl.DataFrame(
+        {
+            "policy_fact_id": ["fact-accepted", "fact-pending"],
+            "institution_id": ["ipeds:100001", "ipeds:100001"],
+            "policy_document_id": ["doc-state", "doc-state"],
+            "fact_type": [
+                "h1b_research_staff_eligible",
+                "pr_research_staff_eligible",
+            ],
+            "fact_value": ["YES", "YES"],
+            "qualifier": [None, None],
+            "supporting_excerpt": [
+                "The university sponsors research staff for H-1B status.",
+                "Permanent residence cases require separate review.",
+            ],
+            "section_or_page": ["Eligibility", "Permanent residence"],
+            "source_url": [source_url, source_url],
+            "retrieved_at": ["2026-08-14T00:00:00+00:00"] * 2,
+            "extractor_version": ["policy_extractor_v1"] * 2,
+            "model_name": ["test-model"] * 2,
+            "model_response_id": ["resp-1", "resp-1"],
+            "confidence": [0.98, 0.92],
+            "exact_excerpt_verified": [True, True],
+            "human_review_status": ["REVIEWED_ACCEPTED", "NEEDS_REVIEW"],
+            "reviewer_note": ["Official source and exact excerpt checked.", None],
+            "contradiction_group_id": [None, None],
+            "valid_from": ["2026-08-14T00:00:00+00:00"] * 2,
+            "valid_to": [None, None],
+            "is_current": [True, True],
+        }
+    ).write_parquet(processed / "policy_facts.parquet")
+
+    MetricsPipeline(data_root=data_root, output_root=output_root).build()
+    DuckDBBuilder(data_root=data_root, database_path=database_path).build()
+    service = DuckDBExplorerService(database_path)
+
+    institutions = service.list_institutions(InstitutionFilters(search="State University"))
+    assert service.get_overview().reviewed_policy_institution_count == 1
+    assert institutions["research_staff_h1b_policy"].item() == "YES"
+    assert institutions["research_staff_permanent_residence_policy"].item() == "UNKNOWN"
+    assert institutions["policy_review_status"].item() == "REVIEWED"
+    assert "REVIEWED_OFFICIAL_POLICY" in institutions["evidence_classes"].item()
+    detail = service.get_organization_detail("legal_university")
+    assert detail is not None
+    assert detail.policy_evidence["policy_fact_id"].to_list() == ["fact-accepted"]
+    review = service.get_evidence_review()
+    assert review.policy["policy_fact_id"].to_list() == ["fact-pending"]
+    service.close()

@@ -40,3 +40,9 @@ HERD-to-IPEDS reconciliation permits exact UNITID joins only. Every match is wri
 ICE currently returns HTTP 403 to the bounded non-browser client. Discovery therefore records a warning and uses the reviewed official PDF URL and publication year in `configs/sources.yaml`; download still occurs from `ice.gov` in Chromium, followed by the same byte limit, PDF signature, SHA-256, immutable raw path, manifest, and validation gates. Updating the fallback requires rechecking the official SEVIS What's New page.
 
 The four-page 2024 report must contain exactly 200 ranked employers. It is normalized into one positive row per available `OPT_OR_STEM_OPT`, `OPT`, or `STEM_OPT` count. Blank program cells remain absent/null evidence and are never converted to zero.
+
+## Official institution policy sources
+
+Policy discovery starts from each candidate's IPEDS `official_domain`. `configs/policy_sources.yaml` may add reviewed official pages; otherwise official sitemaps are searched before a domain-filtered OpenAI web-search fallback. Every result is revalidated against the institution domain and the actual page is fetched. Official campus/system scope is retained rather than inferred across legal employers.
+
+Accepted evidence must be an HTTPS institution or reviewed official system page with a fetched exact excerpt. Search-result snippets, attorney pages, aggregators, forums, social media, and general institution-type assumptions are never policy evidence. Institution policy is time-sensitive and discretionary even after review, so source URL, retrieval date, page currency, fact scope, and supporting excerpt remain visible.

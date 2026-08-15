@@ -64,3 +64,25 @@ def test_safe_summary_never_contains_secret_values(tmp_path: Path) -> None:
     rendered = str(settings.safe_summary())
     assert secret_value not in rendered
     assert settings.safe_summary()["openai_api_key_configured"] is True
+
+
+def test_dotenv_local_is_loaded_but_process_environment_wins(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local_secret = "local-secret-value-long-enough"
+    process_secret = "process-secret-value-long-enough"
+    (tmp_path / ".env.local").write_text(
+        f"OPENAI_API_KEY={local_secret}\nOPENAI_POLICY_MODEL=local-model\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", process_secret)
+
+    settings = load_settings(tmp_path / "missing.yaml")
+
+    assert settings.openai_api_key is not None
+    assert settings.openai_api_key.get_secret_value() == process_secret
+    assert settings.openai_policy_model == "local-model"
+    assert local_secret not in str(settings.safe_summary())
+    assert process_secret not in str(settings.safe_summary())

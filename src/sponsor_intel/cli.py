@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from typing import Annotated
 
+import polars as pl
 import typer
 
 from sponsor_intel import __version__
@@ -20,6 +21,10 @@ from sponsor_intel.entity_resolution.validation import validate_gold_dataset
 from sponsor_intel.evidence.pipeline import Phase6Pipeline
 from sponsor_intel.logging import configure_logging
 from sponsor_intel.metrics.pipeline import MetricsPipeline
+from sponsor_intel.policy.discovery import PolicySeedRegistry
+from sponsor_intel.policy.evaluation import evaluate_policy_benchmark
+from sponsor_intel.policy.pipeline import PolicyPipeline, create_exact_fact_review_decisions
+from sponsor_intel.policy.ranking import build_policy_candidates
 from sponsor_intel.role_classification.models import RoleTaxonomyConfig
 from sponsor_intel.role_classification.pipeline import RoleClassificationPipeline
 from sponsor_intel.role_classification.validation import validate_role_gold
@@ -38,12 +43,14 @@ roles_app = typer.Typer(help="Build and validate deterministic role classificati
 metrics_app = typer.Typer(help="Build processed employer and institution metrics.")
 database_app = typer.Typer(help="Build the DuckDB presentation database.")
 evidence_app = typer.Typer(help="Build positive OPT and prioritized E-Verify evidence.")
+policy_app = typer.Typer(help="Rank, extract, review, and evaluate institution policy evidence.")
 app.add_typer(sources_app, name="sources")
 app.add_typer(entities_app, name="entities")
 app.add_typer(roles_app, name="roles")
 app.add_typer(metrics_app, name="metrics")
 app.add_typer(database_app, name="db")
 app.add_typer(evidence_app, name="evidence")
+app.add_typer(policy_app, name="policy")
 
 
 @app.command()
@@ -315,6 +322,164 @@ def evidence_build(
         force_opt_download=force_opt_download,
     )
     typer.echo(json.dumps(summary.model_dump(mode="json"), indent=2, sort_keys=True))
+
+
+@policy_app.command("candidates")
+def policy_candidates(
+    config_file: Annotated[
+        Path | None,
+        typer.Option("--config", help="Optional application configuration path."),
+    ] = None,
+) -> None:
+    """Generate the configured 150-250 policy-enrichment candidate ranking."""
+
+    settings = load_settings(config_file)
+    configure_logging(settings.log_level)
+    registry = PolicySeedRegistry.from_yaml(Path("configs/policy_sources.yaml"))
+    candidates = build_policy_candidates(
+        data_root=settings.data_dir,
+        limit=settings.policy_candidate_limit,
+        manual_priorities=registry.manual_priorities,
+    )
+    typer.echo(
+        json.dumps(
+            {
+                "candidate_count": candidates.height,
+                "path": str(settings.data_dir / "processed" / "policy_candidates.parquet"),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+
+
+@policy_app.command("build")
+def policy_build(
+    enrichment_limit: Annotated[
+        int,
+        typer.Option(
+            "--enrichment-limit",
+            min=1,
+            max=250,
+            help="Maximum ranked candidates to enrich in this run.",
+        ),
+    ] = 200,
+    documents_per_institution: Annotated[
+        int,
+        typer.Option(
+            "--documents-per-institution",
+            min=1,
+            max=5,
+            help="Maximum official documents fetched and extracted for each institution.",
+        ),
+    ] = 1,
+    config_file: Annotated[
+        Path | None,
+        typer.Option("--config", help="Optional application configuration path."),
+    ] = None,
+) -> None:
+    """Run domain-restricted discovery and schema-constrained policy extraction."""
+
+    settings = load_settings(config_file)
+    configure_logging(settings.log_level)
+    if settings.openai_policy_model is None:
+        raise typer.BadParameter("OPENAI_POLICY_MODEL is required")
+    if settings.openai_api_key is None:
+        raise typer.BadParameter("OPENAI_API_KEY is required")
+    summary = PolicyPipeline(
+        model=settings.openai_policy_model,
+        api_key=settings.openai_api_key.get_secret_value(),
+        data_root=settings.data_dir,
+    ).build(
+        candidate_limit=settings.policy_candidate_limit,
+        enrichment_limit=enrichment_limit,
+        documents_per_institution=documents_per_institution,
+        progress=typer.echo,
+    )
+    typer.echo(json.dumps(summary.model_dump(mode="json"), indent=2, sort_keys=True))
+
+
+@policy_app.command("review-exact")
+def policy_review_exact(
+    reviewer_id: Annotated[
+        str,
+        typer.Option("--reviewer-id", help="Auditable identifier for the reviewing operator."),
+    ],
+    reviewer_note: Annotated[
+        str,
+        typer.Option("--note", help="Review note describing the evidence checks performed."),
+    ],
+    fact_ids_path: Annotated[
+        Path,
+        typer.Option(
+            "--fact-ids",
+            help="Newline-delimited IDs for facts the operator explicitly reviewed.",
+        ),
+    ],
+    config_file: Annotated[
+        Path | None,
+        typer.Option("--config", help="Optional application configuration path."),
+    ] = None,
+) -> None:
+    """Accept exact affirmative facts after an explicit operator evidence review."""
+
+    settings = load_settings(config_file)
+    if not fact_ids_path.is_file():
+        raise typer.BadParameter(f"Reviewed fact ID file is unavailable: {fact_ids_path}")
+    fact_ids = {
+        line.strip()
+        for line in fact_ids_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    }
+    decisions = create_exact_fact_review_decisions(
+        data_root=settings.data_dir,
+        reviewer_id=reviewer_id,
+        reviewer_note=reviewer_note,
+        fact_ids=fact_ids,
+    )
+    typer.echo(
+        json.dumps(
+            {
+                "reviewed_fact_count": decisions.height,
+                "reviewed_institution_count": pl.read_parquet(
+                    settings.data_dir / "processed" / "policy_facts.parquet"
+                )
+                .filter(pl.col("human_review_status") == "REVIEWED_ACCEPTED")["institution_id"]
+                .n_unique(),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+
+
+@policy_app.command("evaluate")
+def policy_evaluate(
+    benchmark_path: Annotated[
+        Path,
+        typer.Option("--benchmark", help="Manually reviewed JSONL benchmark."),
+    ] = Path("tests/fixtures/policy_extraction_benchmark.jsonl"),
+    report_path: Annotated[
+        Path,
+        typer.Option("--report", help="Machine-readable evaluation report path."),
+    ] = Path("outputs/reports/policy/evaluation.json"),
+    config_file: Annotated[
+        Path | None,
+        typer.Option("--config", help="Optional application configuration path."),
+    ] = None,
+) -> None:
+    """Measure reviewed extraction precision and citation acceptance gates."""
+
+    settings = load_settings(config_file)
+    result = evaluate_policy_benchmark(
+        facts_path=settings.data_dir / "processed" / "policy_facts.parquet",
+        documents_path=settings.data_dir / "processed" / "policy_documents.parquet",
+        benchmark_path=benchmark_path,
+        report_path=report_path,
+    )
+    typer.echo(json.dumps(result.model_dump(mode="json"), indent=2, sort_keys=True))
+    if not result.passed:
+        raise typer.Exit(1)
 
 
 @app.command("app")

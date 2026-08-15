@@ -75,6 +75,10 @@ class DuckDBBuilder:
             "everify_lookup_priorities",
             "everify_observations",
             "opt_employer_observations",
+            "policy_candidates",
+            "policy_documents",
+            "policy_facts",
+            "policy_review_queue",
         )
         aliases_path = self.data_root / "resolved" / "entity_aliases.parquet"
         if not aliases_path.is_file():
@@ -146,6 +150,70 @@ class DuckDBBuilder:
                     WHERE false
                     """
                 )
+            if "policy_documents" not in {
+                row[0] for row in connection.execute("SHOW TABLES").fetchall()
+            }:
+                connection.execute(
+                    """
+                    CREATE TABLE policy_documents AS SELECT
+                        CAST(NULL AS VARCHAR) AS policy_document_id,
+                        CAST(NULL AS VARCHAR) AS institution_id,
+                        CAST(NULL AS VARCHAR) AS document_type,
+                        CAST(NULL AS VARCHAR) AS title,
+                        CAST(NULL AS VARCHAR) AS url,
+                        CAST(NULL AS VARCHAR) AS official_domain,
+                        CAST(NULL AS VARCHAR) AS retrieved_at,
+                        CAST(NULL AS BIGINT) AS http_status,
+                        CAST(NULL AS VARCHAR) AS content_type,
+                        CAST(NULL AS VARCHAR) AS content_sha256,
+                        CAST(NULL AS VARCHAR) AS text_sha256,
+                        CAST(NULL AS VARCHAR) AS published_or_updated_date,
+                        CAST(NULL AS VARCHAR) AS raw_path,
+                        CAST(NULL AS VARCHAR) AS parsed_text_path,
+                        CAST(NULL AS BOOLEAN) AS is_current,
+                        CAST(NULL AS VARCHAR) AS parse_status,
+                        CAST(NULL AS VARCHAR) AS discovery_method,
+                        CAST(NULL AS BOOLEAN) AS suspicious_text,
+                        CAST(NULL AS BOOLEAN) AS cache_hit
+                    WHERE false
+                    """
+                )
+            if "policy_facts" not in {
+                row[0] for row in connection.execute("SHOW TABLES").fetchall()
+            }:
+                connection.execute(
+                    """
+                    CREATE TABLE policy_facts AS SELECT
+                        CAST(NULL AS VARCHAR) AS policy_fact_id,
+                        CAST(NULL AS VARCHAR) AS institution_id,
+                        CAST(NULL AS VARCHAR) AS policy_document_id,
+                        CAST(NULL AS VARCHAR) AS fact_type,
+                        CAST(NULL AS VARCHAR) AS fact_value,
+                        CAST(NULL AS VARCHAR) AS qualifier,
+                        CAST(NULL AS VARCHAR) AS supporting_excerpt,
+                        CAST(NULL AS VARCHAR) AS section_or_page,
+                        CAST(NULL AS VARCHAR) AS source_url,
+                        CAST(NULL AS VARCHAR) AS retrieved_at,
+                        CAST(NULL AS VARCHAR) AS extractor_version,
+                        CAST(NULL AS VARCHAR) AS model_name,
+                        CAST(NULL AS VARCHAR) AS model_response_id,
+                        CAST(NULL AS DOUBLE) AS confidence,
+                        CAST(NULL AS BOOLEAN) AS exact_excerpt_verified,
+                        CAST(NULL AS VARCHAR) AS human_review_status,
+                        CAST(NULL AS VARCHAR) AS reviewer_note,
+                        CAST(NULL AS VARCHAR) AS contradiction_group_id,
+                        CAST(NULL AS VARCHAR) AS valid_from,
+                        CAST(NULL AS VARCHAR) AS valid_to,
+                        CAST(NULL AS BOOLEAN) AS is_current
+                    WHERE false
+                    """
+                )
+            connection.execute(
+                "ALTER TABLE policy_facts ADD COLUMN IF NOT EXISTS reviewed_at VARCHAR"
+            )
+            connection.execute(
+                "ALTER TABLE policy_facts ADD COLUMN IF NOT EXISTS reviewer_id VARCHAR"
+            )
             connection.execute(
                 "CREATE TABLE entity_aliases AS SELECT * FROM read_parquet(?)",
                 [_sql_path(aliases_path)],
@@ -166,6 +234,12 @@ class DuckDBBuilder:
             )
             connection.execute(
                 "CREATE INDEX idx_opt_org ON opt_employer_observations(organization_id)"
+            )
+            connection.execute(
+                "CREATE INDEX idx_policy_document_institution ON policy_documents(institution_id)"
+            )
+            connection.execute(
+                "CREATE INDEX idx_policy_fact_institution ON policy_facts(institution_id)"
             )
             connection.execute("CREATE VIEW vw_employer_explorer AS SELECT * FROM employer_metrics")
             connection.execute(
@@ -277,12 +351,49 @@ class DuckDBBuilder:
                 """
                 CREATE VIEW vw_policy_evidence AS
                 SELECT
-                    CAST(NULL AS VARCHAR) AS institution_id,
-                    CAST(NULL AS VARCHAR) AS fact_type,
-                    CAST(NULL AS VARCHAR) AS fact_value,
-                    CAST(NULL AS VARCHAR) AS source_url,
-                    CAST(NULL AS VARCHAR) AS evidence_class
-                WHERE false
+                    f.policy_fact_id,
+                    f.institution_id,
+                    i.organization_id,
+                    i.official_name,
+                    f.policy_document_id,
+                    d.document_type,
+                    d.title AS document_title,
+                    f.fact_type,
+                    f.fact_value,
+                    f.qualifier,
+                    f.supporting_excerpt,
+                    f.section_or_page,
+                    f.source_url,
+                    f.retrieved_at,
+                    d.published_or_updated_date,
+                    d.is_current AS document_is_current,
+                    f.is_current AS fact_is_current,
+                    f.confidence,
+                    f.exact_excerpt_verified,
+                    f.human_review_status,
+                    f.reviewer_note,
+                    f.reviewer_id,
+                    f.reviewed_at,
+                    f.contradiction_group_id,
+                    f.valid_from,
+                    f.valid_to,
+                    CASE
+                        WHEN f.human_review_status = 'REVIEWED_ACCEPTED'
+                            AND f.exact_excerpt_verified IS TRUE
+                            AND f.is_current IS TRUE
+                            AND f.valid_to IS NULL
+                            AND starts_with(f.source_url, 'https://')
+                            THEN 'REVIEWED_OFFICIAL_POLICY'
+                        WHEN f.human_review_status = 'REVIEWED_ACCEPTED'
+                            AND f.valid_to IS NOT NULL
+                            THEN 'REVIEWED_OFFICIAL_POLICY_HISTORICAL'
+                        WHEN f.human_review_status = 'REVIEWED_ACCEPTED'
+                            THEN 'REVIEWED_POLICY_INELIGIBLE'
+                        ELSE 'MODEL_EXTRACTED_UNREVIEWED'
+                    END AS evidence_class
+                FROM policy_facts AS f
+                JOIN policy_documents AS d USING (policy_document_id, institution_id)
+                LEFT JOIN institution_metrics AS i USING (institution_id)
                 """
             )
             connection.execute(
@@ -302,11 +413,9 @@ class DuckDBBuilder:
             connection.execute(
                 """
                 CREATE VIEW vw_policy_review_queue AS
-                SELECT
-                    CAST(NULL AS VARCHAR) AS institution_id,
-                    CAST(NULL AS VARCHAR) AS review_status,
-                    CAST(NULL AS VARCHAR) AS reason
-                WHERE false
+                SELECT *
+                FROM vw_policy_evidence
+                WHERE human_review_status = 'NEEDS_REVIEW'
                 """
             )
             connection.execute(

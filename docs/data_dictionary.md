@@ -75,15 +75,15 @@ Classified DOL mirrors under `data/classified/sources/` preserve every resolved-
 
 `lca_cases_resolved.parquet`, `perm_cases_resolved.parquet`, and `h1b_petitions_resolved.parquet` are compact processed case/evidence tables. They retain source artifact, file, ingestion time, fiscal period, legal entity, parent organization, and `organization_id`. `organization_id` is the reviewed parent when one exists and otherwise the legal entity; it never replaces either identity field.
 
-`employer_metrics.parquet` has one row per parent-or-legal organization scope. It contains the legal-entity count; organization type and state; raw LCA, relevant LCA, relevant certified PERM, and USCIS petition counts; active and last-observed years; technical-family/title summaries; worksite states; source coverage; partial-period markers; and `metric_version = raw_metrics_v2`. Its legal-entity counts sum to the full legal-entity table. The 26 blank-name USCIS observations retain null identity and are excluded from organization aggregation rather than guessed.
+`employer_metrics.parquet` has one row per parent-or-legal organization scope. It contains the legal-entity count; organization type and state; raw LCA, relevant LCA, relevant certified PERM, and USCIS petition counts; active and last-observed years; technical-family/title summaries; worksite states; source coverage; partial-period markers; and `metric_version = raw_metrics_v3`. Its legal-entity counts sum to the full legal-entity table. The 26 blank-name USCIS observations retain null identity and are excluded from organization aggregation rather than guessed.
 
 `institution_metrics.parquet` has one row per IPEDS institution and joins the latest available HERD measures plus immigration counts at the institution's legal petitioner. Research expenditures remain separate fields for total, federal, computing, and engineering R&D. IPEDS institutions receive `POTENTIALLY_CAP_EXEMPT_HIGHER_ED`; this is not a verified cap-exemption decision.
 
 `data_health.parquet` reports source row counts, coverage years, the latest complete year, and current partial year/quarter. Phase 5 identifies FY2025 as the latest complete immigration year and FY2026 as partial; DOL is currently available through Q2.
 
-Every explorer row displays `evidence_classes`. Raw source presence is `OBSERVED_GOVERNMENT_RECORD`; an aggregation is `DERIVED_METRIC`. E-Verify and OPT remain `UNKNOWN` unless Phase 6 has linked qualifying evidence; institution-policy values remain `UNKNOWN`, while Phase 8 scores remain null with `NOT_SCORED`. These placeholders must not be presented as negative evidence.
+Every explorer row displays `evidence_classes`. Raw source presence is `OBSERVED_GOVERNMENT_RECORD`; an aggregation is `DERIVED_METRIC`. E-Verify and OPT remain `UNKNOWN` unless Phase 6 has linked qualifying evidence. Institution-policy values remain `UNKNOWN` unless Phase 7 has an exact, current, `REVIEWED_ACCEPTED` fact; those rows add `REVIEWED_OFFICIAL_POLICY`. Phase 8 scores remain null with `NOT_SCORED`. These placeholders must not be presented as negative evidence.
 
-`db/immigration.duckdb` materializes the processed tables and the Phase 6 presentation views, including `vw_everify_evidence`, `vw_opt_evidence`, and `vw_everify_review_queue` alongside the original ten views. Policy views are intentionally empty until Phase 7 rather than populated with inferred facts.
+`db/immigration.duckdb` materializes the processed tables and evidence views, including `vw_everify_evidence`, `vw_opt_evidence`, `vw_policy_evidence`, and their review queues. `vw_policy_evidence` retains both reviewed and unreviewed facts with a visible evidence class; application detail queries filter it to `REVIEWED_ACCEPTED`.
 
 ## Phase 6 E-Verify and OPT evidence
 
@@ -92,3 +92,13 @@ Every explorer row displays `evidence_classes`. Raw source presence is `OBSERVED
 `everify_observations.parquet` contains the lookup ID; queried legal name and identity IDs; raw `enrollment_status`; enrollment/termination dates; workforce and hiring-site evidence; matched employer/DBA; retrieval time; match confidence/method; review status/reason; source URL; and retained source-result JSON. Only `CONFIRMED_ACTIVE` and `CONFIRMED_INACTIVE` become product statuses. `NO_MATCH`, `AMBIGUOUS`, `NOT_CHECKED`, and `ERROR` map to product `UNKNOWN`.
 
 `opt_employer_observations.parquet` contains the official artifact and report year, source employer name, rank, program type, strictly positive reported count, source URL/retrieval/checksum, coverage note, legal/parent/organization IDs when a unique exact match exists, and review metadata. An employer can have up to three observations for `OPT_OR_STEM_OPT`, `OPT`, and `STEM_OPT`; a blank source cell does not create a zero row.
+
+## Phase 7 institution policy evidence
+
+`policy_candidates.parquet` contains the deterministic 200-institution enrichment rank and its component values. It is not a product score.
+
+`policy_documents.parquet` contains document and institution IDs, official URL/domain, type/title, retrieval time and HTTP metadata, content and parsed-text hashes, published/updated date when found, immutable raw/parsed paths, current/parse status, discovery method, injection flag, and cache status.
+
+`policy_facts.parquet` contains one row for every required fact type per extracted document. It preserves the enum value, qualifier, smallest supporting excerpt, section/page, official source URL, retrieval and validity dates, extractor/model/response IDs, confidence, exact-excerpt result, contradiction group, current state, review status, reviewer ID/time, and reviewer note. Model output begins in `NEEDS_REVIEW`; a separate review-decision overlay is required for `REVIEWED_ACCEPTED`.
+
+`policy_review_queue.parquet` contains all facts still requiring review. `institution_metrics.parquet` maps only accepted, current, exact HTTPS facts into the five Phase 7 policy summary fields and sets `policy_review_status` to `REVIEWED` or `NEEDS_REVIEW` without treating absent facts as `NO`.

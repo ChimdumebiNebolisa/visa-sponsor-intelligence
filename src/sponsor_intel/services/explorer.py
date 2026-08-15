@@ -100,6 +100,7 @@ class OrganizationDetail:
     institutions: pl.DataFrame
     everify_evidence: pl.DataFrame
     opt_evidence: pl.DataFrame
+    policy_evidence: pl.DataFrame
     provenance: pl.DataFrame
 
 
@@ -155,7 +156,7 @@ class FoundationExplorerService:
 
     def get_status(self) -> ExplorerStatus:
         return ExplorerStatus(
-            phase="Phase 6",
+            phase="Phase 7",
             build_id="database-unavailable",
             data_available=False,
             evidence_status="UNKNOWN",
@@ -245,8 +246,8 @@ class DuckDBExplorerService:
                 f" FY{partial} is partial and must not be compared directly with complete years."
             )
         return ExplorerStatus(
-            phase="Phase 6",
-            build_id="raw_metrics_v2",
+            phase="Phase 7",
+            build_id="raw_metrics_v3",
             data_available=True,
             evidence_status="AVAILABLE",
             message=message,
@@ -267,7 +268,13 @@ class DuckDBExplorerService:
                     AS relevant_lca_count,
                 (SELECT coalesce(sum(relevant_certified_perm_count), 0) FROM employer_metrics)
                     AS relevant_certified_perm_count,
-                0 AS reviewed_policy_institution_count,
+                (SELECT count(DISTINCT institution_id) FROM vw_policy_evidence
+                    WHERE human_review_status = 'REVIEWED_ACCEPTED'
+                        AND exact_excerpt_verified IS TRUE
+                        AND fact_is_current IS TRUE
+                        AND valid_to IS NULL
+                        AND starts_with(source_url, 'https://'))
+                    AS reviewed_policy_institution_count,
                 (SELECT count(*) FROM vw_entity_review_queue) AS unresolved_entity_match_count
             """
         ).to_dicts()[0]
@@ -658,6 +665,25 @@ class DuckDBExplorerService:
                 FROM vw_opt_evidence
                 WHERE organization_id = ?
                 ORDER BY report_year DESC, rank, program_type
+                """,
+                [organization_id],
+            ),
+            policy_evidence=self._query(
+                """
+                SELECT policy_fact_id, institution_id, official_name, document_type,
+                    document_title, fact_type, fact_value, qualifier, supporting_excerpt,
+                    section_or_page, source_url, retrieved_at, published_or_updated_date,
+                    document_is_current, fact_is_current, confidence, human_review_status,
+                    reviewer_note, reviewer_id, reviewed_at, valid_from, valid_to,
+                    evidence_class
+                FROM vw_policy_evidence
+                WHERE organization_id = ?
+                    AND human_review_status = 'REVIEWED_ACCEPTED'
+                    AND exact_excerpt_verified IS TRUE
+                    AND fact_is_current IS TRUE
+                    AND valid_to IS NULL
+                    AND starts_with(source_url, 'https://')
+                ORDER BY institution_id, fact_type, retrieved_at DESC
                 """,
                 [organization_id],
             ),

@@ -89,6 +89,15 @@ with research_tab:
             "IPEDS and HERD observations describe institution identity and research activity; "
             "they do not establish sponsorship eligibility."
         )
+    st.write("Reviewed official policy evidence")
+    if detail.policy_evidence.is_empty():
+        st.info("No reviewed official policy facts are published for this organization.")
+    else:
+        st.dataframe(detail.policy_evidence.to_arrow(), width="stretch", hide_index=True)
+        st.caption(
+            "Only human-reviewed facts with an official URL and an exact supporting excerpt "
+            "are shown here."
+        )
 with signals_tab:
     st.write(
         {
