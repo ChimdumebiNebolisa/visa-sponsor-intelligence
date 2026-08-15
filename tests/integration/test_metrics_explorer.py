@@ -8,6 +8,7 @@ import pytest
 from sponsor_intel.database.builder import REQUIRED_VIEWS, DuckDBBuilder
 from sponsor_intel.evidence.everify import EVERIFY_OBSERVATION_SCHEMA
 from sponsor_intel.metrics.pipeline import MetricsPipeline
+from sponsor_intel.quality import QualityReporter
 from sponsor_intel.services import DuckDBExplorerService, EmployerFilters, InstitutionFilters
 
 
@@ -196,6 +197,8 @@ def test_metrics_database_services_and_exports(tmp_path: Path) -> None:
 
     metrics = MetricsPipeline(data_root=data_root, output_root=output_root).build()
     assert (data_root / "processed" / "employer_scores.parquet").is_file()
+    quality = QualityReporter(data_root=data_root, output_root=output_root).build()
+    assert not quality.passed
     database = DuckDBBuilder(data_root=data_root, database_path=database_path).build()
 
     assert metrics.employer_count == 2
@@ -255,6 +258,11 @@ def test_metrics_database_services_and_exports(tmp_path: Path) -> None:
     assert institution_comparison["research_strength_coverage"].item() == 1
     with pytest.raises(ValueError, match="at most five"):
         service.compare_organizations(tuple(f"organization-{index}" for index in range(6)))
+
+    health = service.get_data_health()
+    assert health.source_coverage.height >= 5
+    assert health.quality_checks.height > 0
+    assert "FAIL" in health.quality_checks["status"].to_list()
 
     csv_export = service.export_employers(EmployerFilters(search="Acme"), "csv")
     parquet_export = service.export_employers(EmployerFilters(search="Acme"), "parquet")

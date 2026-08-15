@@ -114,6 +114,14 @@ class EvidenceReviewQueues:
     policy: pl.DataFrame
 
 
+@dataclass(frozen=True, slots=True)
+class DataHealthSnapshot:
+    """Source freshness and publication-gating quality checks."""
+
+    source_coverage: pl.DataFrame
+    quality_checks: pl.DataFrame
+
+
 @runtime_checkable
 class ExplorerService(Protocol):
     """Contract that keeps presentation code independent of analytical storage."""
@@ -142,6 +150,8 @@ class ExplorerService(Protocol):
 
     def get_evidence_review(self, *, limit: int = 500) -> EvidenceReviewQueues: ...
 
+    def get_data_health(self) -> DataHealthSnapshot: ...
+
     def export_employers(self, filters: EmployerFilters, file_format: ExportFormat) -> bytes: ...
 
     def export_institutions(
@@ -158,7 +168,7 @@ class FoundationExplorerService:
 
     def get_status(self) -> ExplorerStatus:
         return ExplorerStatus(
-            phase="Phase 8",
+            phase="Phase 9",
             build_id="database-unavailable",
             data_available=False,
             evidence_status="UNKNOWN",
@@ -196,6 +206,9 @@ class FoundationExplorerService:
 
     def get_evidence_review(self, *, limit: int = 500) -> EvidenceReviewQueues:
         return EvidenceReviewQueues(_empty(), _empty(), _empty(), _empty())
+
+    def get_data_health(self) -> DataHealthSnapshot:
+        return DataHealthSnapshot(_empty(), _empty())
 
     def export_employers(self, filters: EmployerFilters, file_format: ExportFormat) -> bytes:
         return b""
@@ -253,7 +266,7 @@ class DuckDBExplorerService:
         build = self._query("SELECT max(metric_version) AS metric_version FROM employer_metrics")
         build_id = build["metric_version"].item() or "scored_metrics_v1"
         return ExplorerStatus(
-            phase="Phase 8",
+            phase="Phase 9",
             build_id=build_id,
             data_available=True,
             evidence_status="AVAILABLE",
@@ -856,6 +869,23 @@ class DuckDBExplorerService:
                 [selected_limit],
             ),
             policy=self._query("SELECT * FROM vw_policy_review_queue LIMIT ?", [selected_limit]),
+        )
+
+    def get_data_health(self) -> DataHealthSnapshot:
+        """Return source-period health and all persisted quality checks."""
+
+        return DataHealthSnapshot(
+            source_coverage=self._query("SELECT * FROM vw_data_health ORDER BY source_id"),
+            quality_checks=self._query(
+                """
+                SELECT * FROM vw_quality_checks
+                ORDER BY
+                    CASE status WHEN 'FAIL' THEN 0 WHEN 'WARN' THEN 1 ELSE 2 END,
+                    critical DESC,
+                    category,
+                    check_id
+                """
+            ),
         )
 
     def export_employers(self, filters: EmployerFilters, file_format: ExportFormat) -> bytes:
