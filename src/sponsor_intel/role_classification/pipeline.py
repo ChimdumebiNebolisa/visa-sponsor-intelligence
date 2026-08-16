@@ -14,7 +14,14 @@ from sponsor_intel.role_classification.models import (
     RoleClassificationSummary,
     RoleTaxonomyConfig,
 )
-from sponsor_intel.sources.manifests import write_json_atomic
+from sponsor_intel.sources.manifests import (
+    ArtifactManifestStore,
+    active_artifact_records,
+    active_layer_paths,
+    write_json_atomic,
+)
+from sponsor_intel.sources.models import ArtifactManifestRecord
+from sponsor_intel.sources.registry import DEFAULT_SOURCE_REGISTRY_PATH, SourceRegistry
 
 
 def _write_parquet_atomic(frame: pl.DataFrame, target: Path) -> None:
@@ -38,10 +45,18 @@ def _classification_id(source_id: str, title: str, soc_code: str, version: str) 
     return f"role_{hashlib.sha256(payload.encode()).hexdigest()[:20]}"
 
 
-def _source_files(data_root: Path) -> list[Path]:
+def _source_files(data_root: Path, records: tuple[ArtifactManifestRecord, ...]) -> list[Path]:
     files: list[Path] = []
     for source_id in ("dol_lca", "dol_perm"):
-        files.extend((data_root / "resolved" / "sources" / source_id).rglob("*.parquet"))
+        if any(record.source_id == source_id for record in records):
+            files.extend(
+                active_layer_paths(
+                    data_root,
+                    layer="resolved",
+                    records=records,
+                    source_id=source_id,
+                )
+            )
     if not files:
         raise ValueError("No Phase 3 DOL resolved-source Parquet files are available")
     return sorted(files)
@@ -159,14 +174,30 @@ class RoleClassificationPipeline:
         data_root: Path = Path("data"),
         output_root: Path = Path("outputs"),
         taxonomy_path: Path = Path("configs/role_taxonomy.yaml"),
+        source_registry_path: Path = DEFAULT_SOURCE_REGISTRY_PATH,
     ) -> None:
         self.data_root = data_root
         self.output_root = output_root
         self.config = RoleTaxonomyConfig.from_yaml(taxonomy_path)
         self.classifier = RoleClassifier(self.config)
+        self.registry = SourceRegistry.from_yaml(source_registry_path)
+        self.manifest_store = ArtifactManifestStore(
+            output_root / "manifests" / "source_artifacts.jsonl"
+        )
 
     def build(self) -> RoleClassificationSummary:
-        files = _source_files(self.data_root)
+        source_ids = {
+            record.source_id
+            for record in self.manifest_store.records()
+            if record.source_id in {"dol_lca", "dol_perm"}
+        }
+        records = active_artifact_records(
+            self.manifest_store,
+            self.registry,
+            discovery_root=self.output_root / "manifests" / "discovery",
+            source_ids=source_ids,
+        )
+        files = _source_files(self.data_root, records)
         lookup = _build_lookup(files, self.classifier)
         classifications_path = self.data_root / "processed" / "role_classifications.parquet"
         review_path = self.output_root / "review" / "role_classification_review.parquet"

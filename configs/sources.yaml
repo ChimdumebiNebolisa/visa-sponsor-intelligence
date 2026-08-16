@@ -34,7 +34,7 @@ sources:
     official_domains:
       - dol.gov
     partial_year_supported: true
-    parser_version: "1.2.0"
+    parser_version: "1.2.1"
     schema_version: dol_lca_v3
     minimum_row_count: 1000
     max_download_bytes: 536870912

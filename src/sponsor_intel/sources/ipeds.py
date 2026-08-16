@@ -99,6 +99,7 @@ class IpedsAdapter(TabularSourceAdapter):
             return self._normalize_characteristics(artifact)
         member_name = f"hd{artifact.candidate.fiscal_year}.csv"
         raw = read_csv_artifact(artifact, member_name=member_name)
+        raw_row_count = raw.height
         original_columns = tuple(raw.columns)
         schema = inspect_schema(self.config, artifact, original_columns, self.report_root)
         frame = raw.rename(dict(zip(original_columns, schema.normalized_columns, strict=True)))
@@ -179,6 +180,7 @@ class IpedsAdapter(TabularSourceAdapter):
         return NormalizedDataset(
             artifact=artifact,
             frame=frame,
+            raw_row_count=raw_row_count,
             original_columns=original_columns,
             normalized_columns=tuple(frame.columns),
             column_mapping=schema.column_mapping,
@@ -191,6 +193,7 @@ class IpedsAdapter(TabularSourceAdapter):
 
         member_name = f"ic{artifact.candidate.fiscal_year}.csv"
         raw = read_csv_artifact(artifact, member_name=member_name)
+        raw_row_count = raw.height
         original_columns = tuple(raw.columns)
         normalized_columns = tuple(normalize_column_name(column) for column in original_columns)
         frame = raw.rename(dict(zip(original_columns, normalized_columns, strict=True)))
@@ -276,6 +279,7 @@ class IpedsAdapter(TabularSourceAdapter):
         return NormalizedDataset(
             artifact=artifact,
             frame=frame,
+            raw_row_count=raw_row_count,
             original_columns=original_columns,
             normalized_columns=tuple(frame.columns),
             column_mapping={"ipeds_unitid": "unitid"},

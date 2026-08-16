@@ -7,7 +7,7 @@ import os
 import re
 import tempfile
 import unicodedata
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import fastexcel
@@ -89,6 +89,33 @@ def _status_for(issues: list[ValidationIssue]) -> ValidationStatus:
     if issues:
         return ValidationStatus.WARNING
     return ValidationStatus.PASSED
+
+
+def _fiscal_quarter_bounds(fiscal_year: int, fiscal_quarter: int) -> tuple[date, date]:
+    if fiscal_quarter == 1:
+        return date(fiscal_year - 1, 10, 1), date(fiscal_year - 1, 12, 31)
+    if fiscal_quarter == 2:
+        return date(fiscal_year, 1, 1), date(fiscal_year, 3, 31)
+    if fiscal_quarter == 3:
+        return date(fiscal_year, 4, 1), date(fiscal_year, 6, 30)
+    return date(fiscal_year, 7, 1), date(fiscal_year, 9, 30)
+
+
+def _fiscal_coverage_bounds(
+    fiscal_year: int, start_quarter: int, end_quarter: int
+) -> tuple[date, date]:
+    return (
+        _fiscal_quarter_bounds(fiscal_year, start_quarter)[0],
+        _fiscal_quarter_bounds(fiscal_year, end_quarter)[1],
+    )
+
+
+def _fiscal_quarter_for_date(value: date, fiscal_year: int) -> int | None:
+    for fiscal_quarter in range(1, 5):
+        start_date, end_date = _fiscal_quarter_bounds(fiscal_year, fiscal_quarter)
+        if start_date <= value <= end_date:
+            return fiscal_quarter
+    return None
 
 
 def _string_schema_overrides(path: Path) -> dict[str, pl.DataType]:
@@ -229,6 +256,8 @@ class DolExcelNormalizer:
             "source_id": self.config.id,
             "fiscal_year": artifact.candidate.fiscal_year,
             "fiscal_quarter": artifact.candidate.fiscal_quarter,
+            "is_quarter_partition": artifact.candidate.is_quarter_partition,
+            "coverage_start_quarter": artifact.candidate.coverage_start_quarter,
             "schema_version": self.config.schema_version,
             "parser_version": self.config.parser_version,
             "schema_fingerprint": schema_fingerprint,
@@ -280,10 +309,21 @@ class DolExcelNormalizer:
             schema_fingerprint_changed=schema_fingerprint_changed,
             schema_fingerprint=schema_fingerprint,
             expected_schema_fingerprint=expected_schema_fingerprint,
+            coverage_segment=(
+                (
+                    artifact.candidate.fiscal_year,
+                    artifact.candidate.coverage_start_quarter,
+                    artifact.candidate.fiscal_quarter or 4,
+                )
+                if artifact.candidate.source_id == "dol_lca"
+                and artifact.candidate.coverage_start_quarter is not None
+                else None
+            ),
         )
         return NormalizedDataset(
             artifact=artifact,
             frame=frame,
+            raw_row_count=source_row_count,
             original_columns=original_columns,
             normalized_columns=tuple(frame.columns),
             column_mapping=column_mapping,
@@ -302,6 +342,7 @@ class DolExcelNormalizer:
         schema_fingerprint_changed: bool = False,
         schema_fingerprint: str | None = None,
         expected_schema_fingerprint: str | None = None,
+        coverage_segment: tuple[int, int, int] | None = None,
     ) -> ValidationResult:
         issues: list[ValidationIssue] = []
         if frame.height < self.config.minimum_row_count:
@@ -358,6 +399,73 @@ class DolExcelNormalizer:
                     details={"count": invalid_fiscal_years},
                 )
             )
+        if coverage_segment is not None:
+            fiscal_year, start_quarter, end_quarter = coverage_segment
+            start_date, end_date = _fiscal_coverage_bounds(fiscal_year, start_quarter, end_quarter)
+            if "decision_date" not in frame.columns:
+                issues.append(
+                    ValidationIssue(
+                        severity=IssueSeverity.ERROR,
+                        category="lca_coverage_missing_decision_date",
+                        message="LCA coverage segments require a decision date",
+                        details={
+                            "start_date": start_date.isoformat(),
+                            "end_date": end_date.isoformat(),
+                        },
+                    )
+                )
+            else:
+                outside_coverage = frame.filter(
+                    pl.col("decision_date").is_null()
+                    | (pl.col("decision_date") < start_date)
+                    | (pl.col("decision_date") > end_date)
+                ).height
+                if outside_coverage:
+                    issues.append(
+                        ValidationIssue(
+                            severity=IssueSeverity.ERROR,
+                            category="lca_coverage_date_out_of_bounds",
+                            message=(
+                                "LCA decision dates must stay within the artifact's reviewed "
+                                "fiscal-quarter coverage segment"
+                            ),
+                            details={
+                                "count": outside_coverage,
+                                "start_date": start_date.isoformat(),
+                                "end_date": end_date.isoformat(),
+                            },
+                        )
+                    )
+                expected_quarters = list(range(start_quarter, end_quarter + 1))
+                observed_quarters = sorted(
+                    {
+                        fiscal_quarter
+                        for value in frame.get_column("decision_date").drop_nulls().to_list()
+                        if (fiscal_quarter := _fiscal_quarter_for_date(value, fiscal_year))
+                        is not None
+                    }
+                )
+                if observed_quarters != expected_quarters:
+                    issues.append(
+                        ValidationIssue(
+                            severity=IssueSeverity.ERROR,
+                            category="lca_coverage_quarter_mismatch",
+                            message=(
+                                "LCA decision dates must observe exactly every declared fiscal "
+                                "quarter in the artifact's coverage segment"
+                            ),
+                            details={
+                                "expected_quarters": expected_quarters,
+                                "observed_quarters": observed_quarters,
+                                "missing_quarters": sorted(
+                                    set(expected_quarters) - set(observed_quarters)
+                                ),
+                                "unexpected_quarters": sorted(
+                                    set(observed_quarters) - set(expected_quarters)
+                                ),
+                            },
+                        )
+                    )
         if exact_duplicate_rows_removed:
             issues.append(
                 ValidationIssue(
@@ -428,6 +536,7 @@ class DolExcelNormalizer:
         return PersistedDataset(
             artifact=dataset.artifact,
             parquet_path=target_path,
+            raw_row_count=dataset.raw_row_count,
             row_count=dataset.frame.height,
             column_count=dataset.frame.width,
             schema_version=self.config.schema_version,

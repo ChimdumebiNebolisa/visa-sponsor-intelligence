@@ -138,28 +138,50 @@ def discover_ipeds(
 
     html = client.get_text(config.landing_page)
     document = HTMLParser(html)
-    directories: dict[int, tuple[str, str]] = {}
-    directory_dictionaries: dict[int, str] = {}
-    characteristics: dict[int, tuple[str, str]] = {}
-    characteristics_dictionaries: dict[int, str] = {}
-    for anchor in document.css("a[href]"):
-        href = anchor.attributes.get("href")
-        if not href:
-            continue
-        url = urljoin(config.landing_page, href)
-        try:
-            url = validate_official_url(url, config.official_domains)
-        except UnsafeSourceUrlError:
-            continue
-        file_name = PurePosixPath(urlparse(url).path).name
-        if match := _IPEDS_DIRECTORY.fullmatch(file_name):
-            directories[int(match.group(1))] = (url, file_name)
-        elif match := _IPEDS_DICTIONARY.fullmatch(file_name):
-            directory_dictionaries[int(match.group(1))] = url
-        elif match := _IPEDS_CHARACTERISTICS.fullmatch(file_name):
-            characteristics[int(match.group(1))] = (url, file_name)
-        elif match := _IPEDS_CHARACTERISTICS_DICTIONARY.fullmatch(file_name):
-            characteristics_dictionaries[int(match.group(1))] = url
+
+    def artifact_links(
+        page: HTMLParser,
+    ) -> tuple[
+        dict[int, tuple[str, str]],
+        dict[int, str],
+        dict[int, tuple[str, str]],
+        dict[int, str],
+    ]:
+        directories: dict[int, tuple[str, str]] = {}
+        directory_dictionaries: dict[int, str] = {}
+        characteristics: dict[int, tuple[str, str]] = {}
+        characteristics_dictionaries: dict[int, str] = {}
+        for anchor in page.css("a[href]"):
+            href = anchor.attributes.get("href")
+            if not href:
+                continue
+            url = urljoin(config.landing_page, href)
+            try:
+                url = validate_official_url(url, config.official_domains)
+            except UnsafeSourceUrlError:
+                continue
+            file_name = PurePosixPath(urlparse(url).path).name
+            if match := _IPEDS_DIRECTORY.fullmatch(file_name):
+                directories[int(match.group(1))] = (url, file_name)
+            elif match := _IPEDS_DICTIONARY.fullmatch(file_name):
+                directory_dictionaries[int(match.group(1))] = url
+            elif match := _IPEDS_CHARACTERISTICS.fullmatch(file_name):
+                characteristics[int(match.group(1))] = (url, file_name)
+            elif match := _IPEDS_CHARACTERISTICS_DICTIONARY.fullmatch(file_name):
+                characteristics_dictionaries[int(match.group(1))] = url
+        return (
+            directories,
+            directory_dictionaries,
+            characteristics,
+            characteristics_dictionaries,
+        )
+
+    (
+        directories,
+        directory_dictionaries,
+        characteristics,
+        characteristics_dictionaries,
+    ) = artifact_links(document)
 
     final_years: list[int] = []
     provisional_years: list[int] = []
@@ -180,6 +202,18 @@ def discover_ipeds(
             "IPEDS page did not expose the finalized Institutional Characteristics year"
         )
     latest_final_year = max(final_years)
+
+    if latest_final_year not in directories or latest_final_year not in characteristics:
+        separator = "&" if "?" in config.landing_page else "?"
+        all_years_url = f"{config.landing_page}{separator}year=-1&surveyNumber=-1"
+        all_years_document = HTMLParser(client.get_text(all_years_url))
+        (
+            directories,
+            directory_dictionaries,
+            characteristics,
+            characteristics_dictionaries,
+        ) = artifact_links(all_years_document)
+
     eligible = [
         year
         for year in directories.keys() & characteristics.keys()

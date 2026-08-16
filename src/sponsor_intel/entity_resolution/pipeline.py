@@ -24,7 +24,11 @@ from sponsor_intel.entity_resolution.normalization import (
     stable_id,
 )
 from sponsor_intel.entity_resolution.resolver import ResolutionTables, resolve_observations
-from sponsor_intel.sources.manifests import ArtifactManifestStore, write_json_atomic
+from sponsor_intel.sources.manifests import (
+    ArtifactManifestStore,
+    active_artifact_selection,
+    write_json_atomic,
+)
 from sponsor_intel.sources.models import ArtifactManifestRecord
 from sponsor_intel.sources.registry import SourceRegistry
 
@@ -48,39 +52,20 @@ def _write_parquet_atomic(frame: pl.DataFrame, target: Path) -> None:
 
 
 def _current_records(
-    store: ArtifactManifestStore, registry: SourceRegistry
-) -> tuple[ArtifactManifestRecord, ...]:
-    latest: dict[tuple[str, int, int | None, str], ArtifactManifestRecord] = {}
-    for record in store.records():
-        try:
-            source = registry.get(record.source_id)
-        except ValueError:
-            continue
-        if (
-            record.parser_version != source.parser_version
-            or record.schema_version != source.schema_version
-            or not record.parquet_path.is_file()
-        ):
-            continue
-        key = (
-            record.source_id,
-            record.fiscal_year,
-            record.fiscal_quarter,
-            record.download_url,
-        )
-        current = latest.get(key)
-        if current is None or record.retrieved_at > current.retrieved_at:
-            latest[key] = record
-    return tuple(
-        sorted(
-            latest.values(),
-            key=lambda item: (
-                item.source_id,
-                item.fiscal_year,
-                item.fiscal_quarter or 0,
-                item.file_name,
-            ),
-        )
+    store: ArtifactManifestStore,
+    registry: SourceRegistry,
+    discovery_root: Path,
+) -> tuple[tuple[ArtifactManifestRecord, ...], pl.DataFrame]:
+    source_ids = {
+        record.source_id
+        for record in store.records()
+        if record.source_id in _EMPLOYER_SOURCES | {"ipeds"}
+    }
+    return active_artifact_selection(
+        store,
+        registry,
+        discovery_root=discovery_root,
+        source_ids=source_ids,
     )
 
 
@@ -99,10 +84,39 @@ def _is_ipeds_directory_record(record: ArtifactManifestRecord) -> bool:
     return "instnm" in names or "official_name" in names
 
 
-def _source_projection(record: ArtifactManifestRecord) -> pl.LazyFrame | None:
+def _active_source_frame(
+    record: ArtifactManifestRecord, superseded_lca_rows: pl.DataFrame
+) -> pl.LazyFrame:
+    frame = pl.scan_parquet(record.parquet_path)
+    if record.source_id != "dol_lca" or superseded_lca_rows.is_empty():
+        return frame
+    row_keys = superseded_lca_rows.filter(
+        pl.col("source_artifact_id") == record.source_artifact_id
+    ).select(pl.col("source_row_number").alias("_superseded_source_row_number"))
+    if row_keys.is_empty():
+        return frame
+    if "source_row_number" not in frame.collect_schema().names():
+        raise ValueError(
+            f"LCA artifact lacks source_row_number for supersession filtering: "
+            f"{record.source_artifact_id}"
+        )
+    return (
+        frame.with_columns(
+            pl.col("source_row_number")
+            .cast(pl.Int64, strict=False)
+            .alias("_superseded_source_row_number")
+        )
+        .join(row_keys.lazy(), on="_superseded_source_row_number", how="anti")
+        .drop("_superseded_source_row_number")
+    )
+
+
+def _source_projection(
+    record: ArtifactManifestRecord, superseded_lca_rows: pl.DataFrame
+) -> pl.LazyFrame | None:
     if record.source_id == "ipeds" and not _is_ipeds_directory_record(record):
         return None
-    frame = pl.scan_parquet(record.parquet_path)
+    frame = _active_source_frame(record, superseded_lca_rows)
     if record.source_id in _EMPLOYER_SOURCES:
         if record.source_id == "dol_lca":
             city = _column(frame, "employer_city")
@@ -135,10 +149,14 @@ def _source_projection(record: ArtifactManifestRecord) -> pl.LazyFrame | None:
 
 
 def _normalize_observations(
-    records: tuple[ArtifactManifestRecord, ...], config: EntityResolutionConfig
+    records: tuple[ArtifactManifestRecord, ...],
+    config: EntityResolutionConfig,
+    superseded_lca_rows: pl.DataFrame,
 ) -> pl.DataFrame:
     projections = [
-        projection for record in records if (projection := _source_projection(record)) is not None
+        projection
+        for record in records
+        if (projection := _source_projection(record, superseded_lca_rows)) is not None
     ]
     if not projections:
         raise ValueError("No current DOL, USCIS, or IPEDS artifacts are available")
@@ -201,11 +219,7 @@ def _normalize_observations(
 
 
 def _latest_ipeds(records: tuple[ArtifactManifestRecord, ...]) -> pl.DataFrame:
-    candidates = [
-        record
-        for record in records
-        if _is_ipeds_directory_record(record)
-    ]
+    candidates = [record for record in records if _is_ipeds_directory_record(record)]
     if not candidates:
         raise ValueError("A current IPEDS directory artifact is required")
     record = max(candidates, key=lambda item: (item.fiscal_year, item.retrieved_at))
@@ -264,6 +278,7 @@ def _persist_resolved_sources(
     tables: ResolutionTables,
     config: EntityResolutionConfig,
     data_root: Path,
+    superseded_lca_rows: pl.DataFrame,
 ) -> int:
     lookup = tables.aliases.select(
         "source_id",
@@ -284,7 +299,7 @@ def _persist_resolved_sources(
             continue
         if record.source_id == "ipeds" and not _is_ipeds_directory_record(record):
             continue
-        lazy = pl.scan_parquet(record.parquet_path)
+        lazy = _active_source_frame(record, superseded_lca_rows)
         names = set(lazy.collect_schema().names())
         (
             entity_raw,
@@ -396,8 +411,12 @@ class EntityResolutionPipeline:
         )
 
     def build(self) -> EntityResolutionSummary:
-        records = _current_records(self.manifest_store, self.registry)
-        observations = _normalize_observations(records, self.config)
+        records, superseded_lca_rows = _current_records(
+            self.manifest_store,
+            self.registry,
+            self.output_root / "manifests" / "discovery",
+        )
+        observations = _normalize_observations(records, self.config, superseded_lca_rows)
         tables = resolve_observations(
             observations, _latest_ipeds(records), self.config, self.overrides
         )
@@ -410,8 +429,18 @@ class EntityResolutionPipeline:
         _write_parquet_atomic(tables.parent_organizations, parent_path)
         _write_parquet_atomic(tables.aliases, alias_path)
         _write_parquet_atomic(tables.review_queue, review_path)
-        resolved_count = _persist_resolved_sources(records, tables, self.config, self.data_root)
+        resolved_count = _persist_resolved_sources(
+            records,
+            tables,
+            self.config,
+            self.data_root,
+            superseded_lca_rows,
+        )
         inspection_path = _top_inspection(observations, tables, self.output_root)
+        superseded_rows_path = (
+            self.output_root / "reports" / "entities" / "lca_superseded_source_rows.parquet"
+        )
+        _write_parquet_atomic(superseded_lca_rows, superseded_rows_path)
         status_counts = {
             str(row["match_status"]): int(row["len"])
             for row in tables.aliases.group_by("match_status").len().iter_rows(named=True)
@@ -435,5 +464,7 @@ class EntityResolutionPipeline:
         payload["schema_version"] = self.config.schema_version
         payload["top_entity_inspection_path"] = str(inspection_path)
         payload["source_artifact_count"] = len(records)
+        payload["lca_superseded_row_count"] = superseded_lca_rows.height
+        payload["lca_superseded_row_keys_path"] = str(superseded_rows_path)
         write_json_atomic(summary_path, payload)
         return summary

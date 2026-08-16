@@ -21,7 +21,12 @@ from sponsor_intel.sources.normalizer import DolExcelNormalizer
 from sponsor_intel.sources.registry import SourceRegistry
 
 
-def _write_lca_fixture(path: Path, *, include_soc: bool = True) -> None:
+def _write_lca_fixture(
+    path: Path,
+    *,
+    include_soc: bool = True,
+    decision_dates: tuple[str, ...] = ("2025-09-30", "2025-09-30"),
+) -> None:
     workbook = xlsxwriter.Workbook(path)
     worksheet = workbook.add_worksheet("Disclosure")
     columns = [
@@ -40,9 +45,19 @@ def _write_lca_fixture(path: Path, *, include_soc: bool = True) -> None:
         ["I-200-001", "Certified", "Example LLC", "Software Engineer"],
         ["I-200-002", "Denied", "University Example", "Systems Engineer"],
     ]
-    for row_index, prefix in enumerate(rows, start=1):
+    for row_index, decision_date in enumerate(decision_dates, start=1):
+        prefix = (
+            rows[row_index - 1]
+            if row_index <= len(rows)
+            else [
+                f"I-200-{row_index:03d}",
+                "Certified",
+                f"Example {row_index} LLC",
+                "Software Engineer",
+            ]
+        )
         soc = ["15-1252", "Software Developers"] if include_soc else []
-        values = prefix + soc + ["TX", "120,000", "2025-09-30"]
+        values = prefix + soc + ["TX", "120,000", decision_date]
         worksheet.write_row(row_index, 0, values)
     workbook.close()
 
@@ -408,6 +423,7 @@ def test_exact_duplicate_source_rows_are_removed_with_warning(tmp_path: Path) ->
 
     normalized = normalizer.normalize(_downloaded(source_path))
 
+    assert normalized.raw_row_count == 2
     assert normalized.frame.height == 1
     assert normalized.frame["source_row_number"].to_list() == [2]
     assert normalized.validation.status is ValidationStatus.WARNING
@@ -446,3 +462,104 @@ def test_repeated_case_decisions_collapse_to_latest_date(tmp_path: Path) -> None
         issue.category == "repeated_case_decisions" and issue.details["count"] == 1
         for issue in normalized.validation.issues
     )
+
+
+def test_lca_coverage_segment_requires_decision_dates_inside_declared_bounds(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "lca-quarter-partition.xlsx"
+    _write_lca_fixture(source_path)
+    config = SourceRegistry.from_yaml().get("dol_lca").model_copy(update={"minimum_row_count": 1})
+    artifact = _downloaded(source_path)
+    normalizer = DolExcelNormalizer(config, tmp_path / "staging", tmp_path / "outputs")
+
+    q4_artifact = artifact.model_copy(
+        update={
+            "candidate": artifact.candidate.model_copy(
+                update={"is_quarter_partition": True, "coverage_start_quarter": 4}
+            )
+        }
+    )
+    q4 = normalizer.normalize(q4_artifact)
+    assert not any(
+        issue.category == "lca_coverage_date_out_of_bounds" for issue in q4.validation.issues
+    )
+
+    q3_artifact = artifact.model_copy(
+        update={
+            "candidate": artifact.candidate.model_copy(
+                update={
+                    "fiscal_quarter": 3,
+                    "is_quarter_partition": True,
+                    "coverage_start_quarter": 3,
+                }
+            )
+        }
+    )
+    q3 = normalizer.normalize(q3_artifact)
+    assert q3.validation.status is ValidationStatus.FAILED
+    assert any(
+        issue.category == "lca_coverage_date_out_of_bounds" and issue.details["count"] == 2
+        for issue in q3.validation.issues
+    )
+
+
+def test_lca_current_partial_q3_accepts_cumulative_decisions_from_q1_through_q3(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "lca-cumulative-q3.xlsx"
+    _write_lca_fixture(
+        source_path,
+        decision_dates=("2024-10-15", "2025-01-15", "2025-06-30"),
+    )
+    config = SourceRegistry.from_yaml().get("dol_lca").model_copy(update={"minimum_row_count": 1})
+    artifact = _downloaded(source_path)
+    candidate = artifact.candidate.model_copy(
+        update={
+            "fiscal_quarter": 3,
+            "is_partial_period": True,
+            "is_quarter_partition": False,
+            "coverage_start_quarter": 1,
+        }
+    )
+    normalizer = DolExcelNormalizer(config, tmp_path / "staging", tmp_path / "outputs")
+
+    normalized = normalizer.normalize(artifact.model_copy(update={"candidate": candidate}))
+
+    assert normalized.validation.status is not ValidationStatus.FAILED
+    assert not any(
+        issue.category == "lca_coverage_date_out_of_bounds"
+        for issue in normalized.validation.issues
+    )
+
+
+def test_lca_declared_cumulative_segment_rejects_missing_fiscal_quarters(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "lca-q3-only-declared-cumulative.xlsx"
+    _write_lca_fixture(source_path, decision_dates=("2025-04-01", "2025-06-30"))
+    config = SourceRegistry.from_yaml().get("dol_lca").model_copy(update={"minimum_row_count": 1})
+    artifact = _downloaded(source_path)
+    candidate = artifact.candidate.model_copy(
+        update={
+            "fiscal_quarter": 3,
+            "is_quarter_partition": True,
+            "coverage_start_quarter": 1,
+        }
+    )
+    normalizer = DolExcelNormalizer(config, tmp_path / "staging", tmp_path / "outputs")
+
+    normalized = normalizer.normalize(artifact.model_copy(update={"candidate": candidate}))
+
+    assert normalized.validation.status is ValidationStatus.FAILED
+    issue = next(
+        issue
+        for issue in normalized.validation.issues
+        if issue.category == "lca_coverage_quarter_mismatch"
+    )
+    assert issue.details == {
+        "expected_quarters": [1, 2, 3],
+        "observed_quarters": [3],
+        "missing_quarters": [1, 2],
+        "unexpected_quarters": [],
+    }

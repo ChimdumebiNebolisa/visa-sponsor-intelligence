@@ -111,6 +111,8 @@ def test_uscis_pipeline_preserves_petition_decisions_as_separate_evidence(
     assert frame["continuing_denials"].to_list() == [4]
     assert frame["evidence_type"].to_list() == ["USCIS_H1B_PETITION_DECISIONS"]
     assert frame["legal_entity_id"].null_count() == 1
+    assert summary.records[0].raw_row_count == len(rows)
+    assert summary.records[0].row_count == 1
     validation_report = json.loads(summary.records[0].schema_diff_path.read_text())
     assert validation_report["validation_status"] == "PASSED"
     assert validation_report["validation_issues"] == []
@@ -325,8 +327,8 @@ def test_ipeds_and_herd_build_exact_unitid_join_and_review_queue(tmp_path: Path)
         output_root=tmp_path / "outputs",
         transport=httpx.MockTransport(handler),
     )
-    pipeline.ingest("ipeds", from_fiscal_year=2022)
-    pipeline.ingest("herd", from_fiscal_year=2024)
+    ipeds_summary = pipeline.ingest("ipeds", from_fiscal_year=2022)
+    herd_summary = pipeline.ingest("herd", from_fiscal_year=2024)
 
     institutions = pl.read_parquet(tmp_path / "data/processed/institutions.parquet")
     observations = pl.read_parquet(tmp_path / "data/processed/herd_observations.parquet")
@@ -348,3 +350,11 @@ def test_ipeds_and_herd_build_exact_unitid_join_and_review_queue(tmp_path: Path)
     assert matched["computing_rd"].to_list() == [8_000]
     assert review_json["join_policy"].startswith("Exact six-digit IPEDS UNITID")
     assert review_json["needs_review_count"] == 1
+    assert {record.file_name: record.raw_row_count for record in ipeds_summary.records} == {
+        "HD2023.zip": 1,
+        "IC2023.zip": 1,
+    }
+    assert {record.file_name: record.raw_row_count for record in herd_summary.records} == {
+        "higher_education_r_and_d_2024.zip": 9,
+        "higher_education_r_and_d_2024_short.zip": 6,
+    }

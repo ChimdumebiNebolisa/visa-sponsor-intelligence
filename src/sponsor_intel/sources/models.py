@@ -106,6 +106,8 @@ class SourceArtifactCandidate(BaseModel):
     fiscal_year: int = Field(ge=2022)
     fiscal_quarter: int | None = Field(default=None, ge=1, le=4)
     is_partial_period: bool
+    is_quarter_partition: bool = False
+    coverage_start_quarter: int | None = Field(default=None, ge=1, le=4)
     file_name: str
     expected_format: str
     variant: str = "standard"
@@ -197,6 +199,7 @@ class NormalizedDataset:
 
     artifact: DownloadedArtifact
     frame: pl.DataFrame
+    raw_row_count: int
     original_columns: tuple[str, ...]
     normalized_columns: tuple[str, ...]
     column_mapping: dict[str, str]
@@ -211,6 +214,7 @@ class PersistedDataset(BaseModel):
 
     artifact: DownloadedArtifact
     parquet_path: Path
+    raw_row_count: int = Field(ge=0)
     row_count: int = Field(ge=0)
     column_count: int = Field(ge=0)
     schema_version: str
@@ -233,6 +237,8 @@ class ArtifactManifestRecord(BaseModel):
     fiscal_year: int
     fiscal_quarter: int | None
     is_partial_period: bool
+    is_quarter_partition: bool = False
+    coverage_start_quarter: int | None = Field(default=None, ge=1, le=4)
     file_name: str
     mime_type: str
     byte_size: int
@@ -240,6 +246,7 @@ class ArtifactManifestRecord(BaseModel):
     record_layout_url: str | None
     parser_version: str
     schema_version: str
+    raw_row_count: int | None = Field(default=None, ge=0)
     row_count: int
     column_count: int
     validation_status: ValidationStatus
@@ -265,6 +272,8 @@ class RawArtifactManifestRecord(BaseModel):
     fiscal_year: int
     fiscal_quarter: int | None
     is_partial_period: bool
+    is_quarter_partition: bool = False
+    coverage_start_quarter: int | None = Field(default=None, ge=1, le=4)
     file_name: str
     mime_type: str
     byte_size: int

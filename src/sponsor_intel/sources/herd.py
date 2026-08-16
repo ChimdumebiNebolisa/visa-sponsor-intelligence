@@ -61,6 +61,7 @@ class HerdAdapter(TabularSourceAdapter):
         prefix = "short" if artifact.candidate.variant == "short" else "herd"
         member_name = f"{prefix}{artifact.candidate.fiscal_year}.csv"
         raw = read_csv_artifact(artifact, member_name=member_name)
+        raw_row_count = raw.height
         original_columns = tuple(raw.columns)
         schema = inspect_schema(self.config, artifact, original_columns, self.report_root)
         raw = raw.rename(dict(zip(original_columns, schema.normalized_columns, strict=True)))
@@ -208,6 +209,7 @@ class HerdAdapter(TabularSourceAdapter):
         return NormalizedDataset(
             artifact=artifact,
             frame=frame,
+            raw_row_count=raw_row_count,
             original_columns=original_columns,
             normalized_columns=tuple(frame.columns),
             column_mapping=schema.column_mapping,
