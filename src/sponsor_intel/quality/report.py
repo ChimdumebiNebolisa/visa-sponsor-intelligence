@@ -21,13 +21,23 @@ REQUIRED_TABLE_COLUMNS = {
         "metric_version",
         "score_version",
         "immigration_evidence_coverage",
+        "sponsorship_history_score",
+        "sponsorship_history_coverage",
+        "sponsorship_history_status",
     },
     "institution_metrics.parquet": {
         "institution_id",
         "metric_version",
         "score_version",
         "research_pathway_coverage",
+        "research_pathway_status",
+        "core_policy_review_coverage",
+        "core_policy_evidence_coverage",
+        "decision_readiness_tier",
     },
+    "employer_scores.parquet": {"organization_id", "score_version"},
+    "employer_scores_v1.parquet": {"organization_id", "score_version"},
+    "institution_scores_v1.parquet": {"institution_id", "score_version"},
     "lca_cases_resolved.parquet": {"source_artifact_id", "case_id", "organization_id"},
     "perm_cases_resolved.parquet": {"source_artifact_id", "case_id", "organization_id"},
     "h1b_petitions_resolved.parquet": {
@@ -40,6 +50,9 @@ REQUIRED_TABLE_COLUMNS = {
     "parent_organizations.parquet": {"parent_organization_id"},
     "institutions.parquet": {"institution_id"},
 }
+
+EXPECTED_METRIC_VERSION = "scored_metrics_v2"
+EXPECTED_SCORE_VERSION = "evidence_scores_v2_2026_08"
 
 
 def _sha256(path: Path) -> str:
@@ -108,7 +121,7 @@ def _schema_failures(root: Path) -> tuple[int, int]:
 
 
 class QualityReporter:
-    """Measure V1 build health and fail publication on critical violations."""
+    """Measure V2 build health and fail publication on critical violations."""
 
     def __init__(
         self,
@@ -315,8 +328,12 @@ class QualityReporter:
         institution_metrics = _frame_or_none(processed / "institution_metrics.parquet")
         facts = _frame_or_none(processed / "policy_facts.parquet")
         accepted = facts.head(0) if facts is not None else None
+        reviewed_not_stated = facts.head(0) if facts is not None else None
         if facts is not None:
             accepted = facts.filter(pl.col("human_review_status") == "REVIEWED_ACCEPTED")
+            reviewed_not_stated = facts.filter(
+                pl.col("human_review_status") == "REVIEWED_NOT_STATED"
+            )
         institution_ids = (
             institution_metrics["institution_id"].drop_nulls().unique().to_list()
             if institution_metrics is not None
@@ -331,11 +348,37 @@ class QualityReporter:
         )
         invalid_accepted = 0
         if accepted is not None and not accepted.is_empty():
-            invalid_accepted = accepted.filter(
-                ~pl.col("exact_excerpt_verified").fill_null(False)
-                | ~pl.col("source_url").fill_null("").str.starts_with("https://")
-                | pl.col("supporting_excerpt").fill_null("").str.strip_chars().eq("")
-            ).height
+            required_reviewer_columns = {"reviewer_id", "reviewed_at"}
+            if required_reviewer_columns <= set(accepted.columns):
+                invalid_accepted = accepted.filter(
+                    ~pl.col("exact_excerpt_verified").fill_null(False)
+                    | ~pl.col("source_url").fill_null("").str.starts_with("https://")
+                    | pl.col("supporting_excerpt").fill_null("").str.strip_chars().eq("")
+                    | pl.col("reviewer_id").fill_null("").str.strip_chars().eq("")
+                    | pl.col("reviewed_at")
+                    .cast(pl.String, strict=False)
+                    .fill_null("")
+                    .str.strip_chars()
+                    .eq("")
+                ).height
+            else:
+                invalid_accepted = accepted.height
+        invalid_not_stated = 0
+        if reviewed_not_stated is not None and not reviewed_not_stated.is_empty():
+            required_reviewer_columns = {"reviewer_id", "reviewed_at"}
+            if required_reviewer_columns <= set(reviewed_not_stated.columns):
+                invalid_not_stated = reviewed_not_stated.filter(
+                    (pl.col("fact_value") != "NOT_STATED")
+                    | ~pl.col("source_url").fill_null("").str.starts_with("https://")
+                    | pl.col("reviewer_id").fill_null("").str.strip_chars().eq("")
+                    | pl.col("reviewed_at")
+                    .cast(pl.String, strict=False)
+                    .fill_null("")
+                    .str.strip_chars()
+                    .eq("")
+                ).height
+            else:
+                invalid_not_stated = reviewed_not_stated.height
         add(
             "reviewed_policy_coverage",
             "policy",
@@ -351,19 +394,71 @@ class QualityReporter:
             invalid_accepted == 0,
             critical=True,
             value=float(invalid_accepted),
-            threshold="0 accepted facts without exact official evidence",
-            details=f"{invalid_accepted} accepted facts fail URL/excerpt gates.",
+            threshold="0 accepted facts without exact official evidence and reviewer provenance",
+            details=f"{invalid_accepted} accepted facts fail URL/excerpt/reviewer gates.",
+        )
+        add(
+            "reviewed_not_stated_semantics",
+            "policy",
+            invalid_not_stated == 0,
+            critical=True,
+            value=float(invalid_not_stated),
+            threshold="0 REVIEWED_NOT_STATED rows with invalid state or reviewer provenance",
+            details=(
+                f"{invalid_not_stated} reviewed-not-stated facts fail value, URL, or reviewer "
+                "provenance gates."
+            ),
         )
 
-        metric_version = (
+        top50_complete = 0
+        candidates = _frame_or_none(processed / "policy_candidates.parquet")
+        if candidates is not None and institution_metrics is not None:
+            priority_ids = candidates.sort("candidate_rank").head(50)["institution_id"].to_list()
+            top50_complete = institution_metrics.filter(
+                pl.col("institution_id").is_in(priority_ids)
+                & (pl.col("core_policy_review_coverage") == 1.0)
+            ).height
+        add(
+            "core_policy_top50_review",
+            "policy",
+            top50_complete == 50,
+            critical=False,
+            value=float(top50_complete),
+            threshold="50 priority institutions with all four core questions reviewed",
+            details=(
+                f"{top50_complete} of 50 priority institutions have complete core-policy review; "
+                "incomplete profiles remain visibly non-decision-ready."
+            ),
+            warn_only=True,
+        )
+
+        employer_metric_version = (
             _unique_text(employer_metrics, "metric_version")
             if employer_metrics is not None
             else None
         )
-        score_version = (
+        employer_score_version = (
             _unique_text(employer_metrics, "score_version")
             if employer_metrics is not None
             else None
+        )
+        institution_metric_version = (
+            _unique_text(institution_metrics, "metric_version")
+            if institution_metrics is not None
+            else None
+        )
+        institution_score_version = (
+            _unique_text(institution_metrics, "score_version")
+            if institution_metrics is not None
+            else None
+        )
+        metric_version = (
+            employer_metric_version
+            if employer_metric_version == institution_metric_version
+            else None
+        )
+        score_version = (
+            employer_score_version if employer_score_version == institution_score_version else None
         )
         coverage_errors = 0
         for frame in (employer_metrics, institution_metrics):
@@ -376,17 +471,54 @@ class QualityReporter:
         add(
             "score_contract",
             "scoring",
-            metric_version is not None and score_version is not None and coverage_errors == 0,
+            employer_metric_version == EXPECTED_METRIC_VERSION
+            and institution_metric_version == EXPECTED_METRIC_VERSION
+            and employer_score_version == EXPECTED_SCORE_VERSION
+            and institution_score_version == EXPECTED_SCORE_VERSION
+            and coverage_errors == 0,
             critical=True,
             value=float(coverage_errors),
             threshold="one metric/score version and all coverage in [0, 1]",
             details="; ".join(
                 [
-                    f"metric={metric_version}",
-                    f"score={score_version}",
+                    f"employer metric={employer_metric_version}",
+                    f"institution metric={institution_metric_version}",
+                    f"employer score={employer_score_version}",
+                    f"institution score={institution_score_version}",
                     f"range errors={coverage_errors}.",
                 ]
             ),
+        )
+
+        grade_gating_errors = 0
+        employer_grade_columns = {
+            "sponsorship_history_coverage",
+            "sponsorship_history_grade",
+        }
+        if employer_metrics is not None and employer_grade_columns <= set(employer_metrics.columns):
+            grade_gating_errors += employer_metrics.filter(
+                (pl.col("sponsorship_history_coverage") < 1.0)
+                & (pl.col("sponsorship_history_grade") != "UNKNOWN")
+            ).height
+        institution_grade_columns = {
+            "research_pathway_status",
+            "research_pathway_grade",
+        }
+        if institution_metrics is not None and institution_grade_columns <= set(
+            institution_metrics.columns
+        ):
+            grade_gating_errors += institution_metrics.filter(
+                (pl.col("research_pathway_status") != "COMPLETE")
+                & (pl.col("research_pathway_grade") != "UNKNOWN")
+            ).height
+        add(
+            "v2_grade_gating",
+            "scoring",
+            grade_gating_errors == 0,
+            critical=True,
+            value=float(grade_gating_errors),
+            threshold="0 partial or incomplete V2 profiles with a letter grade",
+            details=f"{grade_gating_errors} V2 scores violate grade-suppression rules.",
         )
 
         health = _frame_or_none(processed / "data_health.parquet")
@@ -421,7 +553,7 @@ class QualityReporter:
             },
             sort_keys=True,
         ).encode()
-        build_id = f"v1-{hashlib.sha256(build_material).hexdigest()[:16]}"
+        build_id = f"v2-{hashlib.sha256(build_material).hexdigest()[:16]}"
         critical_failure_count = sum(check.critical and check.status == "FAIL" for check in checks)
         checks_path = processed / "quality_checks.parquet"
         report_path = self.output_root / "reports" / "quality" / "data_quality.json"
@@ -444,12 +576,13 @@ class QualityReporter:
             for check in checks
         ]
         _write_parquet_atomic(pl.DataFrame(check_rows), checks_path)
-        write_json_atomic(report_path, report.model_dump(mode="json"))
+        report_json = report.model_dump(mode="json")
+        write_json_atomic(report_path, report_json)
         write_json_atomic(
             metadata_path,
             {
                 "build_id": build_id,
-                "generated_at": generated_at.isoformat(),
+                "generated_at": report_json["generated_at"],
                 "manifest_sha256": manifest_sha256,
                 "metric_version": metric_version,
                 "score_version": score_version,

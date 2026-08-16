@@ -263,7 +263,77 @@ class DuckDBBuilder:
             )
             connection.execute("CREATE VIEW vw_employer_explorer AS SELECT * FROM employer_metrics")
             connection.execute(
-                "CREATE VIEW vw_institution_explorer AS SELECT * FROM institution_metrics"
+                """
+                CREATE VIEW vw_institution_explorer AS
+                SELECT
+                    * EXCLUDE (
+                        decision_readiness_tier,
+                        decision_readiness_explanation,
+                        decision_readiness_prerequisite_status,
+                        decision_readiness_tier_is_final
+                    ),
+                    CASE
+                        WHEN decision_readiness_tier IN (
+                            'TIER_1_REVIEWED',
+                            'TIER_2_STRONG_HISTORY_POLICY_INCOMPLETE'
+                        ) AND NOT (
+                            EXISTS (SELECT 1 FROM quality_checks)
+                            AND NOT EXISTS (
+                                SELECT 1 FROM quality_checks
+                                WHERE critical IS TRUE AND status = 'FAIL'
+                            )
+                        ) THEN 'TIER_4_INSUFFICIENT_EVIDENCE'
+                        ELSE decision_readiness_tier
+                    END AS decision_readiness_tier,
+                    CASE
+                        WHEN EXISTS (SELECT 1 FROM quality_checks)
+                            AND NOT EXISTS (
+                                SELECT 1 FROM quality_checks
+                                WHERE critical IS TRUE AND status = 'FAIL'
+                            )
+                        THEN replace(
+                            decision_readiness_explanation,
+                            'Final publication eligibility is pending the current build''s '
+                                || 'critical quality gate;',
+                            'The current build''s critical quality gate passed;'
+                        )
+                        WHEN decision_readiness_tier IN (
+                            'TIER_1_REVIEWED',
+                            'TIER_2_STRONG_HISTORY_POLICY_INCOMPLETE'
+                        ) AND NOT (
+                            EXISTS (SELECT 1 FROM quality_checks)
+                            AND NOT EXISTS (
+                                SELECT 1 FROM quality_checks
+                                WHERE critical IS TRUE AND status = 'FAIL'
+                            )
+                        ) THEN concat(
+                            decision_readiness_explanation,
+                            ' A missing or failed current quality gate prevents decision readiness.'
+                        )
+                        WHEN EXISTS (
+                            SELECT 1 FROM quality_checks
+                            WHERE critical IS TRUE AND status = 'FAIL'
+                        )
+                        THEN replace(
+                            decision_readiness_explanation,
+                            'Final publication eligibility is pending the current build''s '
+                                || 'critical quality gate;',
+                            'The current build''s critical quality gate failed;'
+                        )
+                        ELSE decision_readiness_explanation
+                    END AS decision_readiness_explanation,
+                    CASE
+                        WHEN NOT EXISTS (SELECT 1 FROM quality_checks)
+                            THEN 'PENDING_QUALITY_GATE'
+                        WHEN EXISTS (
+                            SELECT 1 FROM quality_checks
+                            WHERE critical IS TRUE AND status = 'FAIL'
+                        ) THEN 'FAILED_QUALITY_GATE'
+                        ELSE 'QUALITY_GATE_PASSED'
+                    END AS decision_readiness_prerequisite_status,
+                    EXISTS (SELECT 1 FROM quality_checks) AS decision_readiness_tier_is_final
+                FROM institution_metrics
+                """
             )
             connection.execute(
                 "CREATE VIEW vw_organization_detail AS SELECT * FROM employer_metrics"
@@ -398,6 +468,12 @@ class DuckDBBuilder:
                     f.valid_from,
                     f.valid_to,
                     CASE
+                        WHEN f.human_review_status = 'REVIEWED_NOT_STATED'
+                            AND f.exact_excerpt_verified IS TRUE
+                            AND f.is_current IS TRUE
+                            AND f.valid_to IS NULL
+                            AND starts_with(f.source_url, 'https://')
+                            THEN 'REVIEWED_OFFICIAL_POLICY_NOT_STATED'
                         WHEN f.human_review_status = 'REVIEWED_ACCEPTED'
                             AND f.exact_excerpt_verified IS TRUE
                             AND f.is_current IS TRUE
@@ -427,7 +503,8 @@ class DuckDBBuilder:
                 CREATE VIEW vw_entity_review_queue AS
                 SELECT *
                 FROM entity_aliases
-                WHERE match_status = 'REVIEW' OR review_status IN ('REVIEW', 'NEEDS_REVIEW')
+                WHERE match_status IN ('REVIEW_REQUIRED', 'REJECTED', 'UNRESOLVED')
+                   OR review_status IN ('REVIEW_REQUIRED', 'REJECTED', 'UNRESOLVED')
                 """
             )
             connection.execute(

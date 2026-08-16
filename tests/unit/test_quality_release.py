@@ -23,19 +23,52 @@ def _write_quality_fixture(root: Path) -> tuple[Path, Path]:
     pl.DataFrame(
         {
             "organization_id": ["org-1"],
-            "metric_version": ["scored_metrics_v1"],
-            "score_version": ["evidence_scores_v1"],
+            "metric_version": ["scored_metrics_v2"],
+            "score_version": ["evidence_scores_v2_2026_08"],
             "immigration_evidence_coverage": [0.75],
+            "sponsorship_history_score": [80.0],
+            "sponsorship_history_coverage": [1.0],
+            "sponsorship_history_status": ["COMPLETE"],
+            "sponsorship_history_grade": ["A"],
         }
     ).write_parquet(processed / "employer_metrics.parquet")
     pl.DataFrame(
         {
             "institution_id": institution_ids,
-            "metric_version": ["scored_metrics_v1"] * 100,
-            "score_version": ["evidence_scores_v1"] * 100,
-            "research_pathway_coverage": [0.65] * 100,
+            "metric_version": ["scored_metrics_v2"] * 100,
+            "score_version": ["evidence_scores_v2_2026_08"] * 100,
+            "research_pathway_coverage": [1.0] * 100,
+            "research_pathway_status": ["COMPLETE"] * 100,
+            "research_pathway_grade": ["A"] * 100,
+            "core_policy_review_coverage": [1.0] * 100,
+            "core_policy_evidence_coverage": [1.0] * 100,
+            "decision_readiness_tier": ["TIER_1_REVIEWED"] * 100,
         }
     ).write_parquet(processed / "institution_metrics.parquet")
+    pl.DataFrame(
+        {
+            "organization_id": ["org-1"],
+            "score_version": ["evidence_scores_v2_2026_08"],
+        }
+    ).write_parquet(processed / "employer_scores.parquet")
+    pl.DataFrame(
+        {
+            "organization_id": ["org-1"],
+            "score_version": ["evidence_scores_v1_2026_08"],
+        }
+    ).write_parquet(processed / "employer_scores_v1.parquet")
+    pl.DataFrame(
+        {
+            "institution_id": institution_ids,
+            "score_version": ["evidence_scores_v1_2026_08"] * 100,
+        }
+    ).write_parquet(processed / "institution_scores_v1.parquet")
+    pl.DataFrame(
+        {
+            "institution_id": institution_ids[:50],
+            "candidate_rank": list(range(1, 51)),
+        }
+    ).write_parquet(processed / "policy_candidates.parquet")
     for name, case_id in (("lca", "lca-1"), ("perm", "perm-1")):
         pl.DataFrame(
             {
@@ -72,9 +105,12 @@ def _write_quality_fixture(root: Path) -> tuple[Path, Path]:
         {
             "institution_id": institution_ids,
             "human_review_status": ["REVIEWED_ACCEPTED"] * 100,
+            "fact_value": ["YES"] * 100,
             "exact_excerpt_verified": [True] * 100,
             "source_url": ["https://example.edu/policy"] * 100,
             "supporting_excerpt": ["The institution supports this reviewed fact."] * 100,
+            "reviewer_id": ["reviewer:fixture"] * 100,
+            "reviewed_at": ["2026-08-15T00:00:00+00:00"] * 100,
         }
     ).write_parquet(processed / "policy_facts.parquet")
 
@@ -111,6 +147,9 @@ def test_quality_report_passes_complete_fixture_and_blocks_regression(tmp_path: 
     assert report.checks_path.is_file()
     assert report.report_path.is_file()
     assert all(check.status == "PASS" for check in report.checks)
+    quality_json = json.loads(report.report_path.read_text(encoding="utf-8"))
+    metadata_json = json.loads(report.metadata_path.read_text(encoding="utf-8"))
+    assert metadata_json["generated_at"] == quality_json["generated_at"]
 
     facts_path = data_root / "processed" / "policy_facts.parquet"
     pl.read_parquet(facts_path).with_columns(
@@ -124,6 +163,66 @@ def test_quality_report_passes_complete_fixture_and_blocks_regression(tmp_path: 
         next(
             check for check in failed.checks if check.check_id == "accepted_policy_evidence"
         ).status
+        == "FAIL"
+    )
+
+
+@pytest.mark.parametrize(
+    ("review_status", "check_id"),
+    [
+        ("REVIEWED_ACCEPTED", "accepted_policy_evidence"),
+        ("REVIEWED_NOT_STATED", "reviewed_not_stated_semantics"),
+    ],
+)
+def test_quality_report_rejects_missing_human_reviewer_provenance(
+    tmp_path: Path,
+    review_status: str,
+    check_id: str,
+) -> None:
+    data_root, output_root = _write_quality_fixture(tmp_path)
+    facts_path = data_root / "processed" / "policy_facts.parquet"
+    facts = pl.read_parquet(facts_path)
+    if review_status == "REVIEWED_ACCEPTED":
+        facts = facts.with_columns(pl.lit("").alias("reviewer_id"))
+    else:
+        missing_reviewer = facts.head(1).with_columns(
+            pl.lit(review_status).alias("human_review_status"),
+            pl.lit("NOT_STATED").alias("fact_value"),
+            pl.lit(False).alias("exact_excerpt_verified"),
+            pl.lit("").alias("reviewer_id"),
+        )
+        facts = pl.concat([facts, missing_reviewer])
+    facts.write_parquet(facts_path)
+
+    report = QualityReporter(data_root=data_root, output_root=output_root).build()
+
+    assert not report.passed
+    assert next(check for check in report.checks if check.check_id == check_id).status == "FAIL"
+
+
+@pytest.mark.parametrize(
+    ("column", "stale_value"),
+    [
+        ("metric_version", "scored_metrics_v1"),
+        ("score_version", "evidence_scores_v1_2026_08"),
+    ],
+)
+def test_quality_report_rejects_stale_institution_score_contract(
+    tmp_path: Path,
+    column: str,
+    stale_value: str,
+) -> None:
+    data_root, output_root = _write_quality_fixture(tmp_path)
+    metrics_path = data_root / "processed" / "institution_metrics.parquet"
+    pl.read_parquet(metrics_path).with_columns(pl.lit(stale_value).alias(column)).write_parquet(
+        metrics_path
+    )
+
+    report = QualityReporter(data_root=data_root, output_root=output_root).build()
+
+    assert not report.passed
+    assert (
+        next(check for check in report.checks if check.check_id == "score_contract").status
         == "FAIL"
     )
 

@@ -1,9 +1,9 @@
 # Evidence-strength scoring
 
-Phase 8 implements deterministic, nullable evidence-strength indicators. The sole formula source
-is `configs/scoring.yaml`; the current version is `evidence_scores_v1_2026_08`. A score summarizes
-historical evidence. It is not legal advice, an eligibility decision, or a probability of future
-sponsorship.
+Phase 10 makes `configs/scoring_v2.yaml` / `evidence_scores_v2_2026_08` the canonical decision-
+readiness formula while retaining `configs/scoring.yaml` and explicit V1 sidecars for
+reproducibility. A score summarizes historical evidence. It is not legal advice, an eligibility
+decision, or a probability of future sponsorship.
 
 ## Shared rules
 
@@ -15,9 +15,9 @@ sponsorship.
 - Every component exposes its raw inputs, score, coverage, confidence, grade or status, and a
   plain-language explanation in the processed metrics and explorer.
 - Component coverage is the sum of configured weights for available inputs. Composite coverage is
-  the configured weighted sum of the component coverage values, with missing components retained
-  as zero coverage. Composite scores require every configured component and never reweight merely
-  missing evidence.
+  the configured weighted sum of component coverage. V1 composites require every configured
+  component; V2 may show an explicitly partial numerical score, but its status, grade suppression,
+  coverage-first ordering, and explanation prevent it from being presented as complete evidence.
 - Scores and score labels reproduce from the checked-in YAML and carry `score_version`.
 
 ## STEM OPT readiness
@@ -81,7 +81,28 @@ H-1B 6%, general-staff permanent residence 6%, PERM 16%, EB-1B 14%, temporary-po
 6%, grant-funded exclusion 4%, waiting period 4%, minimum appointment duration 4%, and policy
 discretion 4%.
 
-## Composites and grades
+## V2 sponsorship history
+
+Sponsorship history is independent of E-Verify and OPT. It combines H-1B history at 40% and
+green-card history at 60%. When only one component exists, the available component is shown as a
+`PARTIAL` numerical score with its configured coverage; weights are not silently rebalanced. A
+letter grade requires complete coverage.
+
+## V2 research pathway and policy readiness
+
+The research pathway uses sponsorship history 50%, reviewed policy support 30%, and research
+strength 20%. A numerical partial is labeled `INCOMPLETE_EVIDENCE`. A grade requires complete
+sponsorship-history coverage, sufficient research coverage, and completed review of all four core
+questions: research-staff H-1B, research-staff permanent residence, PERM, and EB-1B. A reviewed
+`NOT_STATED` counts toward review coverage but not substantive evidence coverage. Reviewed policy
+that makes research staff ineligible for permanent-residence sponsorship blocks the pathway score.
+
+Readiness tiers distinguish complete reviewed evidence, complete history with incomplete policy,
+partial history, and insufficient evidence. The DuckDB view finalizes or downgrades these tiers
+against the current critical quality gate. Within tiers, immigration and policy evidence precede
+research activity.
+
+## V1 composites and shared grades
 
 Immigration evidence requires all three components and uses STEM OPT readiness 20%, H-1B history
 35%, and green-card history 45%. Research pathway requires all three components and uses
@@ -99,7 +120,8 @@ uv run sponsor-intel db build
 uv run pytest tests/unit/test_scoring.py tests/integration/test_metrics_explorer.py
 ```
 
-The score build writes `data/processed/employer_scores.parquet` and embeds the same score columns
-beside raw evidence in `employer_metrics.parquet` and `institution_metrics.parquet`. The Compare
-page shows up to five organizations with raw values, coverage, confidence, version, and
-explanations.
+The score build writes canonical V2 rows to `data/processed/employer_scores.parquet` and
+`employer_scores_v2.parquet`, preserves V1 rows in `employer_scores_v1.parquet` and
+`institution_scores_v1.parquet`, and embeds V2 score columns beside raw evidence in
+`employer_metrics.parquet` and `institution_metrics.parquet`. The Compare page shows up to five
+organizations with raw values, coverage, confidence, version, and explanations.

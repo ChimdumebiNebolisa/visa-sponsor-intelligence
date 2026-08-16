@@ -101,17 +101,17 @@ def _build_fixture(data_root: Path) -> None:
     ).write_parquet(resolved / "parent_organizations.parquet")
     pl.DataFrame(
         {
-            "alias_raw": ["Acme Labs"],
-            "source_id": ["dol_lca"],
-            "city": ["San Jose"],
-            "state": ["CA"],
-            "match_method": ["REVIEWED_ALIAS"],
-            "match_score": [1.0],
-            "review_status": ["REVIEWED"],
-            "match_status": ["MANUAL"],
-            "occurrence_count": [2],
-            "legal_entity_id": ["legal_acme_labs"],
-            "parent_organization_id": ["parent_acme"],
+            "alias_raw": ["Acme Labs", "State University Springfield"],
+            "source_id": ["dol_lca", "dol_lca"],
+            "city": ["San Jose", "Springfield"],
+            "state": ["CA", "MO"],
+            "match_method": ["REVIEWED_ALIAS", "EXACT_NAME_LOCATION_CONFLICT"],
+            "match_score": [1.0, 0.0],
+            "review_status": ["REVIEWED", "REVIEW_REQUIRED"],
+            "match_status": ["MANUAL", "REVIEW_REQUIRED"],
+            "occurrence_count": [2, 1],
+            "legal_entity_id": ["legal_acme_labs", "legal_university"],
+            "parent_organization_id": ["parent_acme", None],
         }
     ).write_parquet(resolved / "entity_aliases.parquet")
 
@@ -197,6 +197,20 @@ def test_metrics_database_services_and_exports(tmp_path: Path) -> None:
 
     metrics = MetricsPipeline(data_root=data_root, output_root=output_root).build()
     assert (data_root / "processed" / "employer_scores.parquet").is_file()
+    assert (data_root / "processed" / "employer_scores_v2.parquet").is_file()
+    assert (data_root / "processed" / "employer_scores_v1.parquet").is_file()
+    assert (data_root / "processed" / "institution_scores_v1.parquet").is_file()
+    employer_scores_v2 = pl.read_parquet(data_root / "processed" / "employer_scores.parquet")
+    assert employer_scores_v2.equals(
+        pl.read_parquet(data_root / "processed" / "employer_scores_v2.parquet")
+    )
+    assert employer_scores_v2["score_version"].unique().to_list() == ["evidence_scores_v2_2026_08"]
+    assert pl.read_parquet(data_root / "processed" / "employer_scores_v1.parquet")[
+        "score_version"
+    ].unique().to_list() == ["evidence_scores_v1_2026_08"]
+    institution_metrics = pl.read_parquet(data_root / "processed" / "institution_metrics.parquet")
+    assert institution_metrics["score_version"].unique().to_list() == ["evidence_scores_v2_2026_08"]
+    assert institution_metrics["metric_version"].unique().to_list() == ["scored_metrics_v2"]
     quality = QualityReporter(data_root=data_root, output_root=output_root).build()
     assert not quality.passed
     database = DuckDBBuilder(data_root=data_root, database_path=database_path).build()
@@ -232,6 +246,7 @@ def test_metrics_database_services_and_exports(tmp_path: Path) -> None:
     assert institutions.height == 1
     assert institutions["cap_exemption_status"].item() == ("POTENTIALLY_CAP_EXEMPT_HIGHER_ED")
     assert institutions["research_staff_h1b_policy"].item() == "UNKNOWN"
+    assert "critical quality gate failed" in institutions["decision_readiness_explanation"].item()
 
     started = perf_counter()
     detail = service.get_organization_detail("parent_acme")
@@ -263,6 +278,8 @@ def test_metrics_database_services_and_exports(tmp_path: Path) -> None:
     assert health.source_coverage.height >= 5
     assert health.quality_checks.height > 0
     assert "FAIL" in health.quality_checks["status"].to_list()
+    assert service.get_overview().unresolved_entity_match_count == 1
+    assert service.get_evidence_review().entity.height == 1
 
     csv_export = service.export_employers(EmployerFilters(search="Acme"), "csv")
     parquet_export = service.export_employers(EmployerFilters(search="Acme"), "parquet")
@@ -452,7 +469,7 @@ def test_phase7_reviewed_policy_enriches_metrics_database_and_detail(tmp_path: P
     assert service.get_overview().reviewed_policy_institution_count == 1
     assert institutions["research_staff_h1b_policy"].item() == "YES"
     assert institutions["research_staff_permanent_residence_policy"].item() == "UNKNOWN"
-    assert institutions["policy_review_status"].item() == "REVIEWED"
+    assert institutions["policy_review_status"].item() == "PARTIALLY_REVIEWED"
     assert "REVIEWED_OFFICIAL_POLICY" in institutions["evidence_classes"].item()
     detail = service.get_organization_detail("legal_university")
     assert detail is not None

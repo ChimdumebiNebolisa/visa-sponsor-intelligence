@@ -12,13 +12,18 @@ import polars as pl
 from sponsor_intel.metrics.models import MetricsBuildSummary
 from sponsor_intel.scoring import (
     DEFAULT_SCORING_CONFIG_PATH,
+    DEFAULT_SCORING_V2_CONFIG_PATH,
     ScoringConfig,
+    ScoringV2Config,
     score_employers,
+    score_employers_v2,
     score_institutions,
+    score_institutions_v2,
 )
 from sponsor_intel.sources.manifests import write_json_atomic
 
-METRIC_VERSION = "scored_metrics_v1"
+V1_METRIC_VERSION = "scored_metrics_v1"
+METRIC_VERSION = "scored_metrics_v2"
 
 
 def _write_parquet_atomic(frame: pl.DataFrame, target: Path) -> None:
@@ -583,12 +588,7 @@ def _institution_metrics(
         )
         .join(legal_uscis, on="legal_entity_id", how="left")
     )
-    counts = [
-        "total_rd",
-        "federal_rd",
-        "computing_rd",
-        "engineering_rd",
-        "rd_personnel",
+    immigration_counts = [
         "lca_case_count",
         "relevant_lca_count",
         "lca_active_years",
@@ -618,8 +618,11 @@ def _institution_metrics(
                 "has_engineering_rd_data"
             ),
         )
-        .with_columns([pl.col(column).fill_null(0) for column in counts])
+        .with_columns([pl.col(column).fill_null(0) for column in immigration_counts])
         .with_columns(
+            pl.max_horizontal(
+                "last_lca_activity_year", "last_perm_activity_year", "last_uscis_activity_year"
+            ).alias("last_observed_activity_year"),
             pl.lit("UNKNOWN").alias("everify_status"),
             pl.lit("POTENTIALLY_CAP_EXEMPT_HIGHER_ED").alias("cap_exemption_status"),
             pl.lit("UNKNOWN").alias("research_staff_h1b_policy"),
@@ -868,21 +871,40 @@ def _enrich_phase7_institution_metrics(
         & pl.col("valid_to").is_null()
         & pl.col("source_url").str.starts_with("https://")
     )
+    reviewed_not_stated = facts.filter(
+        (pl.col("human_review_status") == "REVIEWED_NOT_STATED")
+        & (pl.col("fact_value") == "NOT_STATED")
+        & pl.col("is_current")
+        & pl.col("valid_to").is_null()
+        & pl.col("source_url").str.starts_with("https://")
+    )
     statuses = facts.group_by("institution_id").agg(
-        pl.col("human_review_status").eq("REVIEWED_ACCEPTED").any().alias("_has_reviewed_policy"),
+        pl.col("human_review_status").eq("REVIEWED_ACCEPTED").any().alias("_has_accepted_policy"),
+        pl.col("human_review_status")
+        .eq("REVIEWED_NOT_STATED")
+        .any()
+        .alias("_has_reviewed_not_stated"),
         pl.col("human_review_status").eq("NEEDS_REVIEW").any().alias("_has_pending_policy"),
     )
     result = frame.join(statuses, on="institution_id", how="left")
-    if accepted.is_empty():
+    reviewed = pl.col("_has_accepted_policy").fill_null(False) | pl.col(
+        "_has_reviewed_not_stated"
+    ).fill_null(False)
+    if accepted.is_empty() and reviewed_not_stated.is_empty():
         return result.with_columns(
-            pl.when(pl.col("_has_pending_policy").fill_null(False))
+            pl.when(reviewed & pl.col("_has_pending_policy").fill_null(False))
+            .then(pl.lit("PARTIALLY_REVIEWED"))
+            .when(reviewed)
+            .then(pl.lit("REVIEWED"))
+            .when(pl.col("_has_pending_policy").fill_null(False))
             .then(pl.lit("NEEDS_REVIEW"))
             .otherwise(pl.col("policy_review_status"))
             .alias("policy_review_status"),
-        ).drop("_has_reviewed_policy", "_has_pending_policy")
+        ).drop("_has_accepted_policy", "_has_reviewed_not_stated", "_has_pending_policy")
 
     latest = (
-        accepted.sort(["institution_id", "fact_type", "valid_from"])
+        pl.concat([accepted, reviewed_not_stated], how="diagonal_relaxed")
+        .sort(["institution_id", "fact_type", "valid_from"])
         .group_by(["institution_id", "fact_type"], maintain_order=True)
         .last()
         .select("institution_id", "fact_type", "fact_value")
@@ -912,13 +934,15 @@ def _enrich_phase7_institution_metrics(
     return (
         result.with_columns(
             *[pl.coalesce(f"_{target}", target).alias(target) for target in mappings.values()],
-            pl.when(pl.col("_has_reviewed_policy").fill_null(False))
+            pl.when(reviewed & pl.col("_has_pending_policy").fill_null(False))
+            .then(pl.lit("PARTIALLY_REVIEWED"))
+            .when(reviewed)
             .then(pl.lit("REVIEWED"))
             .when(pl.col("_has_pending_policy").fill_null(False))
             .then(pl.lit("NEEDS_REVIEW"))
             .otherwise(pl.col("policy_review_status"))
             .alias("policy_review_status"),
-            pl.when(pl.col("_has_reviewed_policy").fill_null(False))
+            pl.when(pl.col("_has_accepted_policy").fill_null(False))
             .then(
                 pl.concat_str(
                     "evidence_classes",
@@ -926,11 +950,20 @@ def _enrich_phase7_institution_metrics(
                     separator="|",
                 )
             )
+            .when(pl.col("_has_reviewed_not_stated").fill_null(False))
+            .then(
+                pl.concat_str(
+                    "evidence_classes",
+                    pl.lit("REVIEWED_POLICY_PROFILE"),
+                    separator="|",
+                )
+            )
             .otherwise(pl.col("evidence_classes"))
             .alias("evidence_classes"),
         )
         .drop(
-            "_has_reviewed_policy",
+            "_has_accepted_policy",
+            "_has_reviewed_not_stated",
             "_has_pending_policy",
             *[f"_{target}" for target in mappings.values()],
         )
@@ -983,10 +1016,12 @@ class MetricsPipeline:
         data_root: Path = Path("data"),
         output_root: Path = Path("outputs"),
         scoring_config_path: Path = DEFAULT_SCORING_CONFIG_PATH,
+        scoring_v2_config_path: Path = DEFAULT_SCORING_V2_CONFIG_PATH,
     ) -> None:
         self.data_root = data_root
         self.output_root = output_root
         self.scoring_config_path = scoring_config_path
+        self.scoring_v2_config_path = scoring_v2_config_path
 
     def build(self) -> MetricsBuildSummary:
         resolved_root = self.data_root / "resolved"
@@ -1021,13 +1056,94 @@ class MetricsPipeline:
             facts=policy_facts,
         )
         scoring_config = ScoringConfig.from_yaml(self.scoring_config_path)
-        employer_metrics = score_employers(employer_metrics, scoring_config)
-        institution_metrics = score_institutions(
+        employer_metrics_v1 = score_employers(employer_metrics, scoring_config).with_columns(
+            pl.lit(V1_METRIC_VERSION).alias("metric_version")
+        )
+        institution_metrics_v1 = score_institutions(
             institution_metrics,
             policy_facts,
             scoring_config,
+        ).with_columns(pl.lit(V1_METRIC_VERSION).alias("metric_version"))
+        scoring_v2_config = ScoringV2Config.from_yaml(self.scoring_v2_config_path)
+        employer_metrics = score_employers_v2(employer_metrics, scoring_v2_config).with_columns(
+            pl.lit(METRIC_VERSION).alias("metric_version")
+        )
+        institution_metrics = score_institutions_v2(
+            institution_metrics,
+            policy_facts,
+            scoring_v2_config,
+        ).with_columns(pl.lit(METRIC_VERSION).alias("metric_version"))
+        legacy_immigration_columns = [
+            "immigration_evidence_score",
+            "immigration_evidence_coverage",
+            "immigration_evidence_confidence",
+            "immigration_evidence_grade",
+            "immigration_evidence_explanation",
+        ]
+        employer_metrics = (
+            employer_metrics.drop(
+                [
+                    column
+                    for column in legacy_immigration_columns
+                    if column in employer_metrics.columns
+                ]
+            )
+            .join(
+                employer_metrics_v1.select("organization_id", *legacy_immigration_columns),
+                on="organization_id",
+                how="left",
+            )
+            .with_columns(
+                pl.lit(scoring_config.version).alias("immigration_evidence_score_version")
+            )
+        )
+        institution_metrics = (
+            institution_metrics.drop(
+                [
+                    column
+                    for column in legacy_immigration_columns
+                    if column in institution_metrics.columns
+                ]
+            )
+            .join(
+                institution_metrics_v1.select("institution_id", *legacy_immigration_columns),
+                on="institution_id",
+                how="left",
+            )
+            .with_columns(
+                pl.lit(scoring_config.version).alias("immigration_evidence_score_version")
+            )
         )
 
+        employer_scores_v2 = employer_metrics.select(
+            "organization_id",
+            "score_version",
+            "stem_opt_readiness_score",
+            "stem_opt_readiness_status",
+            "stem_opt_readiness_coverage",
+            "stem_opt_readiness_confidence",
+            "stem_opt_readiness_explanation",
+            "h1b_history_score",
+            "h1b_history_coverage",
+            "h1b_history_confidence",
+            "h1b_history_status",
+            "h1b_history_grade",
+            "h1b_history_explanation",
+            "green_card_history_score",
+            "green_card_history_coverage",
+            "green_card_history_confidence",
+            "green_card_history_status",
+            "green_card_history_grade",
+            "green_card_history_explanation",
+            "sponsorship_history_score",
+            "sponsorship_history_coverage",
+            "sponsorship_history_confidence",
+            "sponsorship_history_confidence_band",
+            "sponsorship_history_status",
+            "sponsorship_history_grade",
+            "sponsorship_history_explanation",
+            "metric_version",
+        )
         processed = self.data_root / "processed"
         outputs = {
             "parent_organizations.parquet": parents.sort("parent_organization_id"),
@@ -1037,7 +1153,9 @@ class MetricsPipeline:
             "perm_cases_resolved.parquet": perm,
             "h1b_petitions_resolved.parquet": uscis,
             "employer_metrics.parquet": employer_metrics,
-            "employer_scores.parquet": employer_metrics.select(
+            "employer_scores.parquet": employer_scores_v2,
+            "employer_scores_v2.parquet": employer_scores_v2,
+            "employer_scores_v1.parquet": employer_metrics_v1.select(
                 "organization_id",
                 "score_version",
                 "stem_opt_readiness_score",
@@ -1060,6 +1178,46 @@ class MetricsPipeline:
                 "immigration_evidence_confidence",
                 "immigration_evidence_grade",
                 "immigration_evidence_explanation",
+                "metric_version",
+            ),
+            "institution_scores_v1.parquet": institution_metrics_v1.select(
+                "institution_id",
+                "score_version",
+                "stem_opt_readiness_score",
+                "stem_opt_readiness_status",
+                "stem_opt_readiness_coverage",
+                "stem_opt_readiness_confidence",
+                "stem_opt_readiness_explanation",
+                "h1b_history_score",
+                "h1b_history_coverage",
+                "h1b_history_confidence",
+                "h1b_history_grade",
+                "h1b_history_explanation",
+                "green_card_history_score",
+                "green_card_history_coverage",
+                "green_card_history_confidence",
+                "green_card_history_grade",
+                "green_card_history_explanation",
+                "immigration_evidence_score",
+                "immigration_evidence_coverage",
+                "immigration_evidence_confidence",
+                "immigration_evidence_grade",
+                "immigration_evidence_explanation",
+                "research_strength_score",
+                "research_strength_coverage",
+                "research_strength_confidence",
+                "research_strength_grade",
+                "research_strength_explanation",
+                "policy_support_score",
+                "policy_support_coverage",
+                "policy_support_confidence",
+                "policy_support_grade",
+                "policy_support_explanation",
+                "research_pathway_score",
+                "research_pathway_coverage",
+                "research_pathway_confidence",
+                "research_pathway_grade",
+                "research_pathway_explanation",
                 "metric_version",
             ),
             "institution_metrics.parquet": institution_metrics,

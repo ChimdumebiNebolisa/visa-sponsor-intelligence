@@ -75,7 +75,7 @@ Classified DOL mirrors under `data/classified/sources/` preserve every resolved-
 
 `lca_cases_resolved.parquet`, `perm_cases_resolved.parquet`, and `h1b_petitions_resolved.parquet` are compact processed case/evidence tables. They retain source artifact, file, ingestion time, fiscal period, legal entity, parent organization, and `organization_id`. `organization_id` is the reviewed parent when one exists and otherwise the legal entity; it never replaces either identity field.
 
-`employer_metrics.parquet` has one row per parent-or-legal organization scope. It contains the legal-entity count; organization type and state; raw LCA, relevant LCA, relevant certified PERM, and USCIS petition counts; active and last-observed years; technical-family/title summaries; worksite states; source coverage; partial-period markers; and `metric_version = scored_metrics_v1`. Its legal-entity counts sum to the full legal-entity table. The 26 blank-name USCIS observations retain null identity and are excluded from organization aggregation rather than guessed.
+`employer_metrics.parquet` has one row per parent-or-legal organization scope. It contains the legal-entity count; organization type and state; raw LCA, relevant LCA, relevant certified PERM, and USCIS petition counts; active and last-observed years; technical-family/title summaries; worksite states; source coverage; partial-period markers; and `metric_version = scored_metrics_v2`. Its legal-entity counts sum to the full legal-entity table. The 26 blank-name USCIS observations retain null identity and are excluded from organization aggregation rather than guessed.
 
 `institution_metrics.parquet` has one row per IPEDS institution and joins the latest available HERD measures plus immigration counts at the institution's legal petitioner. Research expenditures remain separate fields for total, federal, computing, and engineering R&D. IPEDS institutions receive `POTENTIALLY_CAP_EXEMPT_HIGHER_ED`; this is not a verified cap-exemption decision.
 
@@ -103,17 +103,19 @@ Every explorer row displays `evidence_classes`. Raw source presence is `OBSERVED
 
 `policy_review_queue.parquet` contains all facts still requiring review. `institution_metrics.parquet` maps only accepted, current, exact HTTPS facts into the five Phase 7 policy summary fields and sets `policy_review_status` to `REVIEWED` or `NEEDS_REVIEW` without treating absent facts as `NO`.
 
-## Phase 8 scores
+## Phase 10 V2 scores and readiness
 
-`employer_scores.parquet` contains one row per organization with the STEM OPT readiness, H-1B
-history, green-card history, and immigration evidence composite outputs. Each output includes a
-nullable score, coverage/confidence, status or grade, and explanation. The same columns remain next
-to their raw inputs in `employer_metrics.parquet`.
+`employer_scores.parquet` and `employer_scores_v2.parquet` contain the canonical V2 row per
+organization with STEM OPT readiness, H-1B history, green-card history, and sponsorship-history
+outputs. Each output includes a nullable score, coverage/confidence, status or grade, and
+explanation. `employer_scores_v1.parquet` preserves the original immigration composite.
 
-`institution_metrics.parquet` additionally contains HERD percentile inputs, research strength,
-reviewed policy support, and the research pathway composite. Policy scores use only exact, current,
-human-reviewed official facts. `score_version = evidence_scores_v1_2026_08` identifies the formula
-configuration; see `docs/scoring.md` for the complete definitions.
+`institution_metrics.parquet` additionally contains HERD availability and percentile inputs,
+research strength, reviewed policy support, the V2 research pathway, separate core-policy review
+and evidence coverage, and decision-readiness tier/prerequisite fields. Null HERD values remain
+null. Policy scores use only exact, current, human-reviewed official facts.
+`score_version = evidence_scores_v2_2026_08` identifies the canonical formula; V1 institution
+scores remain in `institution_scores_v1.parquet`. See `docs/scoring.md` for definitions.
 
 ## Phase 9 quality and release metadata
 
