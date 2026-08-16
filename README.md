@@ -1,96 +1,185 @@
-# Sponsorship Intelligence Explorer
+# Historical Sponsorship Intelligence — Product A
 
-An evidence-first Streamlit application intended for private, local-first exploration of historical U.S. employer immigration activity, research-institution data, E-Verify enrollment evidence, positive OPT/STEM OPT observations, and reviewed official institution policies.
+A private, local-first Streamlit explorer for observed U.S. employer sponsorship history from
+FY2022 onward. Product A ranks employers, universities, and research institutions using technical
+H-1B LCA and PERM records from the U.S. Department of Labor, with employer-level USCIS H-1B
+initial approvals as limited corroboration. IPEDS and HERD add institution identity and research
+context.
 
-This repository contains Phase 0 through Phase 10 implementation: official source ingestion, institution reconciliation, conservative legal-entity resolution, deterministic technical-role classification, V1-preserving V2 evidence scores, decision-readiness rankings, a read-only DuckDB service layer, policy review, quality-gated releases, and a fail-closed hosted-data bootstrap. It preserves immutable raw evidence, the raw-name to legal-entity to parent-organization chain, versioned SOC/title and score decisions, retrieval evidence, review queues, explicit coverage, and partial-period labels.
+> Ratings summarize observed historical evidence from official sources. They are not sponsorship
+> guarantees or legal advice. Verify the exact position and current employer policy before relying
+> on the result.
 
-The code is ready for a private Community Cloud deployment, but the live repository is currently public. Do not describe the application or its existing release assets as private until the owner completes and verifies the steps in [the Community Cloud runbook](docs/deployment/community-cloud.md).
+The active contract is [PRODUCT_A_SPEC.md](PRODUCT_A_SPEC.md). `SPEC.md`, Phase 10/V2 decision
+readiness, letter grades, research pathways, and policy-dependent rankings are retained historical
+context and do not define current behavior.
 
-## Requirements
+## What Product A does
+
+- Preserves immutable source artifacts, selected official URLs, retrieval times, checksums, schema
+  versions, and raw employer/title values.
+- Keeps the petitioning legal entity separate from any reviewed parent organization. Immigration
+  evidence remains attached to the legal entity; a parent rollup is a separate labeled scope.
+- Scores only technical `H-1B` LCA rows for H-1B History. H-1B1 and E-3 remain queryable but do not
+  affect ratings.
+- Scores technical PERM records as observed employer-sponsored PERM history, never as green-card
+  approvals or a promise to sponsor.
+- Distinguishes a validated resolved zero (`No observed technical … history`) from missing or
+  invalid evidence (`Unrated`). Zero never becomes one star.
+- Shows E-Verify, positive-only OPT, institution type, possible cap-exemption context, HERD, and
+  retained policy evidence only as supplemental context. None can change sponsorship stars.
+
+## Requirements and setup
 
 - Python 3.12
 - [uv](https://docs.astral.sh/uv/)
-- GNU Make is optional; every Make target is a thin alias for a documented `uv` command.
-
-## Setup
+- GNU Make is optional
 
 ```bash
 uv sync --frozen
-uv run playwright install chromium
 ```
 
-Copy `.env.example` to `.env.local` only when local overrides are needed. `.env.local` is ignored by Git. Keep `OPENAI_API_KEY` there or in a secret process environment; never put it in YAML, fixtures, logs, or committed files.
+On Windows PowerShell, use `py -m uv` if `uv` is not on `PATH`:
 
-## Run
+```powershell
+py -m uv sync --frozen
+py -m uv run sponsor-intel --help
+```
+
+Normal Product A ingestion, scoring, quality, database, release, test, and app workflows do not
+need an OpenAI key. Copy `.env.example` to the ignored `.env.local` only for local overrides or an
+explicit, manual supplemental policy run. Never commit secrets.
+
+## Build from official evidence
+
+The machine-readable authority registry is `configs/sources.yaml`. Discovery prefers one final
+annual artifact for a completed DOL period and one latest cumulative current-period artifact. The
+verified FY2022–FY2025 LCA archive is an official-source exception: FY2022 and FY2024–FY2025 use
+four exact quarters, while FY2023 uses cumulative Q1–Q2 plus exact Q3 and Q4. Product A persists
+and validates those reviewed coverage bounds, rejects gaps and arbitrary case conflicts, and
+collapses only a tested later certified-withdrawn state for the same stable case.
+Current-year LCA still uses only the latest cumulative snapshot. Both FY2024 PERM form variants
+are retained.
 
 ```bash
-uv run sponsor-intel --help
-uv run sponsor-intel config
 uv run sponsor-intel sources list
 uv run sponsor-intel sources discover --source dol_lca --from-fy 2022
 uv run sponsor-intel ingest --source dol_lca --from-fy 2022
 uv run sponsor-intel ingest --source dol_perm --from-fy 2022
+uv run sponsor-intel ingest --source uscis_h1b --from-fy 2022
 uv run sponsor-intel ingest --source ipeds --from-fy 2022
 uv run sponsor-intel ingest --source herd --from-fy 2022
-uv run sponsor-intel ingest --source uscis_h1b --from-fy 2022
 uv run sponsor-intel entities validate-gold
 uv run sponsor-intel entities build
 uv run sponsor-intel roles validate-gold
 uv run sponsor-intel roles build
-uv run sponsor-intel evidence build --everify-limit 10
-uv run sponsor-intel policy candidates
-uv run sponsor-intel policy build --enrichment-limit 200
-uv run sponsor-intel policy review-exact --fact-ids outputs/review/policy_fact_ids.txt --reviewer-id "operator-id" --note "Official URL, current page, scope, value, and exact excerpt reviewed."
-uv run sponsor-intel policy evaluate
 uv run sponsor-intel metrics build
-uv run sponsor-intel scores build
 uv run sponsor-intel quality report
 uv run sponsor-intel db build
-uv run sponsor-intel release bundle
+```
+
+The current partial fiscal year may affect recency, but is not annualized and never counts as a
+complete comparison year. Inspect Data Health and
+`outputs/reports/product-a/source-selection.{md,json}` before using a build.
+
+## Run the real database and app
+
+```bash
+uv run python scripts/smoke_streamlit.py --database db/immigration.duckdb
 uv run sponsor-intel app
 ```
 
-The Streamlit app queries only processed tables and DuckDB presentation views through the service layer. `evidence build` ingests the official ICE report, creates the complete E-Verify priority queue, performs only the explicitly bounded number of live searches, refreshes metrics, and rebuilds DuckDB. Use `--everify-limit 0` to perform no live E-Verify requests. E-Verify no-match/ambiguous results and absence from the positive-only OPT report are rendered as `UNKNOWN`, never `NO`.
+`--database` is the real-data smoke mode: it rejects a missing, empty, or fallback database. The
+app queries `db/immigration.duckdb` only through `src/sponsor_intel/services/`; Streamlit pages do
+not issue raw SQL.
 
-`policy build` ranks exactly 200 eligible institutions, confines discovery and fetching to reviewed official domains, parses the fetched page, extracts all required facts through strict OpenAI Structured Outputs, and caches results by document hash, extractor version, and model. Every extracted fact starts in `NEEDS_REVIEW`; only an explicit list of inspected fact IDs and review decision can publish it to institution metrics and organization detail. General-staff permanent-residence and cap-exemption conclusions are excluded from the exact-fact review helper and require individual review.
+Run Product A acceptance after rebuilding the real database:
 
-## Quality checks
+```bash
+uv run python scripts/run_product_a_acceptance.py
+```
+
+The report family is written under `outputs/reports/product-a/` and includes source selection,
+score distribution, named-organization validation, unresolved entities, and acceptance results.
+
+## Rating summary
+
+Hidden deterministic 0–100 scores support sorting, testing, and audit. Primary tables display
+whole stars and accessible labels (`N out of 5 stars`).
+
+| Rating | Formula |
+|---|---|
+| H-1B History | 45% weighted qualifying LCA volume, 25% complete-year consistency, 15% recency, 10% family breadth, 5% employer-level USCIS initial approvals |
+| Green Card Sponsorship History | 45% weighted qualifying PERM volume, 25% complete-year consistency, 15% recency, 15% family breadth |
+| Overall Sponsorship | 40% H-1B History and 60% Green Card Sponsorship History; both must be resolved |
+
+Counts use `log1p` with a persisted deterministic 95th-percentile cap. Certified records weigh
+1.0; `CERTIFIED-WITHDRAWN` LCA and `CERTIFIED-EXPIRED` PERM weigh 0.5; unsuccessful statuses weigh
+0. See [docs/scoring.md](docs/scoring.md) for the exact star bands and treatment of complete versus
+partial years.
+
+HERD Research Scale is a separate 1–5-star context rating and never changes sponsorship ratings.
+
+## Supplemental evidence
+
+An optional bounded evidence run can refresh positive-only OPT and a reviewed subset of E-Verify:
+
+```bash
+uv run playwright install chromium
+uv run sponsor-intel evidence build --everify-limit 0
+```
+
+Use a positive bounded E-Verify limit only after reviewing the lookup queue. No match, ambiguity,
+not checked, and errors remain `UNKNOWN`. Policy discovery/extraction is a manual supplemental
+workflow documented in [docs/policy_extraction.md](docs/policy_extraction.md); it is incomplete and
+not used in any sponsorship rating or release gate.
+
+## Verification
 
 ```bash
 uv run ruff format --check .
 uv run ruff check .
 uv run pyright
 uv run pytest
-uv run python scripts/smoke_streamlit.py
+uv run python scripts/smoke_streamlit.py --database db/immigration.duckdb
 ```
 
-Where GNU Make is installed, the equivalent aliases include `make setup`, `make lint`, `make typecheck`, `make test`, `make smoke`, `make policy`, `make policy-evaluate`, and `make app`.
+Opt-in official-source contracts require network access:
+
+```powershell
+$env:SPONSOR_INTEL_RUN_NETWORK_TESTS='1'
+py -m uv run pytest tests/contracts
+```
 
 ## Architecture
 
-- `src/sponsor_intel/` contains domain-neutral application code.
-- `src/sponsor_intel/services/` contains parameterized, read-only DuckDB queries and export logic; Streamlit does not issue SQL.
-- `src/sponsor_intel/sources/` implements official-domain discovery, immutable downloads, schema validation, normalization, and manifests.
-- `src/sponsor_intel/entity_resolution/` implements conservative legal matching, parent safeguards, reviewed overrides, review routing, and gold validation.
-- `src/sponsor_intel/role_classification/` implements versioned SOC/title classification, exclusions, review routing, and benchmark metrics.
-- `src/sponsor_intel/metrics/` builds processed employer, institution, case, and source-health tables.
-- `src/sponsor_intel/evidence/` builds positive OPT observations and cached, rate-limited E-Verify evidence.
-- `src/sponsor_intel/policy/` ranks candidates, discovers and fetches official documents, performs schema-constrained extraction, validates exact evidence, caches unchanged results, and applies review decisions.
-- `src/sponsor_intel/scoring/` applies the V1 formulas in `configs/scoring.yaml` and canonical V2 formulas in `configs/scoring_v2.yaml` without converting missing evidence to zero.
-- `src/sponsor_intel/quality/` computes visible, publication-blocking V2 gates; `src/sponsor_intel/releases/` creates release assets only after those gates pass.
-- `src/sponsor_intel/deployment/` verifies the minimum four release assets and opens the hosted DuckDB read-only; invalid or missing deployment data fails closed.
-- `src/sponsor_intel/database/` materializes the required DuckDB presentation views.
-- `app/` contains the Streamlit overview, employer, institution, and organization-detail explorer and never issues SQL directly.
-- `configs/` contains safe non-secret configuration.
-- `tests/` contains unit and integration tests; fixtures must be small and sanitized.
-- `docs/` contains durable architecture and operations documentation.
+- `src/sponsor_intel/sources/`: official discovery, immutable download, validation, normalization,
+  and manifests.
+- `src/sponsor_intel/entity_resolution/`: conservative legal-entity matching, separate parent
+  relationships, overrides, and review queues.
+- `src/sponsor_intel/role_classification/`: deterministic title/SOC classification with strong
+  exclusions and reviewed overrides.
+- `src/sponsor_intel/metrics/` and `src/sponsor_intel/scoring/`: Product A metrics, scores, stars,
+  explanations, and coverage states.
+- `src/sponsor_intel/database/` and `src/sponsor_intel/services/`: read-only DuckDB presentation
+  boundary.
+- `app/`: Home, employer, institution, organization detail, compare, evidence, and Data Health
+  pages.
+- `src/sponsor_intel/evidence/` and `src/sponsor_intel/policy/`: supplemental evidence only.
+- `src/sponsor_intel/quality/`, `src/sponsor_intel/releases/`, and
+  `src/sponsor_intel/deployment/`: fail-closed Product A quality and delivery controls.
 
-Generated raw artifacts, Parquet files, ordinary reports, release bundles, and DuckDB databases remain ignored by Git; bounded Phase 10 audit and acceptance reports are explicitly included. The restored baseline release is `data-2026-08-15` / `v1-df123235990f8fbc`. Rebuilding with the Phase 10 rules produces 225,996 employer rows, 227,863 separate legal entities, 431 parents, and 5,985 institutions. The location-safe resolver routes 21,091 observations to review instead of silently merging conflicts. Role V2 classifies 695,830 of 1,239,005 DOL records as technical and leaves 13,040 ambiguous. The V2 quality build `v2-dcdfeabb8229bb92` passes with zero critical failures; all 50 priority institutions still require bounded core-policy review (197 of 200 fact questions remain incomplete). FY2025 is the latest complete immigration year; FY2026 Q2 remains visibly partial.
+## Privacy, releases, and deployment
 
-Start with [the user workflow](docs/USER_WORKFLOW.md), inspect [the UAT protocol](docs/UAT.md), and use [the deployment runbook](docs/deployment/community-cloud.md) for the remaining owner-only privacy and hosting actions.
+The GitHub repository is public. Do not publish a new data release while it remains public, and do
+not describe the app or its data as private or deployed. Existing public release assets may already
+have been copied; changing visibility does not retract them.
 
-See `SPEC.md` for the approved product and engineering requirements. The original supplied filename is retained as `sponsorship-intelligence-explorer-spec.md` for traceability.
+Repository visibility, PR merge, release publication, Community Cloud secrets/sharing, and hosted
+validation are owner actions. Follow
+[docs/deployment/community-cloud.md](docs/deployment/community-cloud.md). The implementation must
+not perform those actions automatically.
 
-## Evidence disclaimer
-
-This product reports historical and official evidence. It does not provide legal advice or guarantee that an employer will sponsor a particular person or role.
+Start with [the user workflow](docs/USER_WORKFLOW.md), use [the Product A UAT
+protocol](docs/UAT.md), and consult [operations](docs/operations.md) for reproducible builds and
+failure recovery.

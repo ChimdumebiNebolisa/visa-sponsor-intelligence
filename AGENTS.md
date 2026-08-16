@@ -37,7 +37,7 @@
 - Format check: `uv run ruff format --check .`
 - Lint: `uv run ruff check .`
 - Type-check: `uv run pyright`
-- Streamlit smoke test: `uv run python scripts/smoke_streamlit.py`
+- Real-data Streamlit smoke test: `uv run python scripts/smoke_streamlit.py --database db/immigration.duckdb`
 - CLI: `uv run sponsor-intel --help`
 - App: `uv run sponsor-intel app`
 - Discover DOL sources: `uv run sponsor-intel sources discover --source dol_lca --from-fy 2022`
@@ -46,10 +46,17 @@
 
 ## Phase 1 source invariants
 
-- DOL quarterly disclosures are cumulative; select only the latest published quarter per fiscal year.
+- Prefer one annual LCA artifact for a completed fiscal year. When the official archive has no
+  annual artifact, use only an explicitly reviewed, non-overlapping segment contract that covers
+  Q1-Q4 exactly once. For the current partial fiscal year, select only the latest cumulative
+  snapshot.
 - Preserve both FY2024 PERM form variants as separate artifacts.
 - Record raw-download provenance before normalization so interrupted builds resume safely.
-- Treat exact duplicate rows and repeated decision dates only through the tested deterministic rules in the normalizer; conflicting duplicate case IDs must fail.
+- Evaluate repeated LCA case IDs globally across every selected fiscal year. Only exactly two
+  chronological rows with unchanged normalized visa class and legal-employer name/address, moving
+  from `CERTIFIED` to `CERTIFIED-WITHDRAWN`, may retain the later state downstream; preserve both
+  immutable source rows and fail closed on every other conflict. Treat exact duplicates and
+  repeated PERM decision dates only through their tested deterministic rules.
 - Keep current partial fiscal years explicitly labeled and never compare them with complete years without a warning.
 - A source-schema fingerprint change is a visible drift warning; a missing required logical column fails closed.
 

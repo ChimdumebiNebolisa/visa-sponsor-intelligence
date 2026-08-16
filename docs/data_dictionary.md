@@ -1,129 +1,207 @@
-# Data dictionary
+# Product A data dictionary
 
-## Phase 1 staging invariants
+This page documents active Product A artifacts. Historical V1/V2 score sidecars and retained
+policy tables may coexist for reproducibility, but they do not define active product behavior.
 
-Each DOL Parquet file preserves all source columns with deterministic snake-case names and adds canonical logical columns plus:
+## Provenance fields
 
-- `source_artifact_id`
-- `source_row_number` (the retained 1-based Excel row, including the header offset)
-- `source_id`
-- `fiscal_year`
-- `fiscal_quarter`
-- `is_partial_period`
-- `source_file_name`
-- `ingested_at`
+Every normalized source row retains the source-specific columns and the canonical provenance
+needed to trace it to immutable bytes:
 
-`employer_name_raw` and `job_title_raw` preserve source values. No entity merge, parent aggregation, or role classification occurs in staging.
+- `source_id`, `source_artifact_id`, and `source_file_name`;
+- `source_row_number`;
+- fiscal/survey year and quarter/form where applicable;
+- LCA `coverage_start_quarter` and `is_quarter_partition` where applicable;
+- `is_partial_period`;
+- official source URL and retrieval timestamp;
+- raw artifact SHA-256 checksum;
+- parser/schema version and ingestion timestamp.
 
-Required logical columns are configured in `configs/sources.yaml`. Missing required fields fail closed and produce a JSON schema-diff report. Source columns are preserved, and their ordered layout is compared with a committed fingerprint.
+`outputs/manifests/raw_downloads.jsonl` and `source_artifacts.jsonl` record the immutable download
+and normalization receipts. Required-column loss fails closed. Schema drift remains visible in
+`outputs/reports/schema/` and Data Health.
 
-Exact duplicate source rows are collapsed deterministically while retaining the first source row number. If repeated case IDs differ only by decision date, the latest decision is retained. Any repeated case ID with other conflicting source fields fails validation. The schema report records each removal; raw workbooks remain immutable and unchanged.
+## DOL staging and classified evidence
 
-## Phase 2 federal and institution tables
+Each DOL staging Parquet preserves all source columns with deterministic snake-case names. Key
+canonical LCA fields include case identity, visa class, status and dates, raw employer and legal
+address, raw title, SOC/NAICS, worker positions, worksite, wage, and prevailing wage. PERM retains
+equivalent available fields plus its official form variant.
 
-### USCIS H-1B petition decisions
+`employer_name_raw` and `job_title_raw` are never overwritten. Entity matching and role
+classification occur in later mirrors, not staging.
 
-Each `data/staging/uscis_h1b/fy=<year>/*.parquet` row is one employer/location/tax-ID-last-four observation for a single fiscal year. It contains initial, continuing, same-employer-change, concurrent, employer-change, and amended approval/denial counts. `employer_name_raw` and `source_line_id_raw` preserve the Tableau values; `source_row_number` is the deterministic row assigned after the long-form measure export is pivoted.
+Exact duplicates may be collapsed by the tested deterministic normalizer rule while retaining the
+selected source row. Repeated PERM case IDs that differ only in decision date use the tested latest-
+decision rule; arbitrary conflicts fail closed.
 
-`evidence_type` is always `USCIS_H1B_PETITION_DECISIONS`. `legal_entity_id` and `parent_organization_id` remain null until entity resolution. A USCIS petition decision is never merged into a DOL case row.
+Repeated LCA case IDs are evaluated globally across all selected fiscal years, not only within one
+artifact or year. The sole permitted supersession is exactly two chronological rows with the same
+normalized visa class and legal-employer name/address, where the earlier state is `CERTIFIED` and
+the later state is `CERTIFIED-WITHDRAWN`. Staging keeps both immutable source rows; resolved and
+classified mirrors retain only the later state. The excluded source-artifact/row keys are recorded
+in `outputs/reports/entities/lca_superseded_source_rows.parquet`. Every other repeated LCA case ID
+fails closed.
 
-### Institutions
+Classified mirrors under `data/classified/sources/` add:
 
-`data/processed/institutions.parquet` contains the latest IPEDS directory with:
+- `legal_entity_id` and nullable `parent_organization_id`;
+- entity match status/method/score;
+- nullable `technical_role`, normalized `role_family`, confidence, method, rule, version, and review
+  status.
 
-- `institution_id` (`ipeds:<six-digit UNITID>`)
-- `ipeds_unitid`, `official_name`, `system_name`, city/state, and `official_domain`
-- labeled `control`, `sector`, `highest_degree`, and `active_status`
-- nullable legal-entity and parent-organization IDs for later resolution
-- authoritative-source match confidence and review status
+The visa class remains present so `H-1B`, H-1B1, and E-3 are queryable separately. Only technical
+`H-1B` rows with weighted positive statuses can affect H-1B History.
 
-All IPEDS source columns remain available in the corresponding staging Parquet.
+## USCIS employer-level H-1B evidence
 
-### HERD observations
+Each `data/staging/uscis_h1b/fy=<year>/*.parquet` row is one employer/location/tax-ID-last-four
+observation for one fiscal year. It contains initial, continuing, same-employer-change,
+concurrent, employer-change, and amended approval/denial counts. Raw employer and source-line
+identifiers are preserved.
 
-`data/processed/herd_observations.parquet` contains one row per HERD institution, survey year, and form. `total_rd`, `federal_rd`, `business_funded_rd`, `institution_funded_rd`, `computing_rd`, and `engineering_rd` are whole U.S. dollars. Missing source values stay null. `rd_personnel` is a headcount when supplied by the standard questionnaire and null when the short form does not collect it.
+`evidence_type` is `USCIS_H1B_PETITION_DECISIONS`. These are employer-level petition decisions,
+not title-specific DOL cases or worker counts. Product A uses only initial approvals as a 5%
+corroborating H-1B component and labels them `Employer-level H-1B initial approvals`.
 
-Institution joins expose `institution_join_method`, `institution_match_confidence`, and `institution_review_status`. Only exact UNITID matches receive an `institution_id`; all other observations remain unmatched and appear in the review report.
+## Institution and HERD tables
 
-## Phase 3 entity tables
+`data/processed/institutions.parquet` contains the latest finalized IPEDS directory and
+characteristics evidence, including:
+
+- `institution_id` (`ipeds:<six-digit UNITID>`) and raw UNITID;
+- official institution/system names, city/state, and official domain;
+- labeled control, sector, highest degree, and active status;
+- nullable legal-entity and parent IDs;
+- linkage method/confidence/review status; and
+- final/provisional source status.
+
+IPEDS identity does not itself establish a petitioning legal entity or verified cap exemption.
+
+`data/processed/herd_observations.parquet` contains one row per institution, survey year, and form.
+It includes whole-dollar total, federal, business-funded, institution-funded, computing, and
+engineering R&D where supplied, plus personnel where the standard form reports it. Missing
+short-form fields stay null. Exact identifier linkage exposes its method/confidence/status;
+unmatched records remain in review.
+
+The latest matched HERD year supplies Research Scale inputs. Earlier years remain queryable.
+
+## Entity tables
 
 ### Legal entities
 
-`data/resolved/legal_entities.parquet` has one row per legal identity. `legal_entity_id` is stable for the same inputs and decisions. `legal_name` is the retained canonical source or reviewed name; `normalized_legal_name` is matching evidence. Optional `parent_organization_id` never replaces the legal ID. Location, organization type, institution ID, creation method, and review status explain the identity's provenance.
+`data/resolved/legal_entities.parquet` has one stable row per legal identity. It includes legal and
+normalized names, location, organization type, optional institution and parent IDs, creation
+method, and review status. A parent ID never replaces `legal_entity_id`.
 
 ### Parent organizations
 
-`data/resolved/parent_organizations.parquet` contains only IPEDS system relationships and committed reviewed parent overrides. It includes the canonical parent name, organization type, optional headquarters state, staffing/consulting indicator, creation method, review status, and notes.
+`data/resolved/parent_organizations.parquet` contains only authoritative system relationships and
+committed reviewed parent overrides. It includes canonical parent name, type, optional location,
+creation method, review status, and notes.
 
-### Entity aliases and review queue
+### Aliases and review
 
-`data/resolved/entity_aliases.parquet` preserves `alias_raw` and adds normalized name, core name, acronym, normalized location, occurrence count, legal and parent IDs, candidate legal ID, match method, score, margin, status, feature values, and any reviewer evidence.
+`data/resolved/entity_aliases.parquet` preserves `alias_raw` and normalized name/location
+features, occurrence count, legal/parent IDs, candidate ID, match method, score/margin, status, and
+review evidence.
 
-`outputs/review/entity_match_review.parquet` is the subset with `REVIEW_REQUIRED` or `REJECTED`. Its `legal_entity_id` identifies the separate provisional source entity. Its `candidate_legal_entity_id` is never an applied merge.
+`outputs/review/entity_match_review.parquet` contains unmerged review candidates and reviewed
+rejections. Its candidate ID is not an applied merge.
 
-### Resolved source mirrors
+## Compact case/evidence tables
 
-Files under `data/resolved/sources/` preserve every staging column and add `legal_entity_id`, `parent_organization_id`, `entity_match_status`, `entity_match_method`, and `entity_match_score`. Staging Parquet is never modified. A blank source name may retain a null legal ID with `UNRESOLVED`; named records must have a legal identity.
+`lca_cases_resolved.parquet`, `perm_cases_resolved.parquet`, and
+`h1b_petitions_resolved.parquet` retain the source artifact/file/period, raw evidence fields,
+legal entity, optional parent, and an organization scope ID.
 
-## Phase 4 role classifications
+The primary case identity is the petitioning legal entity. Parent rollup rows are derived
+separately and labeled `PARENT_ROLLUP`; they do not rewrite case-level legal ownership.
 
-`data/processed/role_classifications.parquet` contains one deterministic classification for each unique `(source_id, job_title_raw, soc_code_raw)` combination and its `occurrence_count`. `classification_id` and `classification_version` make the decision addressable and reproducible.
+## Employer metrics and ratings
 
-Classified DOL mirrors under `data/classified/sources/` preserve every resolved-source field and add nullable Boolean `technical_role`, `role_family`, `role_confidence`, `classification_method`, `classification_rule`, `classification_version`, and `review_status`. A null `technical_role` always uses family `ambiguous` and status `NEEDS_REVIEW`; it is not silently treated as false.
+`data/processed/employer_metrics.parquet` contains separately labeled `LEGAL_ENTITY` and
+`PARENT_ROLLUP` rows. It includes:
 
-## Phase 5 processed metrics and presentation views
+- legal/parent IDs, organization name/type/state, scope, and legal-entity count;
+- raw and qualifying LCA/PERM counts, weighted counts, positive complete years, latest observed
+  year, role-family/title summaries, worksite/state summaries, and partial-period markers;
+- USCIS initial approvals;
+- source-validity and rating coverage states;
+- H-1B History score/status/stars/accessible label/explanation;
+- Green Card Sponsorship History score/status/stars/accessible label/explanation;
+- Overall Sponsorship score/status/stars/accessible label/explanation; and
+- `metric_version = product_a_metrics_v1` and `score_version = product_a_scores_v1`.
 
-`lca_cases_resolved.parquet`, `perm_cases_resolved.parquet`, and `h1b_petitions_resolved.parquet` are compact processed case/evidence tables. They retain source artifact, file, ingestion time, fiscal period, legal entity, parent organization, and `organization_id`. `organization_id` is the reviewed parent when one exists and otherwise the legal entity; it never replaces either identity field.
+The rating ingredients and formulas are defined in [scoring.md](scoring.md). A resolved zero under
+valid coverage has `NO_OBSERVED_HISTORY` status and no stars. Missing/invalid coverage or
+unresolved identity has `UNRATED` status and null score/stars. Neither state is encoded as one star.
 
-`employer_metrics.parquet` has one row per parent-or-legal organization scope. It contains the legal-entity count; organization type and state; raw LCA, relevant LCA, relevant certified PERM, and USCIS petition counts; active and last-observed years; technical-family/title summaries; worksite states; source coverage; partial-period markers; and `metric_version = scored_metrics_v2`. Its legal-entity counts sum to the full legal-entity table. The 26 blank-name USCIS observations retain null identity and are excluded from organization aggregation rather than guessed.
+## Institution metrics
 
-`institution_metrics.parquet` has one row per IPEDS institution and joins the latest available HERD measures plus immigration counts at the institution's legal petitioner. Research expenditures remain separate fields for total, federal, computing, and engineering R&D. IPEDS institutions receive `POTENTIALLY_CAP_EXEMPT_HIGHER_ED`; this is not a verified cap-exemption decision.
+`data/processed/institution_metrics.parquet` joins one IPEDS institution to its resolved legal
+petitioner evidence without collapsing a campus, system, hospital, foundation, or laboratory.
+It carries the three sponsorship ratings and raw counts, institution characteristics, latest HERD
+measures, Research Scale status/stars/explanation, linkage/coverage, and the active metric/score
+versions.
 
-`data_health.parquet` reports source row counts, coverage years, the latest complete year, and current partial year/quarter. Phase 5 identifies FY2025 as the latest complete immigration year and FY2026 as partial; DOL is currently available through Q2.
+The permitted IPEDS context is `Higher-education institution; exact cap-exempt status requires
+verification.` Research Scale and possible cap-exemption context do not affect sponsorship stars.
 
-Every explorer row displays `evidence_classes`. Raw source presence is `OBSERVED_GOVERNMENT_RECORD`; an aggregation is `DERIVED_METRIC`. E-Verify and OPT remain `UNKNOWN` unless Phase 6 has linked qualifying evidence. Institution-policy values remain `UNKNOWN` unless Phase 7 has an exact, current, `REVIEWED_ACCEPTED` fact; those rows add `REVIEWED_OFFICIAL_POLICY`. Phase 8 scores are nullable and carry coverage, confidence, grade/status, explanation, and `score_version`; a missing score must not be presented as negative evidence.
+## Source and quality health
 
-`db/immigration.duckdb` materializes the processed tables and evidence views, including `vw_everify_evidence`, `vw_opt_evidence`, `vw_policy_evidence`, and their review queues. `vw_policy_evidence` retains both reviewed and unreviewed facts with a visible evidence class; application detail queries filter it to `REVIEWED_ACCEPTED`.
+`data/processed/data_health.parquet` and the source-artifact presentation table expose selected
+artifacts, official URLs, SHA-256 checksums, fiscal/survey periods, complete/partial state, raw and
+normalized rows, schema versions, warnings, and freshness.
 
-## Phase 6 E-Verify and OPT evidence
-
-`everify_lookup_priorities.parquet` is built before lookups and contains `priority_rank`, legal and parent IDs, `queried_name`, state, priority tier/reason/score, a safe-query flag, and current lookup status. Activity employers precede top research institutions and manual targets.
-
-`everify_observations.parquet` contains the lookup ID; queried legal name and identity IDs; raw `enrollment_status`; enrollment/termination dates; workforce and hiring-site evidence; matched employer/DBA; retrieval time; match confidence/method; review status/reason; source URL; and retained source-result JSON. Only `CONFIRMED_ACTIVE` and `CONFIRMED_INACTIVE` become product statuses. `NO_MATCH`, `AMBIGUOUS`, `NOT_CHECKED`, and `ERROR` map to product `UNKNOWN`.
-
-`opt_employer_observations.parquet` contains the official artifact and report year, source employer name, rank, program type, strictly positive reported count, source URL/retrieval/checksum, coverage note, legal/parent/organization IDs when a unique exact match exists, and review metadata. An employer can have up to three observations for `OPT_OR_STEM_OPT`, `OPT`, and `STEM_OPT`; a blank source cell does not create a zero row.
-
-## Phase 7 institution policy evidence
-
-`policy_candidates.parquet` contains the deterministic 200-institution enrichment rank and its component values. It is not a product score.
-
-`policy_documents.parquet` contains document and institution IDs, official URL/domain, type/title, retrieval time and HTTP metadata, content and parsed-text hashes, published/updated date when found, immutable raw/parsed paths, current/parse status, discovery method, injection flag, and cache status.
-
-`policy_facts.parquet` contains one row for every required fact type per extracted document. It preserves the enum value, qualifier, smallest supporting excerpt, section/page, official source URL, retrieval and validity dates, extractor/model/response IDs, confidence, exact-excerpt result, contradiction group, current state, review status, reviewer ID/time, and reviewer note. Model output begins in `NEEDS_REVIEW`; a separate review-decision overlay is required for `REVIEWED_ACCEPTED`.
-
-`policy_review_queue.parquet` contains all facts still requiring review. `institution_metrics.parquet` maps only accepted, current, exact HTTPS facts into the five Phase 7 policy summary fields and sets `policy_review_status` to `REVIEWED` or `NEEDS_REVIEW` without treating absent facts as `NO`.
-
-## Phase 10 V2 scores and readiness
-
-`employer_scores.parquet` and `employer_scores_v2.parquet` contain the canonical V2 row per
-organization with STEM OPT readiness, H-1B history, green-card history, and sponsorship-history
-outputs. Each output includes a nullable score, coverage/confidence, status or grade, and
-explanation. `employer_scores_v1.parquet` preserves the original immigration composite.
-
-`institution_metrics.parquet` additionally contains HERD availability and percentile inputs,
-research strength, reviewed policy support, the V2 research pathway, separate core-policy review
-and evidence coverage, and decision-readiness tier/prerequisite fields. Null HERD values remain
-null. Policy scores use only exact, current, human-reviewed official facts.
-`score_version = evidence_scores_v2_2026_08` identifies the canonical formula; V1 institution
-scores remain in `institution_scores_v1.parquet`. See `docs/scoring.md` for definitions.
-
-## Phase 9 quality and release metadata
-
-`quality_checks.parquet` contains one row per freshness, schema, duplicate, identity, role, policy,
-score, or output check. It records `PASS`, `WARN`, or `FAIL`, whether the check blocks publication,
-the measured value, threshold, details, stable build ID, and check time. DuckDB publishes the table
-as `vw_quality_checks`; the Data Health page shows it beside `data_health.parquet`.
+`data/processed/quality_checks.parquet` contains one row per Product A source selection,
+schema/provenance, duplicate, entity, role, rating, independence, partial-period, nonzero-output,
+or freshness check. It records `PASS`, `WARN`, or `FAIL`, whether the check blocks packaging, the
+measured value/threshold/details, build ID, and check time. Policy completeness is not a Product A
+quality gate.
 
 `outputs/reports/quality/data_quality.json` is the machine-readable release decision.
-`build_metadata.json` records the build ID, manifest checksum, metric/score versions, counts, and
-quality result. `outputs/release/checksums.sha256` covers every private release asset.
+`build_metadata.json` records the build ID, manifest checksum, Product A metric/score versions,
+nonzero row counts, source periods, and quality result.
+
+## DuckDB presentation layer
+
+`db/immigration.duckdb` materializes processed Product A tables and read-only presentation views.
+Streamlit accesses them only through `src/sponsor_intel/services/`. Core views cover employer and
+institution exploration, detail, yearly LCA/PERM and employer-level USCIS evidence, legal/parent
+relationships, role/title evidence, source artifacts, quality, and comparison.
+
+## Supplemental evidence tables
+
+`everify_lookup_priorities.parquet` is a bounded queue. `everify_observations.parquet` preserves
+the official lookup result, matched identity, dates, confidence/review state, URL, and retained raw
+result. Only confidently linked active/inactive observations receive those labels; no match,
+ambiguous, not checked, and error map to `UNKNOWN`.
+
+`opt_employer_observations.parquet` contains strictly positive official OPT/STEM OPT report rows,
+program type, report year, positive count, provenance, and linkage review. Absence is `UNKNOWN`.
+
+Policy candidate, document, fact, decision, and review-queue tables are retained supplemental
+artifacts. Only current exact human-reviewed official facts may be displayed; all must be labeled
+`Supplemental`, `Incomplete`, and `Not used in sponsorship ratings`. They are not required for
+metrics, quality, database, release, tests, or app startup.
+
+## Product A acceptance reports
+
+The real-data acceptance family is:
+
+```text
+outputs/reports/product-a/
+  source-selection.md
+  source-selection.json
+  score-distribution.md
+  score-distribution.json
+  validation.md
+  validation.csv
+  unresolved-entities.csv
+  acceptance.md
+  acceptance.json
+```
+
+These reports are derived artifacts. Raw data, Parquet, DuckDB, release bundles, caches, and
+secrets remain ignored by Git.

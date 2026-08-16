@@ -1,118 +1,138 @@
-# Phase 10 user-acceptance protocol
+# Product A user-acceptance protocol
 
 ## Scope
 
-This protocol validates the primary workflow against the restored real source release and the
-current quality-approved local V2 build:
+This protocol validates the real local Product A build, not an empty database or CI fixture. It
+checks the primary workflow:
 
-> Discover and compare employers and research institutions with the strongest historical
-> technical H-1B, PERM, institutional-policy, and research evidence.
+> Discover, explain, and compare employers and research institutions by observed technical H-1B
+> and PERM sponsorship history from FY2022 onward.
 
-It does not use the empty-database fallback. It distinguishes observable product failures from
-human policy-review work and owner-only privacy/deployment actions.
+Policy review, repository privacy, PR merge, release publication, and hosted deployment are not
+acceptance prerequisites. Policy is supplemental and cannot block Product A.
 
-## Run
+## Prerequisites and run
 
-From the repository root, after metrics, quality, and DuckDB have been rebuilt:
+From the repository root:
 
 ```powershell
-py -m uv run python scripts/run_v2_acceptance.py `
-  --source-release-tag data-2026-08-15
+py -m uv run sponsor-intel metrics build
+py -m uv run sponsor-intel quality report
+py -m uv run sponsor-intel db build
+py -m uv run python scripts/smoke_streamlit.py --database db/immigration.duckdb
+py -m uv run python scripts/run_product_a_acceptance.py
 ```
+
+The acceptance runner must reject a missing, empty, fallback, non-Product-A, or critically failed
+database. Automated failures produce a nonzero exit code.
+
+## Required report family
 
 The runner writes:
 
-- `outputs/reports/phase10/uat-results.json`
-- `outputs/reports/phase10/uat-results.md`
-- `outputs/reports/phase10/performance.json`
-- `outputs/reports/phase10/performance.md`
-
-Use `--skip-streamlit` only for a diagnostic rerun. Use `--reset-history` only when intentionally
-starting a new audit history; ordinary reruns retain materially changed task attempts so a failed
-observation remains visible after a fix.
-
-After an owner deployment, supply the live URL and only set the verification flag after testing an
-authorized owner, an invited user, a signed-out browser, and a non-invited account:
-
-```powershell
-py -m uv run python scripts/run_v2_acceptance.py `
-  --source-release-tag data-2026-08-15 `
-  --live-url https://REDACTED.streamlit.app `
-  --private-access-verified `
-  --deployed-runtime-memory-bytes 123456789
+```text
+outputs/reports/product-a/
+  source-selection.md
+  source-selection.json
+  score-distribution.md
+  score-distribution.json
+  validation.md
+  validation.csv
+  unresolved-entities.csv
+  acceptance.md
+  acceptance.json
 ```
 
-## Status meanings
+The JSON/CSV files are the machine-readable evidence. Markdown is a human-readable rendering, not
+a place to hand-edit failed checks into passes.
 
-- `PASS`: the real database/service produced evidence satisfying the task.
-- `FAIL`: an observable implementation or data-integration defect remains.
-- `BLOCKED_HUMAN_REVIEW`: the query path works, but the required reviewed policy evidence does not
-  yet exist. This is not a pass.
-- `BLOCKED_OWNER_ACTION`: repository or Streamlit ownership/privacy UI is required. This is not a
-  pass.
-- `NOT_RUN`: a prerequisite such as the V2 schema was unavailable, so the runner made no inference.
+## Automated acceptance checks
 
-The process exits nonzero for failed/not-run code-testable checks or UAT tasks. Human-review and
-owner-action blockers remain explicit without being mislabeled as software test failures.
+Acceptance verifies at least:
 
-## Deterministic representative selection
+1. all active metrics/rows use `product_a_metrics_v1` and `product_a_scores_v1`;
+2. selected source artifacts have official URLs, checksums, periods, schema versions, and
+   complete/partial labels;
+3. each completed DOL LCA year uses one annual artifact or an explicitly reviewed, non-overlapping
+   segment contract covering Q1-Q4 exactly once; the current partial year uses one latest cumulative
+   snapshot; and repeated LCA case IDs are checked globally across selected fiscal years, permitting
+   only exactly two chronological rows with stable visa class/legal-employer identity and a
+   `CERTIFIED` to `CERTIFIED-WITHDRAWN` transition;
+4. DOL PERM uses one final annual/Q4 period per completed fiscal year and one highest cumulative
+   current partial period, while preserving both FY2024 form variants;
+5. only technical `H-1B` LCA rows affect H-1B ratings; H-1B1/E-3 and unsuccessful statuses do not;
+6. PERM status weights distinguish `CERTIFIED`, `CERTIFIED-EXPIRED`, and unsuccessful outcomes;
+7. the current partial year affects recency but not complete-year consistency or annualized counts;
+8. legal-entity and parent-rollup rows are separate and internally reconcilable;
+9. rating formulas, 95th-percentile count caps, star bands, accessible labels, and explanations
+   reproduce from stored ingredients;
+10. a valid zero is `No observed … history`, an invalid/missing calculation is `Unrated`, and zero
+    never becomes one star;
+11. Overall requires both H-1B and PERM histories and uses 40%/60%;
+12. E-Verify, OPT, IPEDS/HERD, cap-exemption context, and policy cannot alter sponsorship ratings;
+13. institution default ranking is observed sponsorship history, not HERD or policy;
+14. Research Scale is separate, 1–5 stars, and uses latest matched HERD evidence;
+15. employer and institution explorers, detail, comparison, Data Health, and exports return nonzero
+    real evidence through the service layer; and
+16. Product A quality has zero critical failures without an OpenAI key or policy facts.
 
-The runner does not hand-pick only convenient organizations. It selects:
+## Named real-data validation
 
-- the first institution under the default decision-first ranking;
-- the strongest non-institution national-laboratory/research-laboratory name satisfying the
-  evidence rule;
-- the strongest complete-history, non-institution legal name with a corporate suffix;
-- a parent organization with multiple linked legal entities;
-- the first real audit conflict held for review;
-- the highest research-activity institution satisfying the weak/unknown green-card rule.
+For every representative row, inspect raw employer names, legal identity, optional parent
+relationship, legal address versus worksite, qualifying LCA/PERM counts, employer-level USCIS
+initial approvals, role decisions, stars, explanation, source provenance, and supplemental-evidence
+independence. Never force an ambiguous identity.
 
-The selected IDs and raw evidence are persisted in JSON.
+### Companies
 
-## Required tasks
+- Microsoft
+- Google
+- one Amazon legal entity and the separate Amazon parent rollup
+- Meta
+- IBM
+- Smart Data Solutions, only when confidently resolved
+- at least two smaller technical employers selected deterministically from real results
 
-The automated-real-data portion executes all 18 requested tasks:
+### Institutions
 
-1. complete core-policy review;
-2. research-staff permanent-residence eligibility;
-3. PERM support;
-4. EB-1B support;
-5. strong H-1B history with incomplete policy;
-6. high research spending with weak/unknown green-card evidence;
-7. strong private-company H-1B and PERM histories;
-8. university/laboratory/private-company comparison;
-9. parent and legal-entity drilldown;
-10. ambiguous-entity review routing;
-11. E-Verify-independent sponsorship ranking;
-12. `UNKNOWN` preservation;
-13. visible partial FY2026 labeling;
-14. filtered institution export;
-15. filtered employer export;
-16. official policy URL and exact excerpt;
-17. score explanation and raw-count reconciliation;
-18. decision-first ordering over high R&D alone.
+- Massachusetts Institute of Technology
+- Carnegie Mellon University
+- Rice University
+- University of Michigan
+- University of Illinois Urbana-Champaign
+- University of Washington
+- one institution with high HERD activity but weak observed sponsorship
+- one institution with stronger observed sponsorship but lower Research Scale
 
-## Manual browser supplement
+Each validation row records `PASS`, `FAIL`, `UNRESOLVED`, or `NOT_APPLICABLE` with concrete
+evidence. `UNRESOLVED` is honest uncertainty; it must not be rewritten as a match or a valid zero.
 
-After a private deployment, the owner must also verify items the local service runner cannot prove:
+## Manual application checks
 
-- cold reboot and verified-cache recovery during a temporary GitHub outage;
-- invited versus non-invited access and signed-out denial;
-- sidebar release/build/fiscal labels on each page;
-- usable navigation and deep links in a fresh browser session;
-- filters, tables, download controls, and evidence excerpts at desktop and basic mobile widths;
-- absence of tokens, authorization headers, detailed traces, ingestion, OpenAI, or Playwright work
-  in hosted logs;
-- deployed peak memory and platform stability.
+Against `db/immigration.duckdb`, verify:
 
-Record these measurements by rerunning the script with its deployment arguments. Do not edit a
-blocked result into a pass by hand.
+- Home shows the Product A disclaimer, build/score version, source freshness, latest complete FY,
+  partial warning, and top observed employers/institutions.
+- All Employers defaults to Overall hidden score, Green Card hidden score, H-1B hidden score,
+  latest observed year, then name, while displaying stars and raw counts.
+- Universities and Research Institutions defaults to sponsorship history and has no internal-policy
+  filters.
+- Organization Detail shows accessible star labels, `Why this rating`, `What this does not prove`,
+  legal/parent scope, yearly/raw evidence, provenance, and uncertainty.
+- Compare supports up to five legal/parent scopes without collapsing them.
+- Data Health shows selected artifacts, official URLs, checksums, periods, rows, schema versions,
+  build ID, active versions, coverage, and supplemental evidence separately.
+- A certified LCA is not called a petition approval, PERM is not called a green-card approval, and
+  USCIS is labeled `Employer-level H-1B initial approvals`.
+- Partial periods remain visibly labeled on every page where their data appears.
 
-## Current interpretation
+## Owner-only deployment supplement
 
-The machine-readable report is authoritative. The initial V2 run discovered that the entity-review
-view still filtered legacy status values and hid 21,117 reviewable aliases. The view was fixed,
-DuckDB was rebuilt, and task 10 passed on rerun; both the failed and passing observations remain in
-its `attempts` array. The other code-testable tasks passed. Tasks 1 and 2 remain human-review blocked
-because no institution yet has all four core questions reviewed and no reviewed research-staff
-permanent-residence `YES` exists.
+After, and only after, the owner makes the repository private, publishes a verified Product A
+release, configures Community Cloud, and restricts sharing, manually test authorized, invited,
+signed-out, and non-invited access; cold/warm verified-cache startup; logs/secrets; desktop/mobile
+navigation; exports; query latency; and peak memory. Record these as deployment evidence, not local
+Product A acceptance.
+
+Until those actions are complete, report deployment as `BLOCKED_OWNER_ACTION`. Do not publish a
+release or describe the app as private while the repository remains public.

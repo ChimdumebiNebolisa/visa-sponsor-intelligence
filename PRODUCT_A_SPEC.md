@@ -76,9 +76,23 @@ database builds, releases, tests, and application startup require no OpenAI API 
 
 - Landing page: `https://www.dol.gov/agencies/eta/foreign-labor/performance`
 - Period: FY2022 onward.
-- Select one final annual/Q4 snapshot per completed fiscal year.
-- Select one latest cumulative snapshot for the current partial fiscal year.
-- Never concatenate cumulative quarters.
+- Prefer one final annual artifact for each completed fiscal year when DOL publishes one.
+- The live FY2022–FY2025 archive is a documented source exception: DOL exposes no separate annual
+  file, and the linked files do not follow one consistent cumulative convention. Verified
+  coverage is four exact quarterly segments for FY2022, cumulative Q1–Q2 plus exact Q3 and Q4 for
+  FY2023, and four exact quarterly segments for FY2024–FY2025. Select only those reviewed coverage
+  segments, persist each segment's start and end quarter, and enforce the observed decision
+  quarters. Reject gaps and arbitrary case conflicts. After all selected fiscal years are combined,
+  evaluate repeated LCA case IDs globally. Only exactly two chronological rows with unchanged
+  normalized visa class and legal-employer name/address, where the later row is a
+  `CERTIFIED-WITHDRAWN` update to one earlier `CERTIFIED` row, may supersede; retain both immutable
+  source rows but use only the latest state downstream. Any other repeated case ID or unreviewed
+  completed-year shape is invalid.
+- Select one latest cumulative snapshot for the current partial fiscal year. Never concatenate
+  current-year cumulative snapshots.
+- If a later completed year offers a true annual artifact, prefer it. A Q4-only LCA file is not
+  accepted as full-year coverage without an annual artifact or a reviewed segment contract that
+  covers Q1–Q4 exactly once.
 - Preserve the selected record layout, complete/partial state, URL, retrieval time, and checksum.
 - Only `H-1B` rows may affect H-1B ratings; H-1B1 and E-3 remain queryable.
 - `CERTIFIED` weight is 1.0; `CERTIFIED-WITHDRAWN` is 0.5; every unsuccessful status is 0.
@@ -89,7 +103,9 @@ schema version, official URL, retrieval timestamp, and checksum.
 
 ### DOL PERM
 
-- Same official landing page and FY2022-onward selection rule.
+- Same official landing page and period beginning FY2022.
+- Select one final annual/Q4 period for each completed fiscal year and the highest cumulative
+  period for the current partial fiscal year; never concatenate cumulative PERM periods.
 - Preserve every official form variant in the selected period, including both FY2024 forms.
 - Normalize variants independently, record form version, then union.
 - Stable exact duplicates may be removed deterministically; conflicting case IDs fail closed.
@@ -296,4 +312,3 @@ outputs/reports/product-a/
 Validation covers Microsoft, Google, Amazon legal and parent scopes, Meta, IBM, Smart Data
 Solutions when confidently resolved, two smaller technical employers, the six named universities,
 and the two required contrasting HERD/sponsorship institutions. Ambiguity remains explicit.
-

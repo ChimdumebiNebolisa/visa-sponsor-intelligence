@@ -1,285 +1,243 @@
-# Operations
+# Product A operations
 
-## Local workflow
+Product A is a local-first, read-only explorer. Normal government-data ingestion, metrics,
+ratings, quality, database, release packaging, tests, and startup do not require an OpenAI key or
+policy evidence.
 
-1. Install Python 3.12 and `uv`.
-2. Run `uv sync --frozen`.
-3. Run Ruff, Pyright, and pytest.
-4. Start the explorer with `uv run sponsor-intel app`.
-
-## DOL Phase 1 workflow
-
-1. Inspect configured sources with `uv run sponsor-intel sources list`.
-2. Discover canonical artifacts with `uv run sponsor-intel sources discover --source dol_lca --from-fy 2022`.
-3. Ingest LCA and PERM separately with the commands in `README.md`.
-4. Review `outputs/manifests/raw_downloads.jsonl`, `outputs/manifests/source_artifacts.jsonl`, and `outputs/reports/schema/`.
-5. Re-running an unchanged source reuses validated raw/Parquet artifacts. Use `--force-download` only to check whether an official URL was replaced in place.
-
-An interrupted run can be rerun safely. Raw receipts are written before normalization, and complete artifacts remain content-addressed and manifested. The next run resumes without downloading the same bytes again. Generated raw, staging, report, and manifest artifacts remain outside Git.
-
-Live contract tests are opt-in because they access the official DOL site:
-
-```bash
-SPONSOR_INTEL_RUN_NETWORK_TESTS=1 uv run pytest tests/contracts
-```
-
-In PowerShell, set `$env:SPONSOR_INTEL_RUN_NETWORK_TESTS='1'` before running pytest.
-
-## Phase 5 metrics and explorer build
-
-After ingestion, entity resolution, and role classification have completed:
-
-```bash
-uv run sponsor-intel metrics build
-uv run sponsor-intel db build
-uv run sponsor-intel app
-```
-
-The metrics command writes compact processed cases, employer and institution metrics, and source-health Parquet. The database command atomically materializes those tables, indexes organization identifiers, and creates all presentation views. Streamlit reads only that database through the service boundary.
-
-The restored V1 baseline contains 201,000 employer groups and 202,867 legal entities. Rebuilding
-the same observations with the Phase 10 location guard produces 225,996 employer groups and
-227,863 separately retained legal entities because conflicting legal-employer locations are no
-longer silently merged. The build retains 5,985 institutions, 696,448 LCA cases, 542,557 PERM
-cases, and 290,945 USCIS employer-year rows. The resulting entity review queue contains 21,117
-rows and must not be auto-approved.
-
-Measured on the development laptop, a filtered employer query completed in 1.52 seconds, an organization detail query in 0.61 seconds, and full employer CSV/Parquet exports in under two seconds. The fixture integration test builds a fresh DuckDB and verifies the same query/export boundary in CI.
-
-When FY2026 is present, the application must continue showing the partial-period warning. Rebuilding metrics or the database is safe; outputs are written to temporary files and atomically replaced after successful completion.
-
-## Phase 6 E-Verify and OPT workflow
-
-Install the pinned Chromium browser once after dependency setup:
-
-```bash
-uv run playwright install chromium
-```
-
-Build the ICE evidence and queue without making any E-Verify request:
-
-```bash
-uv run sponsor-intel evidence build --everify-limit 0
-```
-
-Run an explicitly bounded live batch only after reviewing `data/processed/everify_lookup_priorities.parquet`:
-
-```bash
-uv run sponsor-intel evidence build --everify-limit 10
-```
-
-The builder selects a full legal entity name, blocks unsafe short queries, forces the official Tableau dashboard to its last-30-years range, waits for each committed query's results, and enforces at least five seconds between query commits. Each lookup is cached for 90 days under `data/cache/everify/`. Re-running a fresh lookup uses the cache and does not contact E-Verify.
-
-Review `outputs/review/everify_match_review.parquet` and `outputs/review/opt_entity_review.parquet`. An E-Verify `NO_MATCH` is retained as raw lookup evidence but maps to explorer `UNKNOWN`. `AMBIGUOUS`, `ERROR`, and unsafe short-name results require review. OPT output contains positive observations only; unlinked or absent employer names remain `UNKNOWN`.
-
-The command refreshes metrics and DuckDB after evidence persistence. `outputs/reports/evidence/phase6_summary.json` records the queue, lookup, linkage, and review counts.
-
-## Phase 7 institution policy workflow
-
-Keep the OpenAI key in the ignored `.env.local` or a secret process environment:
-
-```text
-OPENAI_API_KEY=...
-OPENAI_POLICY_MODEL=gpt-5.6-luna
-```
-
-Generate and inspect the deterministic candidate set before making API calls:
-
-```bash
-uv run sponsor-intel policy candidates
-```
-
-Run a bounded build. The V1 production run uses 200 candidates; a smaller limit is useful for an operator check:
-
-```bash
-uv run sponsor-intel policy build --enrichment-limit 10
-uv run sponsor-intel policy build --enrichment-limit 200
-```
-
-Inspect `data/processed/policy_documents.parquet`, `policy_facts.parquet`, `policy_review_queue.parquet`, and `outputs/reports/policy/errors.json`. Confirm the domain, page currency, campus or system scope, fact value, and exact excerpt before recording review decisions. The bounded helper does not accept cap-exemption or general-staff permanent-residence conclusions:
-
-```bash
-uv run sponsor-intel policy review-exact \
-  --fact-ids outputs/review/policy_fact_ids.txt \
-  --reviewer-id "operator-id" \
-  --note "Official URL, current page, scope, affirmative value, and exact excerpt reviewed."
-uv run sponsor-intel policy evaluate
-uv run sponsor-intel metrics build
-uv run sponsor-intel db build
-```
-
-Raw pages, discovery responses, and extraction responses are cached. Processed completed-document metadata is reusable for 24 hours, so those documents need no discovery, network, or OpenAI call on an immediate replay. Exact failed source URLs use a matching 24-hour retry backoff recorded in the error report. After 24 hours, sources are fetched again and unchanged text still produces no extraction call. Deleting cache files is not part of normal recovery; rerun the same command after a transient failure and the content-addressed completed work will be reused.
-
-## Phase 10 scoring, ranking, and comparison
-
-Rebuild scores from the checked-in formula configuration, then refresh DuckDB:
-
-```bash
-uv run sponsor-intel scores build
-uv run sponsor-intel db build
-```
-
-The score command atomically writes canonical V2 metrics and `employer_scores.parquet`, while
-preserving V1 outputs in `employer_scores_v1.parquet` and `institution_scores_v1.parquet`.
-`configs/scoring_v2.yaml` defines the 40/60 H-1B/green-card sponsorship score and the 50/30/20
-sponsorship/policy/research pathway score. Invalid weights or mappings fail before any output is
-replaced. Re-running unchanged evidence and configuration is deterministic. Verify the formula contract with
-`uv run pytest tests/unit/test_scoring.py tests/integration/test_metrics_explorer.py` and inspect
-the Compare page with one to five organizations. Unknown scores, partial coverage, raw counts,
-score version, and explanations must remain visible. Readiness tiers become final only when the
-current quality build has no critical failure. Scores and tiers describe evidence readiness, never
-legal probability.
-
-Generate the bounded top-50 operator packet with:
-
-```bash
-uv run python scripts/generate_phase10_policy_review.py
-```
-
-The packet contains exactly four rows per priority institution. Model-extracted values remain
-pending until a named reviewer checks the official URL, exact excerpt, currency, and campus/system
-scope. `REVIEWED_NOT_STATED` is a completed review state, not `NO` or extraction failure.
-
-The OpenAI live contract is intentionally opt-in and must run only where a secret key is available:
-
-```bash
-RUN_LIVE_OPENAI_POLICY_TEST=1 uv run pytest tests/contracts/test_phase7_policy_contracts.py
-```
-
-## Clean setup and reproduction
-
-From a clean clone, install only the locked Python environment and Chromium:
+## Local setup
 
 ```bash
 uv sync --frozen
+uv run sponsor-intel --help
+```
+
+In Windows PowerShell, use `py -m uv` if the `uv` executable is not on `PATH`:
+
+```powershell
+py -m uv sync --frozen
+py -m uv run sponsor-intel --help
+```
+
+Generated raw files, Parquet, reports, manifests, caches, release bundles, and DuckDB databases
+remain outside Git. Never commit `.env`, `.env.local`, tokens, API keys, or request headers.
+
+## Authoritative-source discovery and ingestion
+
+Inspect the registry and discover before ingestion:
+
+```bash
+uv run sponsor-intel sources list
+uv run sponsor-intel sources discover --source dol_lca --from-fy 2022
+uv run sponsor-intel sources discover --source dol_perm --from-fy 2022
+uv run sponsor-intel sources discover --source uscis_h1b --from-fy 2022
+```
+
+For DOL PERM, verify one final annual/Q4 period per completed fiscal year and one highest cumulative
+quarter for the current partial year; retain both selected FY2024 PERM form variants. For DOL LCA,
+prefer an annual artifact when present. The reviewed archive contract uses four exact segments for
+FY2022 and FY2024–FY2025, and cumulative Q1–Q2 plus exact Q3 and Q4 for FY2023. Verify the persisted
+`coverage_start_quarter`/ending-quarter bounds cover Q1–Q4 exactly once and observed decision
+quarters exactly match those bounds. Across all selected fiscal years, a repeated case ID must fail
+unless it is exactly two chronological rows with unchanged normalized visa class and legal-employer
+name/address, moving from certified to certified-withdrawn; resolved output retains only that later
+state. The current partial fiscal year must still select only its highest cumulative quarter.
+
+Ingest each source explicitly:
+
+```bash
+uv run sponsor-intel ingest --source dol_lca --from-fy 2022
+uv run sponsor-intel ingest --source dol_perm --from-fy 2022
+uv run sponsor-intel ingest --source uscis_h1b --from-fy 2022
+uv run sponsor-intel ingest --source ipeds --from-fy 2022
+uv run sponsor-intel ingest --source herd --from-fy 2022
+```
+
+Immediately after ingestion, review `outputs/manifests/raw_downloads.jsonl`,
+`outputs/manifests/source_artifacts.jsonl`, `outputs/manifests/discovery/`, and
+`outputs/reports/schema/`. Stop if a required logical column is missing or an official schema
+changed unexpectedly. The Product A acceptance command later regenerates the consolidated
+`outputs/reports/product-a/source-selection.{md,json}` from those inputs.
+
+Raw receipts are written before normalization, and artifacts are content-addressed. An interrupted
+run can be rerun safely; unchanged validated content is reused. Use `--force-download` only for a
+deliberate official-URL replacement check.
+
+Official-source contract tests are opt-in:
+
+```powershell
+$env:SPONSOR_INTEL_RUN_NETWORK_TESTS='1'
+py -m uv run pytest tests/contracts
+```
+
+## Entity, role, metrics, and database build
+
+```bash
+uv run sponsor-intel entities validate-gold
+uv run sponsor-intel entities build
+uv run sponsor-intel roles validate-gold
+uv run sponsor-intel roles build
+uv run sponsor-intel metrics build
+uv run sponsor-intel quality report
+uv run sponsor-intel db build
+```
+
+The entity build keeps immigration evidence on petitioning legal entities and creates separately
+labeled parent rollups only for authoritative/reviewed relationships. Do not bulk-approve the
+entity review queue.
+
+The role build applies strong exclusions before broad SOC inclusion. Inspect the role summary and
+review queue, especially faculty, postdoctoral, medical, sales, support, technician, and generic
+research/engineering titles.
+
+The metrics build writes `product_a_metrics_v1` with `product_a_scores_v1`. Verify:
+
+- only technical `H-1B` LCA rows influence H-1B History;
+- current partial-year activity affects recency only and is not annualized;
+- unsuccessful LCA/PERM statuses add no rating weight;
+- parent and legal scopes remain separate;
+- valid zero observations display `No observed … history` and not one star;
+- missing/invalid coverage displays `Unrated`; and
+- E-Verify, OPT, IPEDS/HERD, cap-exemption context, and policy do not change sponsorship ratings.
+
+Rebuilding metrics and DuckDB is atomic; a failed replacement must leave the prior database
+intact.
+
+## Run and smoke-test the real application
+
+```bash
+uv run python scripts/smoke_streamlit.py --database db/immigration.duckdb
+uv run sponsor-intel app
+```
+
+Real-database smoke mode fails if the supplied database is absent, empty, invalid, or a fallback.
+The fixture mode (omit `--database`) remains useful for CI but is not real-data acceptance.
+
+The app reads DuckDB only through `src/sponsor_intel/services/`. Confirm Home, All Employers,
+Universities and Research Institutions, Organization Detail, Compare, and Data Health load nonzero
+rows. The latest complete fiscal year and current partial-period warning must be visible.
+
+## Product A acceptance
+
+After the real metrics, quality report, and DuckDB are current:
+
+```bash
+uv run python scripts/run_product_a_acceptance.py
+```
+
+This command regenerates the consolidated source-selection report; do not rely on a report left by
+an earlier build. Inspect it together with the other acceptance outputs below.
+
+The command must exit nonzero when an automated Product A requirement fails and write:
+
+```text
+outputs/reports/product-a/
+  source-selection.md
+  source-selection.json
+  score-distribution.md
+  score-distribution.json
+  validation.md
+  validation.csv
+  unresolved-entities.csv
+  acceptance.md
+  acceptance.json
+```
+
+Validation covers Microsoft, Google, Amazon legal and parent scopes, Meta, IBM, Smart Data
+Solutions when confidently resolved, two smaller technical employers, six named universities, and
+the required contrasting HERD/sponsorship institutions. A result that remains ambiguous must be
+reported as ambiguous rather than forced to pass.
+
+## Supplemental E-Verify and OPT
+
+Install the pinned browser only when running supplemental evidence collection:
+
+```bash
 uv run playwright install chromium
+uv run sponsor-intel evidence build --everify-limit 0
 ```
 
-To restore a quality-approved build, authenticate `gh`, download all assets for the selected tag,
-and verify `checksums.sha256` before extracting anything. Do not infer privacy from a release name;
-first verify repository visibility. On a POSIX host:
+`--everify-limit 0` builds the priority queue and positive OPT evidence without live E-Verify
+requests. Review `data/processed/everify_lookup_priorities.parquet` before supplying a small
+positive limit. The lookup enforces safe full-name queries, rate limits, and caching.
+
+Review `outputs/review/everify_match_review.parquet` and
+`outputs/review/opt_entity_review.parquet`. E-Verify no match/ambiguous/error/not checked and OPT
+absence remain `UNKNOWN`; neither can alter stars.
+
+## Supplemental policy workflow
+
+Institution policy extraction is optional, manual, incomplete, and excluded from Product A
+ratings, ordering, quality gates, releases, and startup. Only this workflow may need
+`OPENAI_API_KEY`; see [policy_extraction.md](policy_extraction.md).
 
 ```bash
-gh release download data-YYYY-MM-DD --dir outputs/release
-cd outputs/release
-sha256sum -c checksums.sha256
-cd ../..
+uv run sponsor-intel policy candidates
+uv run sponsor-intel policy build --enrichment-limit 10
 ```
 
-On Windows, compare every `Get-FileHash -Algorithm SHA256` result with the manifest. Stop on any
-missing or mismatched asset. Extract `processed-parquet.zip`, `build-state.zip`, and
-`source-manifests.zip` at the repository root only after verification, then rebuild the
-presentation layer:
+Do not run an unbounded extraction. Every model fact starts in review and cannot become product
+evidence without explicit human verification of official domain, exact excerpt, currency, and
+campus/system scope. Policy failures must not block a government-data refresh or Product A build.
 
-```bash
-uv run sponsor-intel scores build
-uv run sponsor-intel quality report
-uv run sponsor-intel db build
-uv run python scripts/smoke_streamlit.py
-```
-
-To reproduce government data from authoritative sources instead of restoring it, run
-`uv run sponsor-intel refresh government --everify-limit 0`. This ingests FY2022 onward, rebuilds
-entities, roles, OPT evidence, metrics, scores, quality checks, and DuckDB. Restore the previous
-quality-approved release first when reviewed policy history and extraction caches must carry forward. A
-first-ever policy bootstrap still requires the explicit Phase 7 review workflow.
-
-## Scheduled refresh workflows
-
-`.github/workflows/refresh_government_data.yml` runs on January, April, July, and October 1 and can
-also be dispatched manually. It restores reusable reviewed state when a release exists, refreshes
-official sources, runs live contracts, requires the publication quality report to pass, builds the
-release assets, and uploads a short-retention workflow artifact. Scheduled E-Verify live lookups
-default to zero; a manual operator must explicitly supply a bounded limit.
-
-`.github/workflows/refresh_policies.yml` runs every four months and requires the GitHub Actions
-`OPENAI_API_KEY` secret. It restores the latest approved build, refreshes the bounded 200-institution
-policy set, reruns the reviewed benchmark, metrics, quality checks, DuckDB, and release packaging.
-
-`.github/workflows/publish_data_release.yml` runs only after a successful refresh (or an explicit
-run-ID dispatch). It downloads the exact workflow artifact, verifies every SHA-256 checksum and the
-zero-critical-failure quality result, and refuses publication unless GitHub reports that the
-repository is private. It then creates or updates the release tagged `data-YYYY-MM-DD`. Failed
-refreshes, failed critical checks, and public-repository state cannot reach release upload.
-
-## Quality gates and Data Health
-
-Run:
+## Quality and release bundle
 
 ```bash
 uv run sponsor-intel quality report
 uv run sponsor-intel db build
+uv run sponsor-intel release bundle
 ```
 
-The report fails nonzero for missing processed tables/columns/manifests/schema reports, failed
-source validations, duplicate source keys, entity coverage below 95%, role coverage below 98%,
-legal/parent ID collisions, fewer than 100 reviewed institutions, invalid accepted evidence,
-inconsistent score versions/coverage, or missing freshness rows. Source `WARNING` statuses remain
-visible and reviewable but do not masquerade as failures. `sponsor-intel release bundle` refuses to
-package any build whose current report has a critical failure.
+Product A quality gates cover canonical source selection, schema/provenance, duplicates, entity and
+role coverage, score/star contracts, legal/parent separation, supplemental-evidence independence,
+partial-period semantics, nonzero outputs, and freshness. Policy completeness is not a gate.
 
-The Data Health page displays source row counts and periods, warnings, build ID, manifest/schema
-versions and checksum, failed checks, identity/role coverage, policy coverage, and score contract.
+The release builder verifies the current zero-critical-failure report, nonzero Product A metadata,
+active metric/score versions, DuckDB views, and checksums before packaging. It may create local
+ignored assets such as the presentation database, data-quality/build metadata, processed/build
+state archives, source manifests, and `checksums.sha256`.
 
-## Quality-approved release contents
+**Do not publish a release while the GitHub repository is public.** Release assets inherit
+repository visibility. Existing public assets may already have been copied and are not made private
+retroactively. Publication, repository visibility changes, PR merge, and deployment are owner
+actions; see [deployment/community-cloud.md](deployment/community-cloud.md).
 
-After quality and DuckDB pass, run `uv run sponsor-intel release bundle`. It atomically creates:
+## Scheduled workflows
 
-- `immigration.duckdb`
-- `processed-parquet.zip`
-- `build-state.zip` for resolved/classified state and policy caches
-- `source-manifests.zip`
-- `data-quality.json`
-- `build-metadata.json`
-- `checksums.sha256`
-
-Large data, databases, and release assets remain ignored by Git. Release assets inherit the
-repository's current visibility. As of August 15, 2026 this repository is public and existing
-release assets have been anonymously accessible; follow `docs/deployment/community-cloud.md`
-before treating future artifacts as private.
-
-## Full V1 acceptance
-
-After the Phase 9 commit is on `main`, build the release bundle and run:
-
-```bash
-uv run python scripts/run_v1_acceptance.py --verify-restore
-```
-
-The acceptance command evaluates all 20 definition-of-done requirements, queries the private
-repository and exact current-main CI result, extracts the release archives into a temporary clean
-root, rebuilds metrics, quality outputs, and DuckDB from the restored state, and writes the
-machine-readable result to `outputs/reports/acceptance/v1.json`. It exits nonzero if any item is
-not supported by current build evidence.
-
-## Phase 10 acceptance and UAT
-
-After rebuilding V2 quality and DuckDB, run:
-
-```bash
-uv run python scripts/run_v2_acceptance.py
-```
-
-The runner exercises V2 score/version contracts and the 18 real-data research tasks, records
-representative selections and latency, and writes tracked UAT reports under
-`outputs/reports/phase10/`. Owner-only privacy/deployment checks and incomplete human policy/entity
-review remain explicit external prerequisites rather than being marked as passed.
+- `.github/workflows/refresh_government_data.yml` refreshes authoritative government data,
+  entities, roles, metrics, Product A ratings, quality, DuckDB, and local workflow artifacts.
+  E-Verify defaults to no live lookup. It must not require policy state or an OpenAI key.
+- `.github/workflows/refresh_policies.yml` is manual-only supplemental maintenance. It must not
+  trigger or gate Product A release publication.
+- `.github/workflows/publish_data_release.yml` verifies exact workflow artifacts, checksums,
+  quality, metadata, and private repository visibility. Public state must fail closed before upload.
 
 ## Failure recovery
 
-- Interrupted ingestion, evidence, or policy refresh: rerun the same command. Immutable artifacts,
-  source manifests, document hashes, extraction caches, and retry backoff resume completed work.
-- Source schema or required-column failure: do not use cached outputs to publish. Inspect
-  `outputs/reports/schema/`, update the reviewed source contract only after checking the official
-  record layout, add a regression test, and rerun from discovery.
-- Quality failure: inspect `data/processed/quality_checks.parquet` or the Data Health page. No
-  release bundle is created and the publish workflow is not triggered.
-- Policy API/network failure: rerun after the recorded retry window. Unchanged document hashes use
-  the validated extraction cache and do not incur another extraction call.
-- Database build failure: the existing DuckDB remains intact because replacement is atomic. Fix
-  the reported table/view issue and rerun `sponsor-intel db build`.
-- Release upload failure after a successful refresh: verify the retained workflow artifact, then
-  manually dispatch `Publish private data release` with that successful refresh run ID. Checksums
-  and quality are verified again before upload.
-- Missing/corrupt private release: checksum verification must fail closed. Re-run the last
-  successful refresh; never silently fall back to an unverified local bundle.
+- **Interrupted ingestion:** rerun the same command; manifests and content-addressed artifacts
+  allow safe resume.
+- **Source schema failure:** stop, inspect `outputs/reports/schema/`, compare the official layout,
+  update the reviewed contract and regression tests, then rediscover/reingest.
+- **Entity ambiguity:** retain the separate provisional legal entity and add a reviewed override
+  only with evidence.
+- **Quality failure:** inspect `data/processed/quality_checks.parquet` and Data Health; do not bundle
+  or publish.
+- **Database failure:** fix the reported table/view contract and rerun; do not delete a known-good
+  database as a recovery shortcut.
+- **Supplemental policy/API failure:** leave Product A evidence intact. Retry only the optional
+  workflow after its recorded backoff; unchanged document hashes reuse the cache.
+- **Release upload failure:** keep publication stopped, verify the retained artifact and repository
+  privacy, then let the owner rerun the protected publish workflow.
+- **Missing/corrupt hosted release:** checksum verification fails closed. Never serve an empty or
+  unverified fallback in release mode.
+
+## Full verification before handoff
+
+```bash
+uv sync --frozen
+uv run ruff format --check .
+uv run ruff check .
+uv run pyright
+uv run pytest
+uv run python scripts/smoke_streamlit.py --database db/immigration.duckdb
+uv run python scripts/run_product_a_acceptance.py
+```

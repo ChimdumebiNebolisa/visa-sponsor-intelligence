@@ -1,63 +1,101 @@
-# Role taxonomy
+# Product A technical-role taxonomy
 
-Phase 4 assigns every DOL LCA and PERM row a versioned deterministic classification. V1 does not use an LLM for bulk role classification.
+Every DOL LCA and PERM row receives a versioned deterministic classification from normalized title
+and SOC evidence while preserving the raw title and SOC fields. Reviewed overrides have highest
+priority. Product A does not use an LLM for bulk role classification.
 
-## Required output
+## Classified fields
 
-Classified source mirrors preserve every Phase 3 source column and add:
+Classified source mirrors preserve every resolved-source field and add:
 
 - `technical_role`: `true`, `false`, or null when evidence is ambiguous;
-- `role_family`: one of the 15 configured taxonomy values;
+- `role_family`: a configured normalized family, `not_relevant`, or `ambiguous`;
 - `role_confidence`: deterministic rule confidence from 0 to 1;
-- `classification_method`: the evidence tier that made the decision;
-- `classification_rule`: the exact reviewed mapping or rule ID;
-- `classification_version`: currently `role_taxonomy_v2`;
+- `classification_method` and `classification_rule`: the evidence tier and exact rule;
+- `classification_version`: the checked-in taxonomy version;
 - `review_status`: `NOT_REQUIRED` or `NEEDS_REVIEW`.
 
-## Classification precedence
+Null/ambiguous is not silently treated as qualifying or nonqualifying evidence.
 
-1. Exact reviewed title override.
-2. Evaluate strong positive and strong exclusion title evidence.
-3. Apply a strong exclusion before broad SOC-only inclusion, unless the complete title independently supplies strong technical evidence.
-4. SOC-code family mapping.
-5. Strong positive title pattern when SOC evidence did not decide the role.
-6. Combined SOC plus title rule.
-7. Ambiguous-title routing.
-8. Default to `not_relevant` when no technical evidence exists.
+## Precedence
 
-The taxonomy and all rules live in `configs/role_taxonomy.yaml`. Rules run against Unicode-folded uppercase titles and normalized SOC codes. Reviewed overrides remain the highest priority. A specific computing title can protect a genuine technical role from an overly broad contextual exclusion, while a computing SOC by itself cannot turn internships, physicians, sales engineers, recruiters, or helpdesk roles into target roles.
+1. Apply an exact reviewed title override.
+2. Evaluate strong exclusions before broad SOC inclusion.
+3. Apply a strong technical title/SOC rule when it supplies specific computing evidence and does
+   not conflict with an exclusion.
+4. Apply reviewed SOC-family mappings.
+5. Apply combined title/SOC rules.
+6. Route generic or conflicting evidence to `ambiguous` review.
+7. Default to `not_relevant` when no technical evidence exists.
 
-## Role families
+Rules live in `configs/role_taxonomy.yaml` and run against Unicode-folded uppercase titles and
+normalized SOC codes. A broad computing SOC cannot turn an excluded internship, faculty,
+postdoctoral, medical, sales, recruiting, support, or technician title into Product A evidence.
 
-The technical families are `software_engineering`, `research_software`, `research_engineering`, `machine_learning_ai`, `data_engineering`, `data_science`, `systems_infrastructure`, `hpc`, `cloud`, `devops_sre`, `computer_science_research`, `technical_management_related`, and `other_computing`. The two nontechnical decision families are `not_relevant` and `ambiguous`.
+## Included families
 
-## Conservative exclusions
+The Product A target universe covers:
 
-Generic Research Scientist, Research Engineer, Engineer, Systems Engineer, Architect, Scientist, Applied Scientist, research-associate, postdoc, and Technical Lead titles are not assumed technical. They enter the review queue unless a prior computing SOC, strong computing title, or combined SOC/title rule supplies evidence.
+- software engineering and development;
+- research and scientific software;
+- computing research engineering;
+- machine learning and artificial intelligence;
+- data engineering and database architecture;
+- distributed systems;
+- infrastructure, platform engineering, and site reliability engineering;
+- cloud and DevOps;
+- high-performance/research computing; and
+- computer science research.
 
-Explicit medical, biological/chemical, noncomputing faculty, sales engineering, recruiting, helpdesk/desktop support, generic business analysis/project management, internship, and clearly nontechnical production or service titles are excluded before broad SOC-only inclusion. The specific `25-1021` Computer Science Teachers SOC keeps generic computing faculty in scope. Staffing-firm placement filtering is applied later as an employer-level query filter; it is not inferred from a job title.
+Configured technical family names remain versioned so evidence and scores can be reproduced.
 
-Run `python scripts/generate_phase10_data_quality_reports.py` against the restored V1 classification lookup to produce record-weighted before/after counts, the complete changed-combination CSV, and a deterministic stratified inspection packet. Pending inspection rows are not represented as human-reviewed.
+## Strong default exclusions
 
-## Outputs and commands
+The following are nontechnical for Product A unless an explicit reviewed override establishes a
+different role:
 
-- `data/processed/role_classifications.parquet`: one row per unique source/title/SOC combination, with occurrence counts.
-- `data/classified/sources/<source>/fy=<year>/*.parquet`: complete classified DOL mirrors.
-- `outputs/review/role_classification_review.parquet`: all unique low-confidence or ambiguous combinations.
-- `outputs/reports/roles/summary.json`: live record-weighted distribution.
-- `outputs/reports/roles/gold_validation.json`: benchmark metrics.
+- interns and student workers;
+- postdoctoral fellows and postdocs;
+- assistant, associate, and full professors;
+- lecturers and other faculty/teaching titles;
+- physicians, residents, nurses, and other clinical roles;
+- recruiters and human-resources roles;
+- sales engineers and other sales roles;
+- help desk, desktop support, and general support roles;
+- technicians; and
+- unrelated scientific, medical, business, and engineering roles.
+
+Generic `Research Scientist`, `Research Engineer`, `Engineer`, `Systems Engineer`, `Architect`,
+`Scientist`, `Applied Scientist`, research-associate, and technical-lead titles are not assumed to
+be computing roles. They require specific technical title/SOC evidence or enter review.
+
+Institution type, employer name, E-Verify, OPT, HERD, and policy evidence never change a row's role
+classification. Staffing/consulting context may be a separate explorer filter; it is not inferred
+from title alone.
+
+## Rating interaction
+
+- Only rows classified `technical_role = true` can contribute.
+- H-1B History additionally requires `visa_class = H-1B` and a weighted positive LCA status.
+- Green Card Sponsorship History additionally requires a weighted positive PERM status.
+- H-1B1/E-3 and unsuccessful cases remain queryable in raw evidence but contribute zero.
+- Family breadth counts distinct normalized qualifying families, capped at five.
+
+## Outputs and verification
+
+- `data/processed/role_classifications.parquet`: one decision per unique source/title/SOC
+  combination with occurrence count.
+- `data/classified/sources/<source>/fy=<year>/*.parquet`: classified resolved-source mirrors.
+- `outputs/review/role_classification_review.parquet`: ambiguous/low-confidence combinations.
+- `outputs/reports/roles/summary.json`: record-weighted distribution.
+- `outputs/reports/roles/gold_validation.json`: benchmark results.
 
 ```bash
 uv run sponsor-intel roles validate-gold
 uv run sponsor-intel roles build
+uv run pytest tests/unit/test_role_classification.py
 ```
 
-## Validation evidence
-
-The committed validation CSV contains 750 manually labeled records formed from 75 reviewed title/SOC cases across FY2022–FY2026, both DOL sources, and six employer types: technology, university, hospital/medical, research institute, staffing/consulting, and other industry. It includes all technical families plus required medical, biological, faculty, sales, recruiting, support, management, internship, generic research, and generic engineering controls.
-
-Current benchmark results are 100% precision for `technical_role = true`, 100% recall for the labeled target universe, 100% correct technical family assignment, and 100% routing of expected low-confidence cases. These exceed the required 95% precision, 90% recall, and 90% family-accuracy thresholds.
-
-The verified full build classified all 1,239,005 DOL records. It marked 707,240 technical, 518,725 not relevant, and 13,040 ambiguous across 347,979 unique source/title/SOC combinations. The review queue contains 1,337 unique combinations. Technical coverage is 64.1–66.2% for LCA and 39.7–58.6% for PERM across source years. Generic research and engineering titles dominate the highest-volume ambiguous cases. The only three technical records whose titles contain medical terms have explicit computing/data SOC evidence and were manually inspected as nursing-informatics or data-analysis cases.
-
-Two consecutive full builds produced identical SHA-256 hashes for the classification lookup, review queue, and every classified source mirror.
+The gold set must cover every included family and the strong exclusions above across DOL sources
+and employer types. Fixed defects require regression rows. Deterministic reruns must produce the
+same classification lookup, review queue, and classified mirrors.

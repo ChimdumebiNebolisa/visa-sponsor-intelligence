@@ -1,5 +1,12 @@
 # ADR-010: Retain Streamlit with a review date
 
+> **Historical decision record (2026-08-15):** Measurements and Phase 10/V2 terminology below
+> describe the build evaluated when this ADR was accepted. They are not the active product or
+> rating contract. Product A remains on Streamlit under the same no-rewrite decision, but its
+> active behavior is defined by `PRODUCT_A_SPEC.md`, `product_a_metrics_v1`, and
+> `product_a_scores_v1`. Policy/readiness scores and letter grades mentioned below are superseded.
+> Repository privacy, release publication, and hosted validation remain owner actions.
+
 - Status: Accepted with validation gap
 - Decision: `KEEP_STREAMLIT_WITH_REVIEW_DATE`
 - Date: 2026-08-15
