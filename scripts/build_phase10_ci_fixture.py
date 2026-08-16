@@ -1,18 +1,30 @@
-"""Build a small, sanitized Phase 10 presentation database for CI and UI tests."""
+"""Build a small, sanitized Product A presentation database for CI and UI tests."""
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import polars as pl
 
 from sponsor_intel.database import DuckDBBuilder
 from sponsor_intel.metrics import MetricsPipeline
+from sponsor_intel.sources.manifests import (
+    ArtifactManifestStore,
+    write_json_atomic,
+)
+from sponsor_intel.sources.models import (
+    ArtifactManifestRecord,
+    DiscoveryReport,
+    SourceArtifactCandidate,
+    ValidationStatus,
+)
+from sponsor_intel.sources.registry import SourceRegistry
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-FIXTURE_BUILD_ID = "phase10-ci-fixture-v1"
+FIXTURE_BUILD_ID = "product-a-ci-fixture-v1"
 
 
 def _write_source(
@@ -22,13 +34,16 @@ def _write_source(
     fiscal_year: int,
     frame: pl.DataFrame,
 ) -> None:
+    artifact_ids = frame["source_artifact_id"].unique().to_list()
+    if len(artifact_ids) != 1:
+        raise ValueError("Sanitized fixture source files must contain exactly one artifact")
     target = (
         data_root
         / layer
         / "sources"
         / source_id
         / f"fy={fiscal_year}"
-        / "sanitized-fixture.parquet"
+        / f"{artifact_ids[0]}.parquet"
     )
     target.parent.mkdir(parents=True, exist_ok=True)
     frame.write_parquet(target, compression="zstd", statistics=True)
@@ -36,13 +51,22 @@ def _write_source(
 
 def _case_frame(source_id: str, records: list[dict[str, object]], *, perm: bool) -> pl.DataFrame:
     rows: list[dict[str, object]] = []
+    checksum_character = {
+        "dol_lca": "a",
+        "dol_lca-partial": "b",
+        "dol_perm": "d",
+    }.get(source_id, "f")
     for index, record in enumerate(records, start=1):
         row = {
             "case_id": f"{source_id}-ci-{index:03d}",
+            "source_row_number": index,
             "source_artifact_id": f"{source_id}-ci-artifact",
             "source_file_name": f"{source_id}-sanitized-fixture.csv",
             "ingested_at": "2026-08-15T12:00:00+00:00",
-            "fiscal_quarter": 4,
+            "source_url": f"https://www.dol.gov/media/{source_id}-sanitized-fixture.csv",
+            "source_sha256": checksum_character * 64,
+            "schema_version": "sanitized-product-a-v1",
+            "fiscal_quarter": 4 if perm else None,
             "is_partial_period": False,
             "case_status": "Certified",
             "decision_date": f"{record['fiscal_year']}-06-15",
@@ -67,7 +91,14 @@ def _case_frame(source_id: str, records: list[dict[str, object]], *, perm: bool)
                 }
             )
         else:
-            row.update({"wage_from": 110_000, "wage_to": 150_000, "wage_unit": "Year"})
+            row.update(
+                {
+                    "visa_class": "H-1B",
+                    "wage_from": 110_000,
+                    "wage_to": 150_000,
+                    "wage_unit": "Year",
+                }
+            )
         rows.append(row)
     return pl.DataFrame(rows)
 
@@ -108,7 +139,7 @@ def _write_dimensions(data_root: Path) -> None:
             ],
             "institution_id": [None, None, "ipeds:ci100001", "ipeds:ci100002"],
             "created_by": ["SANITIZED_CI_FIXTURE"] * 4,
-            "review_status": ["REVIEWED"] * 4,
+            "review_status": ["MANUAL_OVERRIDE"] * 4,
         }
     ).write_parquet(resolved / "legal_entities.parquet")
     pl.DataFrame(
@@ -119,7 +150,7 @@ def _write_dimensions(data_root: Path) -> None:
             "headquarters_state": ["TX"],
             "is_staffing_or_consulting": [False],
             "created_by": ["SANITIZED_CI_FIXTURE"],
-            "review_status": ["REVIEWED"],
+            "review_status": ["MANUAL_OVERRIDE"],
             "notes": ["Synthetic parent used only for CI."],
         }
     ).write_parquet(resolved / "parent_organizations.parquet")
@@ -136,8 +167,153 @@ def _write_dimensions(data_root: Path) -> None:
             "occurrence_count": [3, 1],
             "legal_entity_id": ["legal_orbit_labs", "legal_aurora"],
             "parent_organization_id": ["parent_orbit", None],
+            "candidate_legal_entity_id": [None, None],
         }
     ).write_parquet(resolved / "entity_aliases.parquet")
+
+
+def _write_source_metadata(data_root: Path, output_root: Path) -> None:
+    """Write deterministic active-source metadata for the sanitized fixture artifacts."""
+
+    registry = SourceRegistry.from_yaml()
+    store = ArtifactManifestStore(output_root / "manifests" / "source_artifacts.jsonl")
+    specs = [
+        (
+            "dol_lca",
+            "classified",
+            "dol_lca-ci-artifact",
+            2025,
+            None,
+            False,
+            False,
+            1,
+            "LCA_Disclosure_Data_FY2025.xlsx",
+        ),
+        (
+            "dol_lca",
+            "classified",
+            "dol_lca-partial-ci-artifact",
+            2026,
+            2,
+            True,
+            False,
+            1,
+            "LCA_Disclosure_Data_FY2026_Q2.xlsx",
+        ),
+        (
+            "dol_perm",
+            "classified",
+            "dol_perm-ci-artifact",
+            2025,
+            4,
+            False,
+            False,
+            None,
+            "PERM_Disclosure_Data_FY2025_Q4.xlsx",
+        ),
+        (
+            "uscis_h1b",
+            "resolved",
+            "uscis-ci-artifact",
+            2025,
+            None,
+            False,
+            False,
+            None,
+            "H1B_Employer_Data_Hub_FY2025.csv",
+        ),
+        (
+            "ipeds",
+            "resolved",
+            "ipeds-ci-artifact",
+            2025,
+            None,
+            False,
+            False,
+            None,
+            "HD2025.zip",
+        ),
+    ]
+    candidates_by_source: dict[str, list[SourceArtifactCandidate]] = {}
+    retrieved_at = datetime(2026, 8, 15, 12, tzinfo=UTC)
+    for (
+        source_id,
+        layer,
+        artifact_id,
+        fiscal_year,
+        fiscal_quarter,
+        is_partial_period,
+        is_quarter_partition,
+        coverage_start_quarter,
+        file_name,
+    ) in specs:
+        source = registry.get(source_id)
+        path = (
+            data_root
+            / layer
+            / "sources"
+            / source_id
+            / f"fy={fiscal_year}"
+            / f"{artifact_id}.parquet"
+        )
+        frame = pl.read_parquet(path)
+        download_url = f"{source.landing_page}#sanitized-ci-{artifact_id}"
+        candidate = SourceArtifactCandidate(
+            source_id=source_id,
+            authority=source.authority,
+            landing_page_url=source.landing_page,
+            download_url=download_url,
+            fiscal_year=fiscal_year,
+            fiscal_quarter=fiscal_quarter,
+            is_partial_period=is_partial_period,
+            is_quarter_partition=is_quarter_partition,
+            coverage_start_quarter=coverage_start_quarter,
+            file_name=file_name,
+            expected_format=Path(file_name).suffix.lstrip("."),
+        )
+        candidates_by_source.setdefault(source_id, []).append(candidate)
+        store.upsert(
+            ArtifactManifestRecord(
+                source_artifact_id=artifact_id,
+                source_id=source_id,
+                authority=source.authority,
+                landing_page_url=source.landing_page,
+                download_url=download_url,
+                retrieved_at=retrieved_at,
+                fiscal_year=fiscal_year,
+                fiscal_quarter=fiscal_quarter,
+                is_partial_period=is_partial_period,
+                is_quarter_partition=is_quarter_partition,
+                coverage_start_quarter=coverage_start_quarter,
+                file_name=file_name,
+                mime_type="application/octet-stream",
+                byte_size=path.stat().st_size,
+                sha256=hashlib.sha256(artifact_id.encode("utf-8")).hexdigest(),
+                record_layout_url=None,
+                parser_version=source.parser_version,
+                schema_version=source.schema_version,
+                raw_row_count=frame.height,
+                row_count=frame.height,
+                column_count=frame.width,
+                validation_status=ValidationStatus.PASSED,
+                build_id=FIXTURE_BUILD_ID,
+                raw_path=path,
+                parquet_path=path,
+                schema_diff_path=path.with_suffix(".schema-diff.json"),
+            )
+        )
+    for source_id, candidates in candidates_by_source.items():
+        write_json_atomic(
+            output_root / "manifests" / "discovery" / f"{source_id}-latest.json",
+            DiscoveryReport(
+                source_id=source_id,
+                discovered_at=retrieved_at,
+                from_fiscal_year=2022,
+                landing_page_url=candidates[0].landing_page_url,
+                candidates=tuple(candidates),
+                selected_candidate_ids=tuple(candidate.candidate_id for candidate in candidates),
+            ),
+        )
 
 
 def _write_government_evidence(data_root: Path) -> None:
@@ -239,6 +415,9 @@ def _write_government_evidence(data_root: Path) -> None:
             "source_artifact_id": ["uscis-ci-artifact"] * 5,
             "source_file_name": ["uscis-sanitized-fixture.csv"] * 5,
             "ingested_at": ["2026-08-15T12:00:00+00:00"] * 5,
+            "source_url": ["https://www.uscis.gov/tools/reports-and-studies/h-1b-employer-data-hub"]
+            * 5,
+            "source_sha256": ["c" * 64] * 5,
             "fiscal_year": [2024, 2025, 2024, 2025, 2026],
             "is_partial_period": [False, False, False, False, True],
             "employer_name_raw": [
@@ -427,11 +606,10 @@ def build_phase10_ci_fixture(output_root: Path) -> Path:
     _write_dimensions(data_root)
     _write_government_evidence(data_root)
     _write_institution_evidence(data_root)
+    _write_source_metadata(data_root, report_root)
     metrics = MetricsPipeline(
         data_root=data_root,
         output_root=report_root,
-        scoring_config_path=PROJECT_ROOT / "configs" / "scoring.yaml",
-        scoring_v2_config_path=PROJECT_ROOT / "configs" / "scoring_v2.yaml",
     ).build()
     _write_quality_checks(data_root)
     database = DuckDBBuilder(data_root=data_root, database_path=database_path).build()

@@ -1,4 +1,4 @@
-"""Source freshness and publication-quality health."""
+"""Product A source selection, provenance, coverage, and quality health."""
 
 import polars as pl
 import streamlit as st
@@ -10,27 +10,37 @@ health = service.get_data_health()
 
 st.title("Data Health")
 st.caption(
-    "Source freshness, row counts, schema checks, identity and role coverage, reviewed-policy "
-    "coverage, checksums, and release gates."
+    "Selected artifacts, official URLs, checksums, periods, complete/partial state, row counts, "
+    "schema versions, identity/classifier/rating coverage, build ID, and score version."
 )
 
 checks = health.quality_checks
 if checks.is_empty():
     st.warning(
         "No persisted quality report is in this database. Run `sponsor-intel quality report` "
-        "and rebuild DuckDB before publication."
+        "and rebuild the presentation database before publication."
     )
 else:
     failures = checks.filter(pl.col("status") == "FAIL")
     warnings = checks.filter(pl.col("status") == "WARN")
     build_ids = checks["build_id"].drop_nulls().unique().to_list()
-    metrics = st.columns(4)
+    metrics = st.columns(5)
     metrics[0].metric("Publication gate", "PASS" if failures.is_empty() else "FAIL")
     metrics[1].metric("Critical failures", f"{failures.filter(pl.col('critical')).height:,}")
     metrics[2].metric("Warnings", f"{warnings.height:,}")
-    metrics[3].metric("Build ID", build_ids[0] if len(build_ids) == 1 else "UNKNOWN")
+    metrics[3].metric("Build ID", build_ids[0] if len(build_ids) == 1 else status.build_id)
+    metrics[4].metric("Score version", status.score_version or "UNKNOWN")
 
-st.subheader("Source freshness and row counts")
+st.subheader("Selected source artifacts")
+if health.source_artifacts.is_empty():
+    st.warning(
+        "Artifact-level provenance is unavailable in this database build. Source-level health "
+        "is shown below, but official URLs and checksums cannot be audited here."
+    )
+else:
+    st.dataframe(health.source_artifacts.to_arrow(), width="stretch", hide_index=True)
+
+st.subheader("Source coverage, freshness, and row counts")
 st.dataframe(health.source_coverage.to_arrow(), width="stretch", hide_index=True)
 if status.current_partial_fiscal_year is not None:
     period = f"FY{status.current_partial_fiscal_year}"
@@ -51,7 +61,8 @@ else:
     st.dataframe(visible.to_arrow(), width="stretch", hide_index=True, height=520)
 
 st.info(
-    "A private data release is packaged only after every critical check passes. Cached outputs "
-    "do not override a failed current schema, provenance, identity, policy, or score gate."
+    "Product A publication gates cover source selection, schema/provenance, duplicate handling, "
+    "entity and role coverage, rating contracts, independence, partial-period semantics, "
+    "nonzero outputs, and freshness. Policy completeness is not a gate."
 )
 render_evidence_notice()

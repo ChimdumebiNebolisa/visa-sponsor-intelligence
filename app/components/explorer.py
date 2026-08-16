@@ -1,4 +1,4 @@
-"""Shared Streamlit helpers for evidence-first explorer pages."""
+"""Shared Streamlit helpers for Product A explorer pages."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from sponsor_intel.services import DuckDBExplorerService, ExplorerService, get_e
 
 @st.cache_resource
 def explorer_service() -> ExplorerService:
-    """Reuse one read-only DuckDB connection across Streamlit reruns."""
+    """Reuse one read-only presentation-database connection across Streamlit reruns."""
 
     settings = load_settings()
     if settings.deployment_mode is DeploymentMode.RELEASE:
@@ -27,7 +27,7 @@ def explorer_service() -> ExplorerService:
 
 
 def configure_page(title: str) -> ExplorerService:
-    """Apply consistent page framing and stop honestly when data is unavailable."""
+    """Apply consistent framing and stop honestly when data is unavailable."""
 
     st.set_page_config(
         page_title=f"{title} · Sponsorship Intelligence Explorer",
@@ -54,6 +54,8 @@ def configure_page(title: str) -> ExplorerService:
         st.header("Evidence build")
         st.write(status.phase)
         st.caption(f"Build: {status.build_id}")
+        if status.score_version:
+            st.caption(f"Ratings: {status.score_version}")
         if status.release_tag:
             st.caption(f"Release: {status.release_tag}")
         if status.build_date:
@@ -70,6 +72,7 @@ def configure_page(title: str) -> ExplorerService:
         st.info(status.message)
         st.warning(status.disclaimer)
         st.stop()
+    st.warning(status.disclaimer)
     return service
 
 
@@ -77,6 +80,7 @@ def render_evidence_notice() -> None:
     """Keep evidence meaning and product limitations visible."""
 
     st.caption(
-        "Evidence classes: OBSERVED_GOVERNMENT_RECORD is a source observation; "
-        "DERIVED_METRIC is calculated from those records. UNKNOWN is not NO."
+        "Evidence classes: source observations come from official records; derived metrics are "
+        "calculated from those records. Missing evidence is UNKNOWN/Unrated, never an unsupported "
+        "negative conclusion."
     )

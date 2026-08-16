@@ -1,4 +1,4 @@
-"""Shared renderer for the Phase 0 Streamlit shell."""
+"""Shared renderer for a Product A Streamlit fallback page."""
 
 from __future__ import annotations
 
@@ -22,6 +22,8 @@ def render_foundation_page(title: str, description: str) -> None:
         st.header("Build status")
         st.write(status.phase)
         st.caption(f"Build ID: {status.build_id}")
+        if status.score_version:
+            st.caption(f"Ratings: {status.score_version}")
 
     st.title(title)
     st.caption(description)
@@ -30,6 +32,6 @@ def render_foundation_page(title: str, description: str) -> None:
     first, second, third = st.columns(3)
     first.metric("Evidence status", status.evidence_status)
     second.metric("Source data", "Available" if status.data_available else "Not loaded")
-    third.metric("Current phase", status.phase)
+    third.metric("Product", status.phase)
 
     st.warning(status.disclaimer)

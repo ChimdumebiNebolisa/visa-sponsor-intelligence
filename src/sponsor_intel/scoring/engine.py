@@ -8,7 +8,13 @@ from typing import Any
 
 import polars as pl
 
-from sponsor_intel.scoring.models import Band, CompositeConfig, ScoringConfig, ScoringV2Config
+from sponsor_intel.scoring.models import (
+    Band,
+    CompositeConfig,
+    ProductAScoringConfig,
+    ScoringConfig,
+    ScoringV2Config,
+)
 
 
 def _band(value: pl.Expr, bands: list[Band], *, unknown: str = "UNKNOWN") -> pl.Expr:
@@ -986,3 +992,447 @@ def score_institutions_v2(
     result = _research_pathway_v2_columns(result, config)
     result = _decision_readiness_columns(result, config)
     return result.with_columns(pl.lit(config.version).alias("score_version"))
+
+
+def _product_a_cap(
+    frame: pl.DataFrame,
+    column: str,
+    *,
+    eligible: pl.Expr,
+    percentile: float,
+) -> float:
+    """Return a deterministic observed percentile cap without inventing evidence."""
+
+    values = (
+        frame.filter(eligible.fill_null(False)).get_column(column).cast(pl.Float64).drop_nulls()
+    )
+    values = values.filter(values >= 0)
+    if values.is_empty():
+        return 0.0
+    result = values.quantile(percentile, interpolation="nearest")
+    return round(float(result or 0.0), 6)
+
+
+def _product_a_log_component(column: str, cap: float) -> pl.Expr:
+    denominator = math.log1p(max(cap, 1.0))
+    return (
+        pl.col(column).cast(pl.Float64).fill_null(0.0).clip(0.0).log1p() / denominator * 100
+    ).clip(0.0, 100.0)
+
+
+def _product_a_recency(last_year: str) -> pl.Expr:
+    latest_complete = pl.col("latest_complete_immigration_fiscal_year")
+    current_partial = pl.col("current_partial_immigration_fiscal_year")
+    completed_year_lag = (latest_complete - pl.col(last_year)).clip(0)
+    return (
+        pl.when(pl.col(last_year).is_null())
+        .then(pl.lit(0.0))
+        .when(current_partial.is_not_null() & (pl.col(last_year) == current_partial))
+        .then(pl.lit(100.0))
+        .when(completed_year_lag == 0)
+        .then(pl.lit(100.0))
+        .when(completed_year_lag == 1)
+        .then(pl.lit(75.0))
+        .when(completed_year_lag == 2)
+        .then(pl.lit(50.0))
+        .when(completed_year_lag == 3)
+        .then(pl.lit(25.0))
+        .otherwise(pl.lit(0.0))
+    )
+
+
+def _product_a_star_rating(score: pl.Expr, config: ProductAScoringConfig) -> pl.Expr:
+    expression = pl.lit(None, dtype=pl.Int8)
+    for band in reversed(config.star_bands):
+        expression = (
+            pl.when(score >= band.minimum)
+            .then(pl.lit(band.stars, dtype=pl.Int8))
+            .otherwise(expression)
+        )
+    return expression
+
+
+def _product_a_stars(rating: pl.Expr) -> pl.Expr:
+    expression = pl.lit(None, dtype=pl.String)
+    for value in range(1, 6):
+        expression = (
+            pl.when(rating == value)
+            .then(pl.lit("★" * value + "☆" * (5 - value)))
+            .otherwise(expression)
+        )
+    return expression
+
+
+def _product_a_rating_columns(
+    frame: pl.DataFrame,
+    *,
+    name: str,
+    valid: pl.Expr,
+    observed: pl.Expr,
+    score: pl.Expr,
+    positive_explanation: pl.Expr,
+    no_observed_text: str,
+    unrated_explanation: str | pl.Expr,
+    coverage: pl.Expr,
+    config: ProductAScoringConfig,
+) -> pl.DataFrame:
+    unrated_explanation_expression = (
+        pl.lit(unrated_explanation) if isinstance(unrated_explanation, str) else unrated_explanation
+    )
+    resolved_score = (
+        pl.when(~valid)
+        .then(pl.lit(None, dtype=pl.Float64))
+        .when(~observed)
+        .then(pl.lit(0.0))
+        .otherwise(score.clip(0.0, 100.0).round(2))
+    )
+    status = (
+        pl.when(~valid)
+        .then(pl.lit("UNRATED"))
+        .when(~observed)
+        .then(pl.lit("NO_OBSERVED_HISTORY"))
+        .otherwise(pl.lit("RATED"))
+    )
+    rating = _product_a_star_rating(resolved_score, config)
+    stars = (
+        pl.when(~valid)
+        .then(pl.lit("Unrated"))
+        .when(~observed)
+        .then(pl.lit(no_observed_text))
+        .otherwise(_product_a_stars(rating))
+    )
+    label = (
+        pl.when(~valid)
+        .then(pl.lit("Unrated"))
+        .when(~observed)
+        .then(pl.lit(no_observed_text))
+        .otherwise(pl.format("{} out of 5 stars", rating))
+    )
+    explanation = (
+        pl.when(~valid)
+        .then(unrated_explanation_expression)
+        .when(~observed)
+        .then(pl.lit(no_observed_text))
+        .otherwise(positive_explanation)
+    )
+    return frame.with_columns(
+        resolved_score.alias(f"{name}_score"),
+        status.alias(f"{name}_status"),
+        rating.alias(f"{name}_star_rating"),
+        stars.alias(f"{name}_stars"),
+        label.alias(f"{name}_star_label"),
+        explanation.alias(f"{name}_explanation"),
+        pl.when(valid).then(coverage).otherwise(pl.lit(0.0)).round(4).alias(f"{name}_coverage"),
+    )
+
+
+def score_employers_product_a(
+    frame: pl.DataFrame,
+    config: ProductAScoringConfig,
+) -> pl.DataFrame:
+    """Attach Product A historical sponsorship scores and whole-star ratings."""
+
+    entity_valid = pl.col("entity_resolution_valid").fill_null(False)
+    h1b_entity_valid = (
+        pl.col("h1b_entity_resolution_valid").fill_null(False)
+        if "h1b_entity_resolution_valid" in frame.columns
+        else entity_valid
+    )
+    perm_entity_valid = (
+        pl.col("perm_entity_resolution_valid").fill_null(False)
+        if "perm_entity_resolution_valid" in frame.columns
+        else entity_valid
+    )
+    unresolved_h1b_candidate = (
+        pl.col("has_unresolved_h1b_candidate_evidence").fill_null(False)
+        if "has_unresolved_h1b_candidate_evidence" in frame.columns
+        else pl.lit(False)
+    )
+    unresolved_perm_candidate = (
+        pl.col("has_unresolved_perm_candidate_evidence").fill_null(False)
+        if "has_unresolved_perm_candidate_evidence" in frame.columns
+        else pl.lit(False)
+    )
+    lca_valid = (
+        pl.col("lca_source_valid").fill_null(False) & h1b_entity_valid & ~unresolved_h1b_candidate
+    )
+    perm_valid = (
+        pl.col("perm_source_valid").fill_null(False)
+        & perm_entity_valid
+        & ~unresolved_perm_candidate
+    )
+    uscis_available = pl.col("uscis_source_valid").fill_null(False)
+    legal_entity_scope = pl.col("identity_scope") == "LEGAL_ENTITY"
+
+    lca_cap = _product_a_cap(
+        frame,
+        "weighted_relevant_lca_count",
+        eligible=lca_valid & legal_entity_scope,
+        percentile=config.count_percentile_cap,
+    )
+    perm_cap = _product_a_cap(
+        frame,
+        "weighted_relevant_perm_count",
+        eligible=perm_valid & legal_entity_scope,
+        percentile=config.count_percentile_cap,
+    )
+    uscis_cap = _product_a_cap(
+        frame,
+        "initial_approvals",
+        eligible=entity_valid & uscis_available & legal_entity_scope,
+        percentile=config.count_percentile_cap,
+    )
+
+    h1b_formula = config.h1b_history
+    lca_complete_years = pl.col("lca_complete_fiscal_year_count").cast(pl.Float64)
+    perm_complete_years = pl.col("perm_complete_fiscal_year_count").cast(pl.Float64)
+    h1b_components = {
+        "volume": _product_a_log_component("weighted_relevant_lca_count", lca_cap),
+        "consistency": pl.when(lca_complete_years > 0)
+        .then(pl.col("lca_complete_active_years") / lca_complete_years * 100)
+        .otherwise(pl.lit(0.0)),
+        "recency": _product_a_recency("last_relevant_lca_activity_year"),
+        "breadth": (pl.col("lca_relevant_job_family_count") / config.breadth_family_cap * 100).clip(
+            0.0, 100.0
+        ),
+        "uscis_initial_approvals": _product_a_log_component("initial_approvals", uscis_cap),
+    }
+    h1b_observed_weight = sum(
+        weight
+        for component, weight in h1b_formula.weights.items()
+        if component != "uscis_initial_approvals"
+    ) + pl.when(uscis_available).then(
+        pl.lit(h1b_formula.weights["uscis_initial_approvals"])
+    ).otherwise(pl.lit(0.0))
+    h1b_weighted = pl.sum_horizontal(
+        [
+            value * h1b_formula.weights[name]
+            for name, value in h1b_components.items()
+            if name != "uscis_initial_approvals"
+        ]
+        + [
+            pl.when(uscis_available)
+            .then(
+                h1b_components["uscis_initial_approvals"]
+                * h1b_formula.weights["uscis_initial_approvals"]
+            )
+            .otherwise(pl.lit(0.0))
+        ]
+    )
+    h1b_score = h1b_weighted / h1b_observed_weight
+    h1b_observed = pl.col("weighted_relevant_lca_count").fill_null(0.0) > 0
+    h1b_explanation = pl.format(
+        "Observed {} certified H-1B LCAs and {} certified-withdrawn H-1B LCAs "
+        "({} weighted), across {} complete active years and {} relevant job families; "
+        "latest activity FY{}; employer-level initial approvals {}.",
+        pl.col("relevant_certified_lca_count"),
+        pl.col("relevant_certified_withdrawn_lca_count"),
+        pl.col("weighted_relevant_lca_count"),
+        pl.col("lca_complete_active_years"),
+        pl.col("lca_relevant_job_family_count"),
+        pl.col("last_relevant_lca_activity_year"),
+        pl.when(uscis_available)
+        .then(pl.col("initial_approvals").cast(pl.String))
+        .otherwise(pl.lit("unavailable")),
+    )
+    result = _product_a_rating_columns(
+        frame,
+        name="h1b_history",
+        valid=lca_valid,
+        observed=h1b_observed,
+        score=h1b_score,
+        positive_explanation=h1b_explanation,
+        no_observed_text="No observed technical H-1B history",
+        unrated_explanation=(
+            pl.when(unresolved_h1b_candidate)
+            .then(
+                pl.lit(
+                    "Unrated because qualifying technical H-1B evidence is attached to a "
+                    "review-required employer alias that is only a candidate for this "
+                    "organization."
+                )
+            )
+            .otherwise(
+                pl.lit(
+                    "Unrated because DOL LCA source coverage, schema validation, or entity "
+                    "resolution is insufficient."
+                )
+            )
+        ),
+        coverage=(h1b_observed_weight / sum(h1b_formula.weights.values())).clip(0.0, 1.0),
+        config=config,
+    )
+
+    green_formula = config.green_card_history
+    green_components = {
+        "volume": _product_a_log_component("weighted_relevant_perm_count", perm_cap),
+        "consistency": pl.when(perm_complete_years > 0)
+        .then(pl.col("perm_complete_active_years") / perm_complete_years * 100)
+        .otherwise(pl.lit(0.0)),
+        "recency": _product_a_recency("last_relevant_perm_activity_year"),
+        "breadth": (
+            pl.col("perm_relevant_job_family_count") / config.breadth_family_cap * 100
+        ).clip(0.0, 100.0),
+    }
+    green_score = pl.sum_horizontal(
+        [value * green_formula.weights[name] for name, value in green_components.items()]
+    )
+    green_observed = pl.col("weighted_relevant_perm_count").fill_null(0.0) > 0
+    green_explanation = pl.format(
+        "Observed {} certified PERM cases and {} certified-expired PERM cases "
+        "({} weighted), across {} complete active years and {} relevant job families; "
+        "latest activity FY{}.",
+        pl.col("relevant_certified_perm_count"),
+        pl.col("relevant_certified_expired_perm_count"),
+        pl.col("weighted_relevant_perm_count"),
+        pl.col("perm_complete_active_years"),
+        pl.col("perm_relevant_job_family_count"),
+        pl.col("last_relevant_perm_activity_year"),
+    )
+    result = _product_a_rating_columns(
+        result,
+        name="green_card_history",
+        valid=perm_valid,
+        observed=green_observed,
+        score=green_score,
+        positive_explanation=green_explanation,
+        no_observed_text="No observed technical PERM history",
+        unrated_explanation=(
+            pl.when(unresolved_perm_candidate)
+            .then(
+                pl.lit(
+                    "Unrated because qualifying technical PERM evidence is attached to a "
+                    "review-required employer alias that is only a candidate for this "
+                    "organization."
+                )
+            )
+            .otherwise(
+                pl.lit(
+                    "Unrated because DOL PERM source coverage, schema validation, or entity "
+                    "resolution is insufficient."
+                )
+            )
+        ),
+        coverage=pl.lit(1.0),
+        config=config,
+    )
+
+    overall_valid = (pl.col("h1b_history_status") != "UNRATED") & (
+        pl.col("green_card_history_status") != "UNRATED"
+    )
+    overall_observed = (pl.col("h1b_history_score") > 0) | (pl.col("green_card_history_score") > 0)
+    overall_score = (
+        pl.col("h1b_history_score") * config.overall_sponsorship.weights["h1b_history"]
+        + pl.col("green_card_history_score")
+        * config.overall_sponsorship.weights["green_card_history"]
+    )
+    overall_explanation = pl.format(
+        "Overall Sponsorship combines H-1B History at 40% and Green Card Sponsorship "
+        "History at 60%. H-1B evidence: {} Green-card evidence: {}",
+        pl.col("h1b_history_explanation"),
+        pl.col("green_card_history_explanation"),
+    )
+    result = _product_a_rating_columns(
+        result,
+        name="overall_sponsorship",
+        valid=overall_valid,
+        observed=overall_observed,
+        score=overall_score,
+        positive_explanation=overall_explanation,
+        no_observed_text="No observed technical sponsorship history",
+        unrated_explanation=(
+            pl.when(unresolved_h1b_candidate | unresolved_perm_candidate)
+            .then(
+                pl.lit(
+                    "Unrated because qualifying sponsorship evidence remains attached to a "
+                    "review-required employer alias; both H-1B and PERM components require "
+                    "resolved identity."
+                )
+            )
+            .otherwise(
+                pl.lit(
+                    "Unrated because both H-1B and PERM components must have valid source "
+                    "coverage and resolved identity."
+                )
+            )
+        ),
+        coverage=(
+            pl.col("h1b_history_coverage") * config.overall_sponsorship.weights["h1b_history"]
+            + pl.col("green_card_history_coverage")
+            * config.overall_sponsorship.weights["green_card_history"]
+        ),
+        config=config,
+    )
+    return result.with_columns(
+        pl.lit(config.version).alias("score_version"),
+        pl.lit(config.metrics_version).alias("metric_version"),
+        pl.lit(config.count_percentile_cap).alias("score_count_percentile_cap"),
+        pl.lit(lca_cap).alias("h1b_volume_p95_cap"),
+        pl.lit(uscis_cap).alias("uscis_initial_approvals_p95_cap"),
+        pl.lit(perm_cap).alias("green_card_volume_p95_cap"),
+    )
+
+
+def score_institutions_product_a(
+    frame: pl.DataFrame,
+    config: ProductAScoringConfig,
+) -> pl.DataFrame:
+    """Attach Product A sponsorship ratings and separate HERD Research Scale."""
+
+    result = score_employers_product_a(frame, config).with_columns(
+        _percentile("computing_rd", "has_computing_rd_data")
+        .round(2)
+        .alias("computing_rd_percentile"),
+        _percentile("engineering_rd", "has_engineering_rd_data")
+        .round(2)
+        .alias("engineering_rd_percentile"),
+        _percentile("total_rd", "has_total_rd_data").round(2).alias("total_rd_percentile"),
+    )
+    research_score = (
+        pl.when(pl.col("has_computing_rd_data"))
+        .then(pl.col("computing_rd_percentile"))
+        .when(pl.col("has_engineering_rd_data"))
+        .then(pl.col("engineering_rd_percentile"))
+        .when(pl.col("has_total_rd_data"))
+        .then(pl.col("total_rd_percentile"))
+        .otherwise(pl.lit(None, dtype=pl.Float64))
+    )
+    research_basis = (
+        pl.when(pl.col("has_computing_rd_data"))
+        .then(pl.lit("computer and information sciences R&D"))
+        .when(pl.col("has_engineering_rd_data"))
+        .then(pl.lit("engineering R&D"))
+        .when(pl.col("has_total_rd_data"))
+        .then(pl.lit("total R&D fallback"))
+        .otherwise(pl.lit("unavailable"))
+    )
+    research_valid = research_score.is_not_null()
+    research_rating = _product_a_star_rating(research_score, config)
+    return result.with_columns(
+        research_score.round(2).alias("research_scale_score"),
+        pl.when(research_valid)
+        .then(pl.lit("RATED"))
+        .otherwise(pl.lit("UNRATED"))
+        .alias("research_scale_status"),
+        research_rating.alias("research_scale_star_rating"),
+        pl.when(research_valid)
+        .then(_product_a_stars(research_rating))
+        .otherwise(pl.lit("Unrated"))
+        .alias("research_scale_stars"),
+        pl.when(research_valid)
+        .then(pl.format("{} out of 5 stars", research_rating))
+        .otherwise(pl.lit("Unrated"))
+        .alias("research_scale_star_label"),
+        pl.when(research_valid)
+        .then(
+            pl.format(
+                "Research Scale is the institution's percentile among matched HERD "
+                "institutions using {}. It does not affect sponsorship ratings.",
+                research_basis,
+            )
+        )
+        .otherwise(
+            pl.lit("Unrated because no matched HERD research-expenditure measure is available.")
+        )
+        .alias("research_scale_explanation"),
+    )

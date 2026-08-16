@@ -1,0 +1,44 @@
+version: product_a_scores_v1
+metrics_version: product_a_metrics_v1
+minimum_fiscal_year: 2022
+count_percentile_cap: 0.95
+breadth_family_cap: 5
+
+h1b_history:
+  weights:
+    volume: 0.45
+    consistency: 0.25
+    recency: 0.15
+    breadth: 0.10
+    uscis_initial_approvals: 0.05
+  positive_status_weights:
+    CERTIFIED: 1.0
+    CERTIFIED-WITHDRAWN: 0.5
+
+green_card_history:
+  weights:
+    volume: 0.45
+    consistency: 0.25
+    recency: 0.15
+    breadth: 0.15
+  positive_status_weights:
+    CERTIFIED: 1.0
+    CERTIFIED-EXPIRED: 0.5
+
+overall_sponsorship:
+  weights:
+    h1b_history: 0.40
+    green_card_history: 0.60
+  require_all_components: true
+
+star_bands:
+  - stars: 5
+    minimum: 80
+  - stars: 4
+    minimum: 65
+  - stars: 3
+    minimum: 45
+  - stars: 2
+    minimum: 25
+  - stars: 1
+    minimum: 0.000000001

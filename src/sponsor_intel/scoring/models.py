@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 DEFAULT_SCORING_CONFIG_PATH = Path("configs/scoring.yaml")
 DEFAULT_SCORING_V2_CONFIG_PATH = Path("configs/scoring_v2.yaml")
+DEFAULT_PRODUCT_A_SCORING_CONFIG_PATH = Path("configs/scoring_product_a.yaml")
 
 
 class Band(BaseModel):
@@ -205,6 +206,97 @@ class ScoringV2Config(BaseModel):
         values = yaml.safe_load(path.read_text(encoding="utf-8"))
         if not isinstance(values, dict):
             raise ValueError("V2 scoring configuration must be a YAML mapping")
+        return cls.model_validate(values)
+
+
+class ProductAHistoryConfig(BaseModel):
+    """One Product A historical-evidence score formula."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    weights: dict[str, float]
+    positive_status_weights: dict[str, float]
+
+
+class ProductAOverallConfig(BaseModel):
+    """Product A overall sponsorship score formula."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    weights: dict[str, float]
+    require_all_components: bool = True
+
+
+class ProductAStarBand(BaseModel):
+    """One whole-star threshold for a positive Product A score."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    stars: int = Field(ge=1, le=5)
+    minimum: float = Field(gt=0, le=100)
+
+
+class ProductAScoringConfig(BaseModel):
+    """Authoritative deterministic Product A scoring configuration."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    version: str
+    metrics_version: str
+    minimum_fiscal_year: int = Field(ge=2022)
+    count_percentile_cap: float = Field(gt=0, le=1)
+    breadth_family_cap: int = Field(gt=0)
+    h1b_history: ProductAHistoryConfig
+    green_card_history: ProductAHistoryConfig
+    overall_sponsorship: ProductAOverallConfig
+    star_bands: list[ProductAStarBand]
+
+    @model_validator(mode="after")
+    def validate_product_a_formula(self) -> ProductAScoringConfig:
+        weighted = {
+            "h1b_history.weights": self.h1b_history.weights,
+            "green_card_history.weights": self.green_card_history.weights,
+            "overall_sponsorship.weights": self.overall_sponsorship.weights,
+        }
+        for name, weights in weighted.items():
+            if not weights or any(weight <= 0 for weight in weights.values()):
+                raise ValueError(f"{name} must contain only positive weights")
+            if abs(sum(weights.values()) - 1.0) > 1e-9:
+                raise ValueError(f"{name} weights must sum to 1.0")
+        if set(self.h1b_history.weights) != {
+            "volume",
+            "consistency",
+            "recency",
+            "breadth",
+            "uscis_initial_approvals",
+        }:
+            raise ValueError("h1b_history weights do not match the Product A formula")
+        if set(self.green_card_history.weights) != {
+            "volume",
+            "consistency",
+            "recency",
+            "breadth",
+        }:
+            raise ValueError("green_card_history weights do not match the Product A formula")
+        if set(self.overall_sponsorship.weights) != {"h1b_history", "green_card_history"}:
+            raise ValueError("overall_sponsorship weights must contain both history components")
+        if not self.star_bands or self.star_bands != sorted(
+            self.star_bands, key=lambda band: band.minimum, reverse=True
+        ):
+            raise ValueError("star_bands must be ordered by descending minimum")
+        if len({band.stars for band in self.star_bands}) != len(self.star_bands):
+            raise ValueError("star_bands must contain unique whole-star values")
+        return self
+
+    @classmethod
+    def from_yaml(cls, path: Path = DEFAULT_PRODUCT_A_SCORING_CONFIG_PATH) -> ProductAScoringConfig:
+        """Load the authoritative Product A score formula."""
+
+        if not path.is_file():
+            raise ValueError(f"Product A scoring configuration is unavailable: {path}")
+        values = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if not isinstance(values, dict):
+            raise ValueError("Product A scoring configuration must be a YAML mapping")
         return cls.model_validate(values)
 
 

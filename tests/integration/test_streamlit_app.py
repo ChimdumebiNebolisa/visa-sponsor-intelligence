@@ -1,4 +1,4 @@
-"""End-to-end Streamlit checks over the sanitized Phase 10 CI fixture."""
+"""End-to-end Streamlit checks over the sanitized Product A CI fixture."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture(scope="module")
-def phase10_ci_database(tmp_path_factory: pytest.TempPathFactory) -> Path:
+def product_a_ci_database(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """Use the CI-built fixture when present, otherwise build one for local tests."""
 
     configured_root = os.environ.get("SPONSOR_INTEL_CI_FIXTURE_ROOT")
@@ -29,7 +29,7 @@ def phase10_ci_database(tmp_path_factory: pytest.TempPathFactory) -> Path:
         if not database_path.is_file():
             raise AssertionError(f"CI fixture database is unavailable: {database_path}")
     else:
-        fixture_root = tmp_path_factory.mktemp("phase10-ci-fixture")
+        fixture_root = tmp_path_factory.mktemp("product-a-ci-fixture")
         subprocess.run(
             [
                 sys.executable,
@@ -73,91 +73,131 @@ def _assert_clean(app: AppTest) -> None:
     assert [exception.message for exception in app.exception] == []
 
 
-def test_fixture_exercises_service_contracts_and_decision_ordering(
-    phase10_ci_database: Path,
+def test_fixture_exercises_product_a_service_contracts(
+    product_a_ci_database: Path,
 ) -> None:
-    service = DuckDBExplorerService(phase10_ci_database)
+    service = DuckDBExplorerService(product_a_ci_database)
     try:
+        status = service.get_status()
+        assert status.phase == "Product A"
+        assert status.score_version == "product_a_scores_v1"
+        assert status.current_partial_fiscal_year == 2026
+        assert status.current_partial_quarter == 2
+
         overview = service.get_overview()
         assert overview.legal_entity_count == 4
         assert overview.parent_organization_count == 1
         assert overview.institution_count == 2
         assert overview.relevant_lca_count > 0
         assert overview.relevant_certified_perm_count > 0
-        assert overview.reviewed_policy_institution_count == 1
+
+        employers = service.list_employers()
+        assert employers.height >= 4
+        assert set(employers["identity_scope"].unique()) == {"LEGAL_ENTITY", "PARENT_ROLLUP"}
+        assert (
+            employers[0, "overall_sponsorship_score"] >= employers[1, "overall_sponsorship_score"]
+        )
+        assert employers["overall_sponsorship_stars"].str.contains("%", literal=True).sum() == 0
 
         institutions = service.list_institutions()
         assert institutions["official_name"].to_list() == [
             "Aurora Research University",
             "Beacon Technical Institute",
         ]
-        assert institutions[0, "decision_readiness_tier"] == "TIER_1_REVIEWED"
-        assert "critical quality gate passed" in institutions[0, "decision_readiness_explanation"]
         assert institutions[0, "total_rd"] < institutions[1, "total_rd"]
-        assert institutions[1, "research_staff_h1b_policy"] == "UNKNOWN"
-        assert institutions[1, "research_staff_h1b_policy"] not in {"NO", "0"}
+        assert (
+            institutions[0, "overall_sponsorship_score"]
+            >= institutions[1, "overall_sponsorship_score"]
+        )
 
         detail = service.get_organization_detail("parent_orbit")
         assert detail is not None
         assert detail.legal_entities.height == 2
+        assert {"official_url", "sha256", "schema_version"}.issubset(detail.provenance.columns)
+        assert detail.provenance["official_url"].drop_nulls().len() > 0
         comparison = service.compare_organizations(("parent_orbit", "legal_aurora"))
         assert comparison.height == 2
         assert comparison["relevant_lca_count"].sum() > 0
         assert service.export_employers(EmployerFilters(search="Orbit"), "csv").startswith(
             b"organization_id,"
         )
-
-        status = service.get_status()
-        assert status.current_partial_fiscal_year == 2026
-        assert status.current_partial_quarter == 2
+        artifacts = service.get_data_health().source_artifacts
+        assert {"download_url", "sha256", "normalized_row_count"}.issubset(artifacts.columns)
+        assert artifacts["sha256"].drop_nulls().len() > 0
+        lca_artifacts = artifacts.filter(artifacts["source_id"] == "dol_lca")
+        assert lca_artifacts["coverage_start_quarter"].to_list() == [1, 1]
+        assert not lca_artifacts["is_quarter_partition"].any()
     finally:
         service.close()
 
 
-def test_home_has_nonzero_data_and_partial_period_warning(phase10_ci_database: Path) -> None:
-    app = _run_page("app/Home.py", phase10_ci_database)
+def test_home_has_versions_top_lists_and_partial_warning(product_a_ci_database: Path) -> None:
+    app = _run_page("app/Home.py", product_a_ci_database)
     _assert_clean(app)
     assert [title.value for title in app.title] == ["Sponsorship Intelligence Explorer"]
     metrics = {metric.label: int(metric.value.replace(",", "")) for metric in app.metric}
     assert metrics["Legal entities"] > 0
     assert metrics["Institutions"] > 0
-    assert metrics["Relevant H-1B LCA"] > 0
-    assert metrics["Relevant certified PERM"] > 0
+    assert metrics["Certified technical H-1B LCA"] > 0
+    assert metrics["Certified technical PERM"] > 0
     assert any("FY2026 Q2 is partial" in warning.value for warning in app.warning)
-    assert app.dataframe[0].value.iloc[0]["official_name"] == "Aurora Research University"
+    captions = " ".join(caption.value for caption in app.caption)
+    assert "product_a_scores_v1" in captions
+    assert len(app.dataframe) >= 3
+    employer_table = app.dataframe[0].value
+    institution_table = app.dataframe[1].value
+    assert {
+        "overall_sponsorship_star_label",
+        "green_card_history_star_label",
+        "h1b_history_star_label",
+    }.issubset(employer_table.columns)
+    assert {
+        "overall_sponsorship_star_label",
+        "green_card_history_star_label",
+        "h1b_history_star_label",
+        "research_scale_star_label",
+    }.issubset(institution_table.columns)
 
 
-def test_employer_explorer_keeps_missing_evidence_unknown(phase10_ci_database: Path) -> None:
-    app = _run_page("app/pages/1_All_Employers.py", phase10_ci_database)
+def test_employer_explorer_displays_stars_and_exact_uscis_label(
+    product_a_ci_database: Path,
+) -> None:
+    app = _run_page("app/pages/1_All_Employers.py", product_a_ci_database)
     _assert_clean(app)
     assert [title.value for title in app.title] == ["All Employers"]
     table = app.dataframe[0].value
-    assert len(table) == 3
-    beacon = table.loc[table["organization_name"] == "Beacon Technical Institute"].iloc[0]
-    assert beacon["everify_status"] == "UNKNOWN"
-    assert beacon["everify_status"] not in {"NO", "0"}
+    assert len(table) >= 4
+    assert "overall_sponsorship_stars" in table.columns
+    assert "overall_sponsorship_score" not in table.columns
+    labels = [element.label for element in app.number_input]
+    assert "Minimum employer-level H-1B initial approvals" in labels
 
 
-def test_institution_explorer_defaults_to_decision_readiness_not_rd(
-    phase10_ci_database: Path,
+def test_institution_explorer_defaults_to_sponsorship_not_research_scale(
+    product_a_ci_database: Path,
 ) -> None:
-    app = _run_page("app/pages/2_Research_Institutions.py", phase10_ci_database)
+    app = _run_page("app/pages/2_Research_Institutions.py", product_a_ci_database)
     _assert_clean(app)
-    assert [title.value for title in app.title] == ["Research Institutions"]
+    assert [title.value for title in app.title] == ["Universities and Research Institutions"]
     table = app.dataframe[0].value
     assert table["official_name"].to_list() == [
         "Aurora Research University",
         "Beacon Technical Institute",
     ]
-    beacon = table.loc[table["official_name"] == "Beacon Technical Institute"].iloc[0]
-    assert beacon["research_staff_permanent_residence_policy"] == "UNKNOWN"
-    assert beacon["research_staff_permanent_residence_policy"] != "NO"
+    assert table.iloc[0]["overall_sponsorship_stars"] != "UNKNOWN"
+    assert "research_pathway_score" not in table.columns
+    assert {
+        "overall_sponsorship_star_label",
+        "green_card_history_star_label",
+        "h1b_history_star_label",
+        "research_scale_star_label",
+    }.issubset(table.columns)
 
 
-def test_organization_detail_loads_parent_identity_and_evidence(
-    phase10_ci_database: Path,
+def test_organization_detail_has_rating_reasons_and_raw_evidence(
+    product_a_ci_database: Path,
 ) -> None:
-    with _fixture_environment(phase10_ci_database):
+    with _fixture_environment(product_a_ci_database):
         app = AppTest.from_file(
             str(PROJECT_ROOT / "app/pages/3_Organization_Detail.py"),
             default_timeout=20,
@@ -169,16 +209,28 @@ def test_organization_detail_loads_parent_identity_and_evidence(
     assert "Orbit Group" in [heading.value for heading in app.subheader]
     metrics = {metric.label: metric.value for metric in app.metric}
     assert metrics["Legal entities"] == "2"
-    assert int(metrics["Relevant LCA"].replace(",", "")) > 0
-    assert int(metrics["USCIS initial approvals"].replace(",", "")) > 0
-    assert int(metrics["Relevant certified PERM"].replace(",", "")) > 0
+    assert int(metrics["Certified technical H-1B LCA"].replace(",", "")) > 0
+    assert int(metrics["Employer-level H-1B initial approvals"].replace(",", "")) > 0
+    assert int(metrics["Certified technical PERM"].replace(",", "")) > 0
     assert len(app.tabs) == 6
+    rendered = " ".join(element.value for element in app.markdown)
+    assert "Why this rating" in rendered
+    assert "What this does not prove" in rendered
+    supporting = next(
+        frame.value for frame in app.dataframe if "canonical_status" in frame.value.columns
+    )
+    assert len(supporting) > 0
+    assert set(supporting["canonical_status"]) <= {
+        "CERTIFIED",
+        "CERTIFIED-WITHDRAWN",
+        "CERTIFIED-EXPIRED",
+    }
 
 
-def test_institution_detail_explanations_use_institution_evidence(
-    phase10_ci_database: Path,
+def test_organization_detail_context_omits_hidden_and_policy_era_scores(
+    product_a_ci_database: Path,
 ) -> None:
-    with _fixture_environment(phase10_ci_database):
+    with _fixture_environment(product_a_ci_database):
         app = AppTest.from_file(
             str(PROJECT_ROOT / "app/pages/3_Organization_Detail.py"),
             default_timeout=20,
@@ -186,15 +238,24 @@ def test_institution_detail_explanations_use_institution_evidence(
         app.query_params["organization_id"] = "legal_aurora"
         app.run()
     _assert_clean(app)
-    rendered = " ".join(element.value for element in app.markdown)
-    assert "TIER_1_REVIEWED" in rendered
-    assert "research strength has no score" not in rendered
-    assert "PERM support is unknown" not in rendered
-    assert "EB-1B support was reviewed but is not stated" in rendered
+    context = next(
+        frame.value
+        for frame in app.dataframe
+        if {"official_name", "research_scale_stars"}.issubset(frame.value.columns)
+    )
+    assert not any(column.endswith("_score") for column in context.columns)
+    assert "research_pathway_score" not in context.columns
+    assert not any("policy" in column for column in context.columns)
+    assert {
+        "overall_sponsorship_star_label",
+        "green_card_history_star_label",
+        "h1b_history_star_label",
+        "research_scale_star_label",
+    }.issubset(context.columns)
 
 
-def test_comparison_renders_observations_and_scores(phase10_ci_database: Path) -> None:
-    with _fixture_environment(phase10_ci_database):
+def test_comparison_renders_star_and_annual_evidence(product_a_ci_database: Path) -> None:
+    with _fixture_environment(product_a_ci_database):
         app = AppTest.from_file(
             str(PROJECT_ROOT / "app/pages/4_Compare.py"),
             default_timeout=20,
@@ -204,26 +265,22 @@ def test_comparison_renders_observations_and_scores(phase10_ci_database: Path) -
         app.multiselect[0].set_value(options[:2]).run()
     _assert_clean(app)
     assert [title.value for title in app.title] == ["Compare Organizations"]
-    assert len(app.dataframe) == 4
-    observed = app.dataframe[0].value
-    everify = observed.loc[observed["Metric"] == "E-Verify"].iloc[0, 1:].to_list()
-    assert everify == ["UNKNOWN", "UNKNOWN"]
-    assert all(value not in {"NO", "0"} for value in everify)
-    scores = app.dataframe[2].value
-    assert "Sponsorship history score" in scores["Metric"].to_list()
+    ratings = app.dataframe[0].value
+    assert "Overall Sponsorship" in ratings["Metric"].to_list()
+    assert "Overall Sponsorship score" not in ratings["Metric"].to_list()
+    observed = app.dataframe[1].value
+    assert "Employer-level H-1B initial approvals" in observed["Metric"].to_list()
+    assert len(app.dataframe) >= 5
 
 
-def test_data_health_has_quality_checks_and_partial_period_warning(
-    phase10_ci_database: Path,
-) -> None:
-    app = _run_page("app/pages/6_Data_Health.py", phase10_ci_database)
+def test_data_health_shows_build_and_score_versions(product_a_ci_database: Path) -> None:
+    app = _run_page("app/pages/6_Data_Health.py", product_a_ci_database)
     _assert_clean(app)
     assert [title.value for title in app.title] == ["Data Health"]
     metrics = {metric.label: metric.value for metric in app.metric}
     assert metrics["Publication gate"] == "PASS"
     assert metrics["Warnings"] == "1"
-    assert len(app.dataframe[0].value) >= 5
-    assert len(app.dataframe[1].value) == 2
+    assert metrics["Score version"] == "product_a_scores_v1"
     assert any(
         "FY2026 Q2 is partial and must not be compared directly" in warning.value
         for warning in app.warning

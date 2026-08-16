@@ -1,4 +1,4 @@
-"""Read-only DuckDB query boundary for the Streamlit explorer."""
+"""Read-only Product A query boundary for the Streamlit explorer."""
 
 from __future__ import annotations
 
@@ -10,55 +10,59 @@ from typing import Literal, Protocol, runtime_checkable
 import duckdb
 import polars as pl
 
+from sponsor_intel.case_status import canonical_case_status_sql
 from sponsor_intel.config import load_settings
 
 EvidenceStatus = Literal["UNKNOWN", "AVAILABLE"]
 ExportFormat = Literal["csv", "parquet"]
 EmployerSort = Literal[
+    "overall_sponsorship",
     "sponsorship_history",
     "green_card_history",
     "h1b_history",
-    "stem_opt_readiness",
     "recent_activity",
     "name",
 ]
 InstitutionSort = Literal[
-    "research_pathway",
+    "overall_sponsorship",
     "green_card_history",
     "h1b_history",
-    "policy_review",
-    "research_activity",
     "recent_activity",
     "name",
 ]
 
 EMPLOYER_SORT_LABELS: dict[EmployerSort, str] = {
-    "sponsorship_history": "Strongest sponsorship history",
-    "green_card_history": "Strongest green-card history",
+    "overall_sponsorship": "Strongest overall sponsorship history",
+    "green_card_history": "Strongest PERM sponsorship history",
     "h1b_history": "Strongest H-1B history",
-    "stem_opt_readiness": "STEM OPT readiness",
-    "recent_activity": "Most recent activity",
+    "recent_activity": "Most recent observed activity",
     "name": "Employer name",
 }
 INSTITUTION_SORT_LABELS: dict[InstitutionSort, str] = {
-    "research_pathway": "Best research pathway",
-    "green_card_history": "Strongest green-card history",
+    "overall_sponsorship": "Strongest overall sponsorship history",
+    "green_card_history": "Strongest PERM sponsorship history",
     "h1b_history": "Strongest H-1B history",
-    "policy_review": "Most complete reviewed policy",
-    "research_activity": "Strongest research activity",
-    "recent_activity": "Most recent immigration activity",
+    "recent_activity": "Most recent observed activity",
     "name": "Institution name",
 }
 
 EVIDENCE_DISCLAIMER = (
-    "This product reports historical and official evidence. It does not provide legal advice "
-    "or guarantee sponsorship for a particular person or role."
+    "Ratings summarize observed historical evidence from official sources. They are not "
+    "sponsorship guarantees or legal advice. Verify the exact position and current employer "
+    "policy before relying on the result."
 )
+
+EXPECTED_METRIC_VERSION = "product_a_metrics_v1"
+EXPECTED_SCORE_VERSION = "product_a_scores_v1"
+
+
+class IncompatibleProductADatabaseError(ValueError):
+    """Raised when a presentation database is not a complete Product A build."""
 
 
 @dataclass(frozen=True, slots=True)
 class ExplorerStatus:
-    """Current availability and partial-period state for the application."""
+    """Current availability, version, and partial-period state."""
 
     phase: str
     build_id: str
@@ -66,6 +70,7 @@ class ExplorerStatus:
     evidence_status: EvidenceStatus
     message: str
     disclaimer: str
+    score_version: str | None = None
     latest_complete_fiscal_year: int | None = None
     current_partial_fiscal_year: int | None = None
     current_partial_quarter: int | None = None
@@ -75,80 +80,88 @@ class ExplorerStatus:
 
 @dataclass(frozen=True, slots=True)
 class OverviewMetrics:
-    """Coverage metrics shown on the application overview."""
+    """Coverage metrics shown on the Product A home page."""
 
     legal_entity_count: int
     parent_organization_count: int
     institution_count: int
     relevant_lca_count: int
     relevant_certified_perm_count: int
-    reviewed_policy_institution_count: int
-    complete_core_policy_institution_count: int
-    tier_1_reviewed_institution_count: int
     unresolved_entity_match_count: int
     source_coverage: pl.DataFrame
 
 
 @dataclass(frozen=True, slots=True)
 class EmployerFilters:
-    """Safe, parameterized filters for the employer explorer."""
+    """Safe, parameterized Product A employer filters."""
 
     search: str = ""
     organization_types: tuple[str, ...] = ()
     states: tuple[str, ...] = ()
     everify_statuses: tuple[str, ...] = ()
-    opt_statuses: tuple[str, ...] = ()
-    cap_exemption_statuses: tuple[str, ...] = ()
-    evidence_confidences: tuple[str, ...] = ()
     role_family: str | None = None
     minimum_relevant_lca: int = 0
     minimum_relevant_perm: int = 0
     minimum_initial_approvals: int = 0
+    minimum_h1b_stars: int | None = None
+    minimum_green_card_stars: int | None = None
+    minimum_overall_stars: int | None = None
+    minimum_last_activity_year: int | None = None
+    exclude_known_staffing_consulting: bool = False
+    sort_by: EmployerSort = "overall_sponsorship"
+    # Deprecated compatibility inputs. They are hidden scores and are not exposed in the UI.
     minimum_h1b_score: float | None = None
     minimum_green_card_score: float | None = None
     minimum_sponsorship_score: float | None = None
-    minimum_last_activity_year: int | None = None
-    exclude_known_staffing_consulting: bool = False
-    sort_by: EmployerSort = "sponsorship_history"
+    opt_statuses: tuple[str, ...] = ()
+    cap_exemption_statuses: tuple[str, ...] = ()
+    evidence_confidences: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
 class InstitutionFilters:
-    """Safe, parameterized filters for the institution explorer."""
+    """Safe, parameterized Product A institution filters."""
 
     search: str = ""
     controls: tuple[str, ...] = ()
     states: tuple[str, ...] = ()
-    decision_readiness_tiers: tuple[str, ...] = ()
     everify_statuses: tuple[str, ...] = ()
+    minimum_relevant_lca: int = 0
+    minimum_relevant_perm: int = 0
+    minimum_h1b_stars: int | None = None
+    minimum_green_card_stars: int | None = None
+    minimum_overall_stars: int | None = None
+    minimum_last_activity_year: int | None = None
+    sort_by: InstitutionSort = "overall_sponsorship"
+    # Read-only research context may still be narrowed for exported analysis.
+    minimum_total_rd: int = 0
+    minimum_computing_rd: int = 0
+    minimum_engineering_rd: int = 0
+    # Deprecated Product B inputs are accepted but never affect Product A queries.
+    decision_readiness_tiers: tuple[str, ...] = ()
     cap_exemption_statuses: tuple[str, ...] = ()
     score_confidences: tuple[str, ...] = ()
     research_staff_h1b_policies: tuple[str, ...] = ()
     research_staff_pr_policies: tuple[str, ...] = ()
     perm_support_policies: tuple[str, ...] = ()
     eb1b_support_policies: tuple[str, ...] = ()
-    minimum_total_rd: int = 0
-    minimum_computing_rd: int = 0
-    minimum_engineering_rd: int = 0
-    minimum_relevant_lca: int = 0
-    minimum_relevant_perm: int = 0
     minimum_core_policy_review_coverage: float | None = None
     minimum_h1b_score: float | None = None
     minimum_green_card_score: float | None = None
     minimum_sponsorship_score: float | None = None
     minimum_research_pathway_score: float | None = None
-    sort_by: InstitutionSort = "research_pathway"
 
 
 @dataclass(frozen=True, slots=True)
 class OrganizationDetail:
-    """Identity, immigration, title, wage, and provenance evidence for one organization."""
+    """Identity, ratings, raw evidence, context, and provenance for one organization."""
 
     summary: pl.DataFrame
     legal_entities: pl.DataFrame
     aliases: pl.DataFrame
     h1b_trends: pl.DataFrame
     perm_trends: pl.DataFrame
+    rating_supporting_cases: pl.DataFrame
     relevant_titles: pl.DataFrame
     case_statuses: pl.DataFrame
     worksite_states: pl.DataFrame
@@ -162,7 +175,7 @@ class OrganizationDetail:
 
 @dataclass(frozen=True, slots=True)
 class EvidenceReviewQueues:
-    """Reviewable entity, E-Verify, OPT, and policy evidence."""
+    """Reviewable entity and supplemental evidence queues."""
 
     entity: pl.DataFrame
     everify: pl.DataFrame
@@ -172,15 +185,16 @@ class EvidenceReviewQueues:
 
 @dataclass(frozen=True, slots=True)
 class DataHealthSnapshot:
-    """Source freshness and publication-gating quality checks."""
+    """Selected source artifacts, source coverage, and quality checks."""
 
     source_coverage: pl.DataFrame
     quality_checks: pl.DataFrame
+    source_artifacts: pl.DataFrame
 
 
 @runtime_checkable
 class ExplorerService(Protocol):
-    """Contract that keeps presentation code independent of analytical storage."""
+    """Contract that keeps Streamlit independent of analytical storage."""
 
     def get_status(self) -> ExplorerStatus: ...
 
@@ -202,6 +216,10 @@ class ExplorerService(Protocol):
 
     def compare_organizations(self, organization_ids: tuple[str, ...]) -> pl.DataFrame: ...
 
+    def get_rating_supporting_cases(
+        self, organization_id: str, *, limit: int = 250
+    ) -> pl.DataFrame: ...
+
     def get_organization_detail(self, organization_id: str) -> OrganizationDetail | None: ...
 
     def get_evidence_review(self, *, limit: int = 500) -> EvidenceReviewQueues: ...
@@ -220,31 +238,25 @@ def _empty() -> pl.DataFrame:
 
 
 class FoundationExplorerService:
-    """Fallback that never fabricates evidence when a database has not been built."""
+    """Fallback that never fabricates evidence when no database is available."""
+
+    def __init__(self, message: str | None = None) -> None:
+        self._message = message or (
+            "No presentation database has been built. Evidence remains UNKNOWN."
+        )
 
     def get_status(self) -> ExplorerStatus:
         return ExplorerStatus(
-            phase="Phase 10",
+            phase="Product A",
             build_id="database-unavailable",
             data_available=False,
             evidence_status="UNKNOWN",
-            message="No presentation database has been built. Evidence remains UNKNOWN.",
+            message=self._message,
             disclaimer=EVIDENCE_DISCLAIMER,
         )
 
     def get_overview(self) -> OverviewMetrics:
-        return OverviewMetrics(
-            legal_entity_count=0,
-            parent_organization_count=0,
-            institution_count=0,
-            relevant_lca_count=0,
-            relevant_certified_perm_count=0,
-            reviewed_policy_institution_count=0,
-            complete_core_policy_institution_count=0,
-            tier_1_reviewed_institution_count=0,
-            unresolved_entity_match_count=0,
-            source_coverage=_empty(),
-        )
+        return OverviewMetrics(0, 0, 0, 0, 0, 0, _empty())
 
     def list_employers(
         self, filters: EmployerFilters | None = None, *, limit: int | None = 500
@@ -268,6 +280,11 @@ class FoundationExplorerService:
     def compare_organizations(self, organization_ids: tuple[str, ...]) -> pl.DataFrame:
         return _empty()
 
+    def get_rating_supporting_cases(
+        self, organization_id: str, *, limit: int = 250
+    ) -> pl.DataFrame:
+        return _empty()
+
     def get_organization_detail(self, organization_id: str) -> OrganizationDetail | None:
         return None
 
@@ -275,7 +292,7 @@ class FoundationExplorerService:
         return EvidenceReviewQueues(_empty(), _empty(), _empty(), _empty())
 
     def get_data_health(self) -> DataHealthSnapshot:
-        return DataHealthSnapshot(_empty(), _empty())
+        return DataHealthSnapshot(_empty(), _empty(), _empty())
 
     def export_employers(self, filters: EmployerFilters, file_format: ExportFormat) -> bytes:
         return b""
@@ -288,117 +305,425 @@ def _placeholders(values: tuple[str, ...]) -> str:
     return ", ".join("?" for _ in values)
 
 
+def _available_column(columns: set[str], column: str, fallback: str) -> str:
+    return column if column in columns else fallback
+
+
 def _serialized(frame: pl.DataFrame, file_format: ExportFormat) -> bytes:
     if file_format == "csv":
-        return frame.write_csv().encode("utf-8")
+        csv_frame = frame.with_columns(
+            *[
+                (
+                    pl.col(column)
+                    .list.eval(pl.element().cast(pl.String))
+                    .list.join("|")
+                    .alias(column)
+                    if isinstance(dtype, pl.List)
+                    else pl.col(column).struct.json_encode().alias(column)
+                )
+                for column, dtype in frame.schema.items()
+                if isinstance(dtype, (pl.List, pl.Struct))
+            ]
+        )
+        return csv_frame.write_csv().encode("utf-8")
     buffer = io.BytesIO()
     frame.write_parquet(buffer, compression="zstd")
     return buffer.getvalue()
 
 
+_EMPLOYER_FIELDS: dict[str, tuple[tuple[str, ...], str]] = {
+    "organization_id": (("organization_id",), "NULL::VARCHAR"),
+    "legal_entity_id": (("legal_entity_id",), "NULL::VARCHAR"),
+    "parent_organization_id": (("parent_organization_id",), "NULL::VARCHAR"),
+    "organization_name": (
+        ("display_name", "organization_name", "canonical_name"),
+        "'UNKNOWN'::VARCHAR",
+    ),
+    "identity_scope": (("identity_scope",), "'LEGAL_ENTITY'::VARCHAR"),
+    "legal_entity_count": (("legal_entity_count",), "1::BIGINT"),
+    "organization_type": (("organization_type",), "'UNKNOWN'::VARCHAR"),
+    "state": (("state",), "NULL::VARCHAR"),
+    "is_staffing_or_consulting": (("is_staffing_or_consulting",), "false"),
+    "relevant_lca_count": (
+        ("relevant_certified_lca_count", "relevant_lca_count"),
+        "0::BIGINT",
+    ),
+    "relevant_certified_withdrawn_lca_count": (
+        ("relevant_certified_withdrawn_lca_count",),
+        "0::BIGINT",
+    ),
+    "weighted_relevant_lca_count": (
+        ("weighted_relevant_lca_count", "relevant_lca_count"),
+        "0::DOUBLE",
+    ),
+    "relevant_certified_perm_count": (
+        ("relevant_certified_perm_count",),
+        "0::BIGINT",
+    ),
+    "relevant_certified_expired_perm_count": (
+        ("relevant_certified_expired_perm_count",),
+        "0::BIGINT",
+    ),
+    "weighted_relevant_perm_count": (
+        ("weighted_relevant_perm_count", "relevant_certified_perm_count"),
+        "0::DOUBLE",
+    ),
+    "initial_approvals": (("initial_approvals",), "0::BIGINT"),
+    "initial_denials": (("initial_denials",), "0::BIGINT"),
+    "lca_case_count": (("lca_case_count",), "0::BIGINT"),
+    "perm_case_count": (("perm_case_count",), "0::BIGINT"),
+    "lca_active_years": (("lca_complete_active_years", "lca_active_years"), "0::BIGINT"),
+    "perm_active_years": (("perm_complete_active_years", "perm_active_years"), "0::BIGINT"),
+    "last_lca_activity_year": (("last_lca_activity_year",), "NULL::INTEGER"),
+    "last_perm_activity_year": (("last_perm_activity_year",), "NULL::INTEGER"),
+    "last_observed_activity_year": (
+        ("latest_observed_year", "last_observed_activity_year"),
+        "NULL::INTEGER",
+    ),
+    "lca_role_families": (
+        ("lca_relevant_job_families", "lca_role_families"),
+        "[]::VARCHAR[]",
+    ),
+    "perm_role_families": (
+        ("perm_relevant_job_families", "perm_role_families"),
+        "[]::VARCHAR[]",
+    ),
+    "everify_status": (("everify_status",), "'NOT_CHECKED'::VARCHAR"),
+    "known_opt_observation": (("known_opt_observation",), "'UNKNOWN'::VARCHAR"),
+    "cap_exemption_status": (("cap_exemption_status",), "'UNKNOWN'::VARCHAR"),
+    "source_coverage_ratio": (("source_coverage_ratio",), "NULL::DOUBLE"),
+    "source_coverage_count": (("source_coverage_count",), "NULL::BIGINT"),
+    "has_partial_period": (("has_partial_period",), "false"),
+    "current_partial_fiscal_year": (("current_partial_fiscal_year",), "NULL::INTEGER"),
+    "current_partial_quarter": (("current_partial_quarter",), "NULL::INTEGER"),
+    "h1b_history_score": (("h1b_history_score",), "NULL::DOUBLE"),
+    "h1b_history_status": (("h1b_history_status",), "'UNRATED'::VARCHAR"),
+    "h1b_history_star_rating": (("h1b_history_star_rating",), "NULL::INTEGER"),
+    "h1b_history_stars": (("h1b_history_stars",), "'Unrated'::VARCHAR"),
+    "h1b_history_star_label": (
+        ("h1b_history_star_label",),
+        "'Unrated'::VARCHAR",
+    ),
+    "h1b_history_explanation": (("h1b_history_explanation",), "'Unrated'::VARCHAR"),
+    "h1b_history_coverage": (("h1b_history_coverage",), "0::DOUBLE"),
+    "green_card_history_score": (("green_card_history_score",), "NULL::DOUBLE"),
+    "green_card_history_status": (("green_card_history_status",), "'UNRATED'::VARCHAR"),
+    "green_card_history_star_rating": (("green_card_history_star_rating",), "NULL::INTEGER"),
+    "green_card_history_stars": (
+        ("green_card_history_stars",),
+        "'Unrated'::VARCHAR",
+    ),
+    "green_card_history_star_label": (
+        ("green_card_history_star_label",),
+        "'Unrated'::VARCHAR",
+    ),
+    "green_card_history_explanation": (
+        ("green_card_history_explanation",),
+        "'Unrated'::VARCHAR",
+    ),
+    "green_card_history_coverage": (("green_card_history_coverage",), "0::DOUBLE"),
+    "overall_sponsorship_score": (
+        ("overall_sponsorship_score",),
+        "NULL::DOUBLE",
+    ),
+    "overall_sponsorship_status": (
+        ("overall_sponsorship_status",),
+        "'UNRATED'::VARCHAR",
+    ),
+    "overall_sponsorship_star_rating": (
+        ("overall_sponsorship_star_rating",),
+        "NULL::INTEGER",
+    ),
+    "overall_sponsorship_stars": (
+        ("overall_sponsorship_stars",),
+        "'Unrated'::VARCHAR",
+    ),
+    "overall_sponsorship_star_label": (
+        ("overall_sponsorship_star_label",),
+        "'Unrated'::VARCHAR",
+    ),
+    "overall_sponsorship_explanation": (
+        ("overall_sponsorship_explanation",),
+        "'Unrated'::VARCHAR",
+    ),
+    "overall_sponsorship_coverage": (
+        ("overall_sponsorship_coverage",),
+        "0::DOUBLE",
+    ),
+    "score_version": (("score_version",), "'score-version-unknown'::VARCHAR"),
+    "metric_version": (("metric_version",), "'metric-version-unknown'::VARCHAR"),
+}
+
+
+_INSTITUTION_FIELDS: dict[str, tuple[tuple[str, ...], str]] = {
+    **_EMPLOYER_FIELDS,
+    "organization_type": (("organization_type", "organization_type_raw"), "'UNKNOWN'::VARCHAR"),
+    "institution_id": (("institution_id",), "NULL::VARCHAR"),
+    "official_name": (("official_name", "institution_name"), "'UNKNOWN'::VARCHAR"),
+    "legal_employer_name": (
+        ("legal_employer_name", "legal_name", "official_name"),
+        "'UNKNOWN'::VARCHAR",
+    ),
+    "parent_organization_name": (
+        ("parent_organization_name", "parent_system", "system_name"),
+        "NULL::VARCHAR",
+    ),
+    "control": (("control",), "'UNKNOWN'::VARCHAR"),
+    "sector": (("sector",), "'UNKNOWN'::VARCHAR"),
+    "ipeds_unitid": (("ipeds_unitid",), "NULL::VARCHAR"),
+    "higher_education_context": (
+        ("higher_education_context",),
+        "'Higher-education institution; exact cap-exempt status requires verification.'::VARCHAR",
+    ),
+    "latest_herd_year": (("survey_year",), "NULL::INTEGER"),
+    "total_rd": (("total_rd",), "NULL::DOUBLE"),
+    "computing_rd": (("computing_rd",), "NULL::DOUBLE"),
+    "engineering_rd": (("engineering_rd",), "NULL::DOUBLE"),
+    "federal_rd": (("federal_rd",), "NULL::DOUBLE"),
+    "research_scale_score": (("research_scale_score",), "NULL::DOUBLE"),
+    "research_scale_status": (
+        ("research_scale_status",),
+        "'UNRATED'::VARCHAR",
+    ),
+    "research_scale_star_rating": (("research_scale_star_rating",), "NULL::INTEGER"),
+    "research_scale_stars": (
+        ("research_scale_stars",),
+        "'Unrated'::VARCHAR",
+    ),
+    "research_scale_star_label": (
+        ("research_scale_star_label",),
+        "'Unrated'::VARCHAR",
+    ),
+    "research_scale_explanation": (
+        ("research_scale_explanation",),
+        "'Unrated'::VARCHAR",
+    ),
+    "research_staff_h1b_policy": (
+        ("research_staff_h1b_policy",),
+        "'UNKNOWN'::VARCHAR",
+    ),
+    "research_staff_permanent_residence_policy": (
+        ("research_staff_permanent_residence_policy",),
+        "'UNKNOWN'::VARCHAR",
+    ),
+    "general_staff_permanent_residence_policy": (
+        ("general_staff_permanent_residence_policy",),
+        "'UNKNOWN'::VARCHAR",
+    ),
+    "perm_support": (("perm_support",), "'UNKNOWN'::VARCHAR"),
+    "eb1b_support": (("eb1b_support",), "'UNKNOWN'::VARCHAR"),
+    "policy_review_status": (("policy_review_status",), "'NOT_STARTED'::VARCHAR"),
+    "policy_evidence_role": (
+        ("policy_evidence_role",),
+        "'Supplemental; incomplete; not used in sponsorship ratings'::VARCHAR",
+    ),
+}
+
+
+_PRODUCT_A_REQUIRED_RELATION_COLUMNS: dict[str, frozenset[str]] = {
+    "vw_employer_explorer": frozenset(_EMPLOYER_FIELDS),
+    "vw_institution_explorer": frozenset(
+        (set(_INSTITUTION_FIELDS) - {"latest_herd_year", "organization_type"})
+        | {"survey_year", "organization_type_raw"}
+    ),
+    "legal_entities": frozenset(
+        {
+            "legal_entity_id",
+            "legal_name",
+            "parent_organization_id",
+            "city",
+            "state",
+            "postal_code",
+            "organization_type",
+            "institution_id",
+            "review_status",
+        }
+    ),
+    "parent_organizations": frozenset({"parent_organization_id"}),
+    "institutions": frozenset({"institution_id"}),
+    "entity_aliases": frozenset(
+        {
+            "alias_raw",
+            "source_id",
+            "city",
+            "state",
+            "match_method",
+            "match_score",
+            "review_status",
+            "occurrence_count",
+            "legal_entity_id",
+            "parent_organization_id",
+        }
+    ),
+    "lca_cases_resolved": frozenset(
+        {
+            "case_id",
+            "source_artifact_id",
+            "source_file_name",
+            "ingested_at",
+            "fiscal_year",
+            "fiscal_quarter",
+            "is_partial_period",
+            "visa_class",
+            "case_status",
+            "legal_entity_id",
+            "parent_organization_id",
+            "organization_id",
+            "job_title_raw",
+            "role_family",
+            "technical_role",
+            "worksite_city",
+            "worksite_state",
+            "wage_from",
+            "wage_to",
+            "wage_unit",
+            "schema_version",
+            "source_url",
+            "source_sha256",
+        }
+    ),
+    "perm_cases_resolved": frozenset(
+        {
+            "case_id",
+            "source_artifact_id",
+            "source_file_name",
+            "ingested_at",
+            "fiscal_year",
+            "fiscal_quarter",
+            "is_partial_period",
+            "case_status",
+            "legal_entity_id",
+            "parent_organization_id",
+            "organization_id",
+            "job_title_raw",
+            "role_family",
+            "technical_role",
+            "worksite_city",
+            "worksite_state",
+            "wage_from",
+            "wage_to",
+            "wage_unit",
+            "schema_version",
+            "source_url",
+            "source_sha256",
+        }
+    ),
+    "h1b_petitions_resolved": frozenset(
+        {
+            "source_artifact_id",
+            "source_file_name",
+            "ingested_at",
+            "fiscal_year",
+            "is_partial_period",
+            "legal_entity_id",
+            "parent_organization_id",
+            "organization_id",
+        }
+    ),
+    "vw_h1b_trends": frozenset({"organization_id", "fiscal_year"}),
+    "vw_perm_trends": frozenset({"organization_id", "fiscal_year"}),
+    "vw_relevant_titles": frozenset(
+        {"organization_id", "source_id", "job_title_raw", "role_family", "record_count"}
+    ),
+    "vw_everify_evidence": frozenset({"organization_id", "retrieved_at"}),
+    "vw_opt_evidence": frozenset({"organization_id", "report_year", "rank", "review_status"}),
+    "vw_policy_evidence": frozenset(
+        {
+            "organization_id",
+            "institution_id",
+            "fact_type",
+            "retrieved_at",
+            "human_review_status",
+            "exact_excerpt_verified",
+            "fact_is_current",
+            "valid_to",
+        }
+    ),
+    "vw_entity_review_queue": frozenset({"review_status"}),
+    "vw_everify_review_queue": frozenset({"priority_rank"}),
+    "vw_policy_review_queue": frozenset({"policy_fact_id"}),
+    "vw_data_health": frozenset(
+        {
+            "source_id",
+            "latest_complete_fiscal_year",
+            "current_partial_fiscal_year",
+            "current_partial_quarter",
+        }
+    ),
+    "vw_source_artifacts": frozenset(
+        {"source_artifact_id", "source_id", "fiscal_year", "download_url", "sha256"}
+    ),
+    "vw_quality_checks": frozenset(
+        {"check_id", "category", "status", "critical", "build_id", "checked_at"}
+    ),
+}
+
+_PRODUCT_A_NONEMPTY_RELATIONS = (
+    "vw_employer_explorer",
+    "vw_institution_explorer",
+    "lca_cases_resolved",
+    "perm_cases_resolved",
+    "vw_data_health",
+    "vw_source_artifacts",
+)
+
+
 _EMPLOYER_ORDER_BY: dict[EmployerSort, str] = {
-    "sponsorship_history": """
-        CASE sponsorship_history_status
-            WHEN 'COMPLETE' THEN 0 WHEN 'PARTIAL' THEN 1 ELSE 2 END,
-        sponsorship_history_coverage DESC,
-        sponsorship_history_score DESC NULLS LAST,
+    "overall_sponsorship": """
+        overall_sponsorship_score DESC NULLS LAST,
         green_card_history_score DESC NULLS LAST,
         h1b_history_score DESC NULLS LAST,
-        relevant_certified_perm_count DESC,
-        relevant_lca_count DESC,
+        last_observed_activity_year DESC NULLS LAST,
+        organization_name
+    """,
+    "sponsorship_history": """
+        overall_sponsorship_score DESC NULLS LAST,
+        green_card_history_score DESC NULLS LAST,
+        h1b_history_score DESC NULLS LAST,
+        last_observed_activity_year DESC NULLS LAST,
         organization_name
     """,
     "green_card_history": """
-        green_card_history_coverage DESC,
         green_card_history_score DESC NULLS LAST,
-        relevant_certified_perm_count DESC,
+        overall_sponsorship_score DESC NULLS LAST,
         h1b_history_score DESC NULLS LAST,
+        last_observed_activity_year DESC NULLS LAST,
         organization_name
     """,
     "h1b_history": """
-        h1b_history_coverage DESC,
         h1b_history_score DESC NULLS LAST,
-        relevant_lca_count DESC,
-        initial_approvals DESC,
-        organization_name
-    """,
-    "stem_opt_readiness": """
-        stem_opt_readiness_coverage DESC,
-        stem_opt_readiness_score DESC NULLS LAST,
-        sponsorship_history_score DESC NULLS LAST,
+        overall_sponsorship_score DESC NULLS LAST,
+        green_card_history_score DESC NULLS LAST,
+        last_observed_activity_year DESC NULLS LAST,
         organization_name
     """,
     "recent_activity": """
         last_observed_activity_year DESC NULLS LAST,
-        sponsorship_history_coverage DESC,
-        sponsorship_history_score DESC NULLS LAST,
+        overall_sponsorship_score DESC NULLS LAST,
+        green_card_history_score DESC NULLS LAST,
+        h1b_history_score DESC NULLS LAST,
         organization_name
     """,
     "name": "organization_name",
 }
 
-_READINESS_TIER_ORDER = """
-    CASE decision_readiness_tier
-        WHEN 'TIER_1_REVIEWED' THEN 1
-        WHEN 'TIER_2_STRONG_HISTORY_POLICY_INCOMPLETE' THEN 2
-        WHEN 'TIER_3_PARTIAL_HISTORY' THEN 3
-        ELSE 4
-    END
-"""
 _INSTITUTION_ORDER_BY: dict[InstitutionSort, str] = {
-    "research_pathway": f"""
-        {_READINESS_TIER_ORDER},
-        research_pathway_score DESC NULLS LAST,
-        green_card_history_score DESC NULLS LAST,
-        h1b_history_score DESC NULLS LAST,
-        relevant_certified_perm_count DESC,
-        (relevant_lca_count + initial_approvals) DESC,
-        research_strength_score DESC NULLS LAST,
-        official_name
-    """,
-    "green_card_history": f"""
-        {_READINESS_TIER_ORDER},
-        green_card_history_coverage DESC,
-        green_card_history_score DESC NULLS LAST,
-        relevant_certified_perm_count DESC,
-        h1b_history_score DESC NULLS LAST,
-        official_name
-    """,
-    "h1b_history": f"""
-        {_READINESS_TIER_ORDER},
-        h1b_history_coverage DESC,
-        h1b_history_score DESC NULLS LAST,
-        relevant_lca_count DESC,
-        initial_approvals DESC,
-        official_name
-    """,
-    "policy_review": f"""
-        {_READINESS_TIER_ORDER},
-        core_policy_review_coverage DESC,
-        core_policy_evidence_coverage DESC,
-        research_pathway_score DESC NULLS LAST,
-        official_name
-    """,
-    "research_activity": """
-        research_strength_coverage DESC,
-        research_strength_score DESC NULLS LAST,
-        total_rd DESC NULLS LAST,
-        computing_rd DESC NULLS LAST,
-        engineering_rd DESC NULLS LAST,
-        official_name
-    """,
-    "recent_activity": f"""
-        {_READINESS_TIER_ORDER},
-        last_observed_activity_year DESC NULLS LAST,
-        research_pathway_score DESC NULLS LAST,
-        official_name
-    """,
+    "overall_sponsorship": _EMPLOYER_ORDER_BY["overall_sponsorship"].replace(
+        "organization_name", "official_name"
+    ),
+    "green_card_history": _EMPLOYER_ORDER_BY["green_card_history"].replace(
+        "organization_name", "official_name"
+    ),
+    "h1b_history": _EMPLOYER_ORDER_BY["h1b_history"].replace("organization_name", "official_name"),
+    "recent_activity": _EMPLOYER_ORDER_BY["recent_activity"].replace(
+        "organization_name", "official_name"
+    ),
     "name": "official_name",
 }
 
 
 class DuckDBExplorerService:
-    """Parameterized read-only queries over processed presentation views."""
+    """Parameterized, read-only queries over Product A presentation views."""
 
     def __init__(
         self,
@@ -415,9 +740,91 @@ class DuckDBExplorerService:
         self.runtime_build_id = build_id
         self.runtime_build_date = build_date
         self._connection = duckdb.connect(str(self.database_path), read_only=True)
+        self._columns: dict[str, set[str]] = {}
+        try:
+            self._validate_product_a_database()
+        except Exception:
+            self._connection.close()
+            raise
 
     def _query(self, sql: str, parameters: list[object] | None = None) -> pl.DataFrame:
         return self._connection.execute(sql, parameters or []).pl()
+
+    def _relation_exists(self, relation: str) -> bool:
+        row = self._connection.execute(
+            """
+            SELECT count(*)
+            FROM information_schema.tables
+            WHERE table_schema = 'main' AND table_name = ?
+            """,
+            [relation],
+        ).fetchone()
+        return row is not None and int(row[0]) > 0
+
+    def _relation_columns(self, relation: str) -> set[str]:
+        if relation not in self._columns:
+            self._columns[relation] = {
+                str(row[0]) for row in self._connection.execute(f"DESCRIBE {relation}").fetchall()
+            }
+        return self._columns[relation]
+
+    def _validate_product_a_database(self) -> None:
+        problems: list[str] = []
+        for relation, required_columns in _PRODUCT_A_REQUIRED_RELATION_COLUMNS.items():
+            if not self._relation_exists(relation):
+                problems.append(f"missing relation {relation}")
+                continue
+            missing_columns = required_columns.difference(self._relation_columns(relation))
+            if missing_columns:
+                problems.append(f"{relation} missing columns: {', '.join(sorted(missing_columns))}")
+        if problems:
+            raise IncompatibleProductADatabaseError(
+                "Presentation database is incompatible with Product A (" + "; ".join(problems) + ")"
+            )
+
+        for relation in _PRODUCT_A_NONEMPTY_RELATIONS:
+            count = self._connection.execute(f"SELECT count(*) FROM {relation}").fetchone()
+            if count is None or int(count[0]) == 0:
+                raise IncompatibleProductADatabaseError(
+                    f"Presentation database is incompatible with Product A ({relation} is empty)"
+                )
+
+        for relation in ("vw_employer_explorer", "vw_institution_explorer"):
+            versions = {
+                (str(metric_version), str(score_version))
+                for metric_version, score_version in self._connection.execute(
+                    f"SELECT DISTINCT metric_version, score_version FROM {relation}"
+                ).fetchall()
+            }
+            expected = {(EXPECTED_METRIC_VERSION, EXPECTED_SCORE_VERSION)}
+            if versions != expected:
+                raise IncompatibleProductADatabaseError(
+                    "Presentation database is incompatible with Product A "
+                    f"({relation} has versions {sorted(versions)!r}; expected {sorted(expected)!r})"
+                )
+
+    def _relation_sql(
+        self,
+        relation: str,
+        fields: dict[str, tuple[tuple[str, ...], str]],
+    ) -> str:
+        columns = self._relation_columns(relation)
+        projections: list[str] = []
+        for alias, (candidates, _) in fields.items():
+            selected = next((candidate for candidate in candidates if candidate in columns), None)
+            if selected is None:
+                raise IncompatibleProductADatabaseError(
+                    f"Presentation database is incompatible with Product A ({relation} cannot "
+                    f"provide {alias})"
+                )
+            projections.append(f"{selected} AS {alias}")
+        return f"SELECT {', '.join(projections)} FROM {relation}"
+
+    def _employer_sql(self) -> str:
+        return self._relation_sql("vw_employer_explorer", _EMPLOYER_FIELDS)
+
+    def _institution_sql(self) -> str:
+        return self._relation_sql("vw_institution_explorer", _INSTITUTION_FIELDS)
 
     def close(self) -> None:
         """Release the read-only database handle."""
@@ -436,28 +843,31 @@ class DuckDBExplorerService:
             """
         ).to_dicts()[0]
         partial = health["current_partial_fiscal_year"]
-        message = "Processed government and institution metrics are available."
+        message = "Observed government and institution evidence is available."
         if partial is not None:
-            message += (
-                f" FY{partial} is partial and must not be compared directly with complete years."
-            )
+            period = f"FY{partial}"
+            if health["current_partial_quarter"] is not None:
+                period += f" Q{health['current_partial_quarter']}"
+            message += f" {period} is partial and is not comparable with a complete year."
         build = self._query(
             """
             SELECT
                 coalesce(
                     (SELECT max(build_id) FROM vw_quality_checks),
-                    (SELECT max(metric_version) FROM employer_metrics)
+                    (SELECT max(metric_version) FROM vw_employer_explorer)
                 ) AS build_id,
-                (SELECT max(checked_at) FROM vw_quality_checks) AS build_date
+                (SELECT max(checked_at) FROM vw_quality_checks) AS build_date,
+                (SELECT max(score_version) FROM vw_employer_explorer) AS score_version
             """
         ).to_dicts()[0]
         return ExplorerStatus(
-            phase="Phase 10",
+            phase="Product A",
             build_id=self.runtime_build_id or build["build_id"] or "build-unknown",
             data_available=True,
             evidence_status="AVAILABLE",
             message=message,
             disclaimer=EVIDENCE_DISCLAIMER,
+            score_version=build["score_version"],
             latest_complete_fiscal_year=health["latest_complete_fiscal_year"],
             current_partial_fiscal_year=partial,
             current_partial_quarter=health["current_partial_quarter"],
@@ -467,33 +877,26 @@ class DuckDBExplorerService:
 
     def get_overview(self) -> OverviewMetrics:
         counts = self._query(
-            """
+            f"""
+            WITH employers AS ({self._employer_sql()})
             SELECT
                 (SELECT count(*) FROM legal_entities) AS legal_entity_count,
                 (SELECT count(*) FROM parent_organizations) AS parent_organization_count,
                 (SELECT count(*) FROM institutions) AS institution_count,
-                (SELECT coalesce(sum(relevant_lca_count), 0) FROM employer_metrics)
-                    AS relevant_lca_count,
-                (SELECT coalesce(sum(relevant_certified_perm_count), 0) FROM employer_metrics)
-                    AS relevant_certified_perm_count,
-                (SELECT count(DISTINCT institution_id) FROM vw_policy_evidence
-                    WHERE human_review_status IN ('REVIEWED_ACCEPTED', 'REVIEWED_NOT_STATED')
-                        AND exact_excerpt_verified IS TRUE
-                        AND fact_is_current IS TRUE
-                        AND valid_to IS NULL
-                        AND starts_with(source_url, 'https://'))
-                    AS reviewed_policy_institution_count,
-                (SELECT count(*) FROM vw_institution_explorer
-                    WHERE core_policy_review_coverage = 1)
-                    AS complete_core_policy_institution_count,
-                (SELECT count(*) FROM vw_institution_explorer
-                    WHERE decision_readiness_tier = 'TIER_1_REVIEWED')
-                    AS tier_1_reviewed_institution_count,
+                (SELECT coalesce(sum(relevant_lca_count), 0) FROM employers
+                    WHERE identity_scope = 'LEGAL_ENTITY') AS relevant_lca_count,
+                (SELECT coalesce(sum(relevant_certified_perm_count), 0) FROM employers
+                    WHERE identity_scope = 'LEGAL_ENTITY') AS relevant_certified_perm_count,
                 (SELECT count(*) FROM vw_entity_review_queue) AS unresolved_entity_match_count
             """
         ).to_dicts()[0]
         return OverviewMetrics(
-            **counts,
+            legal_entity_count=int(counts["legal_entity_count"]),
+            parent_organization_count=int(counts["parent_organization_count"]),
+            institution_count=int(counts["institution_count"]),
+            relevant_lca_count=int(counts["relevant_lca_count"]),
+            relevant_certified_perm_count=int(counts["relevant_certified_perm_count"]),
+            unresolved_entity_match_count=int(counts["unresolved_entity_match_count"]),
             source_coverage=self._query("SELECT * FROM vw_data_health ORDER BY source_id"),
         )
 
@@ -512,11 +915,8 @@ class DuckDBExplorerService:
         if filters.search.strip():
             clauses.append(
                 "(organization_name ILIKE ? OR organization_id IN ("
-                "SELECT coalesce(parent_organization_id, legal_entity_id) "
-                "FROM legal_entities WHERE legal_name ILIKE ?"
-                ") OR organization_id IN ("
-                "SELECT coalesce(parent_organization_id, legal_entity_id) "
-                "FROM entity_aliases WHERE alias_raw ILIKE ?"
+                "SELECT legal_entity_id FROM entity_aliases WHERE alias_raw ILIKE ? "
+                "UNION SELECT parent_organization_id FROM entity_aliases WHERE alias_raw ILIKE ?"
                 "))"
             )
             term = f"%{filters.search.strip()}%"
@@ -525,25 +925,27 @@ class DuckDBExplorerService:
             ("organization_type", filters.organization_types),
             ("state", filters.states),
             ("everify_status", filters.everify_statuses),
-            ("known_opt_observation", filters.opt_statuses),
-            ("cap_exemption_status", filters.cap_exemption_statuses),
-            ("evidence_confidence", filters.evidence_confidences),
         ):
             if values:
                 clauses.append(f"{column} IN ({_placeholders(values)})")
                 parameters.extend(values)
         if filters.role_family:
             clauses.append(
-                "(list_contains(lca_role_families, ?) OR list_contains(perm_role_families, ?))"
+                "EXISTS (SELECT 1 FROM vw_relevant_titles AS title "
+                "WHERE title.organization_id = explorer.organization_id "
+                "AND title.role_family = ?)"
             )
-            parameters.extend([filters.role_family, filters.role_family])
+            parameters.append(filters.role_family)
         if filters.minimum_last_activity_year is not None:
             clauses.append("last_observed_activity_year >= ?")
             parameters.append(filters.minimum_last_activity_year)
         for column, minimum in (
+            ("h1b_history_star_rating", filters.minimum_h1b_stars),
+            ("green_card_history_star_rating", filters.minimum_green_card_stars),
+            ("overall_sponsorship_star_rating", filters.minimum_overall_stars),
             ("h1b_history_score", filters.minimum_h1b_score),
             ("green_card_history_score", filters.minimum_green_card_score),
-            ("sponsorship_history_score", filters.minimum_sponsorship_score),
+            ("overall_sponsorship_score", filters.minimum_sponsorship_score),
         ):
             if minimum is not None:
                 clauses.append(f"{column} >= ?")
@@ -560,68 +962,12 @@ class DuckDBExplorerService:
         limit_sql = "" if limit is None else " LIMIT ?"
         if limit is not None:
             parameters.append(max(1, min(limit, 10_000)))
-        order_by = _EMPLOYER_ORDER_BY[selected.sort_by]
         return self._query(
             f"""
-            SELECT
-                organization_id,
-                organization_name,
-                legal_entity_count,
-                organization_type,
-                state,
-                everify_status,
-                everify_lookup_status,
-                everify_retrieved_at,
-                everify_source_url,
-                known_opt_observation,
-                opt_report_year,
-                opt_reported_count,
-                opt_report_rank,
-                opt_source_url,
-                relevant_lca_count,
-                initial_approvals,
-                relevant_certified_perm_count,
-                last_lca_activity_year,
-                last_perm_activity_year,
-                cap_exemption_status,
-                source_coverage_ratio,
-                evidence_confidence,
-                sponsorship_history_score,
-                sponsorship_history_coverage,
-                sponsorship_history_confidence,
-                sponsorship_history_confidence_band,
-                sponsorship_history_status,
-                sponsorship_history_grade,
-                sponsorship_history_explanation,
-                stem_opt_readiness_score,
-                stem_opt_readiness_status,
-                stem_opt_readiness_coverage,
-                stem_opt_readiness_confidence,
-                stem_opt_readiness_explanation,
-                h1b_history_score,
-                h1b_history_coverage,
-                h1b_history_confidence,
-                h1b_history_grade,
-                h1b_history_explanation,
-                h1b_activity_score,
-                green_card_history_score,
-                green_card_history_coverage,
-                green_card_history_confidence,
-                green_card_history_grade,
-                green_card_history_explanation,
-                immigration_evidence_score,
-                immigration_evidence_coverage,
-                immigration_evidence_confidence,
-                immigration_evidence_grade,
-                immigration_evidence_explanation,
-                score_version,
-                has_partial_period,
-                current_partial_fiscal_year,
-                metric_version,
-                evidence_classes
-            FROM vw_employer_explorer
+            WITH explorer AS ({self._employer_sql()})
+            SELECT * FROM explorer
             WHERE {where}
-            ORDER BY {order_by}
+            ORDER BY {_EMPLOYER_ORDER_BY[selected.sort_by]}
             {limit_sql}
             """,
             parameters,
@@ -629,54 +975,46 @@ class DuckDBExplorerService:
 
     @staticmethod
     def _institution_where(filters: InstitutionFilters) -> tuple[str, list[object]]:
-        clauses = [
-            "relevant_lca_count >= ?",
-            "relevant_certified_perm_count >= ?",
-        ]
-        parameters: list[object] = [
-            filters.minimum_relevant_lca,
-            filters.minimum_relevant_perm,
-        ]
-        for column, minimum in (
-            ("total_rd", filters.minimum_total_rd),
-            ("computing_rd", filters.minimum_computing_rd),
-            ("engineering_rd", filters.minimum_engineering_rd),
-        ):
-            if minimum > 0:
-                clauses.append(f"{column} >= ?")
-                parameters.append(minimum)
+        clauses = ["relevant_lca_count >= ?", "relevant_certified_perm_count >= ?"]
+        parameters: list[object] = [filters.minimum_relevant_lca, filters.minimum_relevant_perm]
         if filters.search.strip():
-            clauses.append("(official_name ILIKE ? OR parent_system ILIKE ?)")
+            clauses.append(
+                "(official_name ILIKE ? OR legal_employer_name ILIKE ? "
+                "OR parent_organization_name ILIKE ?)"
+            )
             term = f"%{filters.search.strip()}%"
-            parameters.extend([term, term])
+            parameters.extend([term, term, term])
         for column, values in (
             ("control", filters.controls),
             ("state", filters.states),
-            ("decision_readiness_tier", filters.decision_readiness_tiers),
             ("everify_status", filters.everify_statuses),
-            ("cap_exemption_status", filters.cap_exemption_statuses),
-            ("sponsorship_history_confidence_band", filters.score_confidences),
-            ("research_staff_h1b_policy", filters.research_staff_h1b_policies),
-            (
-                "research_staff_permanent_residence_policy",
-                filters.research_staff_pr_policies,
-            ),
-            ("perm_support", filters.perm_support_policies),
-            ("eb1b_support", filters.eb1b_support_policies),
         ):
             if values:
                 clauses.append(f"{column} IN ({_placeholders(values)})")
                 parameters.extend(values)
         for column, minimum in (
-            ("core_policy_review_coverage", filters.minimum_core_policy_review_coverage),
+            ("total_rd", filters.minimum_total_rd if filters.minimum_total_rd > 0 else None),
+            (
+                "computing_rd",
+                filters.minimum_computing_rd if filters.minimum_computing_rd > 0 else None,
+            ),
+            (
+                "engineering_rd",
+                filters.minimum_engineering_rd if filters.minimum_engineering_rd > 0 else None,
+            ),
+            ("h1b_history_star_rating", filters.minimum_h1b_stars),
+            ("green_card_history_star_rating", filters.minimum_green_card_stars),
+            ("overall_sponsorship_star_rating", filters.minimum_overall_stars),
             ("h1b_history_score", filters.minimum_h1b_score),
             ("green_card_history_score", filters.minimum_green_card_score),
-            ("sponsorship_history_score", filters.minimum_sponsorship_score),
-            ("research_pathway_score", filters.minimum_research_pathway_score),
+            ("overall_sponsorship_score", filters.minimum_sponsorship_score),
         ):
             if minimum is not None:
                 clauses.append(f"{column} >= ?")
                 parameters.append(minimum)
+        if filters.minimum_last_activity_year is not None:
+            clauses.append("last_observed_activity_year >= ?")
+            parameters.append(filters.minimum_last_activity_year)
         return " AND ".join(clauses), parameters
 
     def list_institutions(
@@ -687,91 +1025,12 @@ class DuckDBExplorerService:
         limit_sql = "" if limit is None else " LIMIT ?"
         if limit is not None:
             parameters.append(max(1, min(limit, 10_000)))
-        order_by = _INSTITUTION_ORDER_BY[selected.sort_by]
         return self._query(
             f"""
-            SELECT
-                institution_id,
-                organization_id,
-                official_name,
-                decision_readiness_tier,
-                decision_readiness_explanation,
-                research_pathway_score,
-                research_pathway_coverage AS score_coverage,
-                research_pathway_coverage,
-                research_pathway_confidence,
-                research_pathway_status,
-                research_pathway_grade,
-                research_pathway_explanation,
-                sponsorship_history_score,
-                sponsorship_history_coverage,
-                sponsorship_history_confidence,
-                sponsorship_history_confidence_band,
-                sponsorship_history_status,
-                sponsorship_history_grade,
-                sponsorship_history_explanation,
-                green_card_history_score,
-                green_card_history_coverage,
-                green_card_history_grade,
-                green_card_history_explanation,
-                h1b_history_score,
-                h1b_history_coverage,
-                h1b_history_grade,
-                h1b_history_explanation,
-                research_staff_h1b_policy,
-                research_staff_permanent_residence_policy,
-                perm_support,
-                eb1b_support,
-                core_policy_review_coverage,
-                core_policy_evidence_coverage,
-                policy_review_status,
-                everify_status,
-                everify_lookup_status,
-                everify_retrieved_at,
-                cap_exemption_status,
-                relevant_certified_perm_count,
-                relevant_lca_count,
-                initial_approvals,
-                last_observed_activity_year,
-                research_strength_score,
-                research_strength_coverage,
-                research_strength_confidence,
-                research_strength_grade,
-                research_strength_explanation,
-                parent_system,
-                control,
-                ipeds_unitid,
-                state,
-                survey_year AS latest_herd_year,
-                total_rd,
-                computing_rd,
-                engineering_rd,
-                federal_rd,
-                has_total_rd_data,
-                has_computing_rd_data,
-                has_engineering_rd_data,
-                has_federal_rd_data,
-                known_opt_observation,
-                opt_report_year,
-                opt_reported_count,
-                general_staff_permanent_residence_policy,
-                stem_opt_readiness_score,
-                stem_opt_readiness_status,
-                stem_opt_readiness_coverage,
-                immigration_evidence_score,
-                immigration_evidence_coverage,
-                immigration_evidence_confidence,
-                immigration_evidence_grade,
-                policy_support_score,
-                policy_support_coverage,
-                policy_support_confidence,
-                policy_support_grade,
-                score_version,
-                metric_version,
-                evidence_classes
-            FROM vw_institution_explorer
+            WITH explorer AS ({self._institution_sql()})
+            SELECT * FROM explorer
             WHERE {where}
-            ORDER BY {order_by}
+            ORDER BY {_INSTITUTION_ORDER_BY[selected.sort_by]}
             {limit_sql}
             """,
             parameters,
@@ -779,74 +1038,64 @@ class DuckDBExplorerService:
 
     def employer_facets(self) -> dict[str, list[str]]:
         result: dict[str, list[str]] = {}
+        relation = self._employer_sql()
         for name, column in (
             ("organization_types", "organization_type"),
             ("states", "state"),
             ("everify_statuses", "everify_status"),
-            ("opt_statuses", "known_opt_observation"),
-            ("cap_exemption_statuses", "cap_exemption_status"),
-            ("evidence_confidences", "evidence_confidence"),
         ):
             result[name] = self._query(
-                f"SELECT DISTINCT {column} AS value FROM vw_employer_explorer "
-                f"WHERE {column} IS NOT NULL ORDER BY value"
+                f"""
+                WITH explorer AS ({relation})
+                SELECT DISTINCT {column} AS value FROM explorer
+                WHERE {column} IS NOT NULL ORDER BY value
+                """
             )["value"].to_list()
         result["role_families"] = self._query(
             """
-            SELECT DISTINCT role_family AS value
-            FROM vw_relevant_titles
-            WHERE role_family IS NOT NULL
-            ORDER BY value
+            SELECT DISTINCT role_family AS value FROM vw_relevant_titles
+            WHERE role_family IS NOT NULL ORDER BY value
             """
         )["value"].to_list()
         return result
 
     def institution_facets(self) -> dict[str, list[str]]:
         result: dict[str, list[str]] = {}
+        relation = self._institution_sql()
         for name, column in (
             ("controls", "control"),
             ("states", "state"),
-            ("decision_readiness_tiers", "decision_readiness_tier"),
             ("everify_statuses", "everify_status"),
-            ("cap_exemption_statuses", "cap_exemption_status"),
-            ("score_confidences", "sponsorship_history_confidence_band"),
-            ("research_staff_h1b_policies", "research_staff_h1b_policy"),
-            (
-                "research_staff_pr_policies",
-                "research_staff_permanent_residence_policy",
-            ),
-            ("perm_support_policies", "perm_support"),
-            ("eb1b_support_policies", "eb1b_support"),
         ):
             result[name] = self._query(
-                f"SELECT DISTINCT {column} AS value FROM vw_institution_explorer "
-                f"WHERE {column} IS NOT NULL ORDER BY value"
+                f"""
+                WITH explorer AS ({relation})
+                SELECT DISTINCT {column} AS value FROM explorer
+                WHERE {column} IS NOT NULL ORDER BY value
+                """
             )["value"].to_list()
         return result
 
     def search_organizations(self, search: str, *, limit: int = 50) -> pl.DataFrame:
         term = f"%{search.strip()}%"
         return self._query(
-            """
-            SELECT organization_id, organization_name, organization_type, state
-            FROM vw_employer_explorer
+            f"""
+            WITH explorer AS ({self._employer_sql()})
+            SELECT organization_id, organization_name, identity_scope, organization_type, state,
+                overall_sponsorship_stars, overall_sponsorship_star_label
+            FROM explorer
             WHERE organization_name ILIKE ? OR organization_id IN (
-                SELECT coalesce(parent_organization_id, legal_entity_id)
-                FROM entity_aliases
-                WHERE alias_raw ILIKE ?
+                SELECT legal_entity_id FROM entity_aliases WHERE alias_raw ILIKE ?
+                UNION SELECT parent_organization_id FROM entity_aliases WHERE alias_raw ILIKE ?
             )
-            ORDER BY
-                CASE sponsorship_history_status
-                    WHEN 'COMPLETE' THEN 0 WHEN 'PARTIAL' THEN 1 ELSE 2 END,
-                sponsorship_history_score DESC NULLS LAST,
-                organization_name
+            ORDER BY {_EMPLOYER_ORDER_BY["overall_sponsorship"]}
             LIMIT ?
             """,
-            [term, term, max(1, min(limit, 100))],
+            [term, term, term, max(1, min(limit, 100))],
         )
 
     def compare_organizations(self, organization_ids: tuple[str, ...]) -> pl.DataFrame:
-        """Return one evidence-first comparison row for each of at most five organizations."""
+        """Return one Product A comparison row for each of at most five organizations."""
 
         selected = tuple(dict.fromkeys(value for value in organization_ids if value.strip()))
         if not selected:
@@ -855,92 +1104,32 @@ class DuckDBExplorerService:
             raise ValueError("Comparison supports at most five organizations")
         result = self._query(
             f"""
+            WITH employers AS ({self._employer_sql()}),
+            institutions AS ({self._institution_sql()})
             SELECT
-                e.organization_id,
-                e.organization_name,
-                e.organization_type,
-                e.state,
-                e.everify_status,
-                e.known_opt_observation,
-                e.opt_report_year,
-                e.opt_reported_count,
-                e.lca_case_count,
-                e.relevant_lca_count,
-                e.lca_active_years,
-                e.initial_approvals,
-                e.initial_denials,
-                e.uscis_active_years,
-                e.last_lca_activity_year,
-                e.last_uscis_activity_year,
-                e.perm_case_count,
-                e.relevant_certified_perm_count,
-                e.perm_active_years,
-                e.last_perm_activity_year,
-                e.top_perm_technical_title,
-                e.top_perm_technical_title_count,
-                e.cap_exemption_status,
-                e.stem_opt_readiness_score,
-                e.stem_opt_readiness_status,
-                e.stem_opt_readiness_coverage,
-                e.h1b_history_score,
-                e.h1b_history_coverage,
-                e.h1b_history_grade,
-                e.h1b_history_explanation,
-                e.green_card_history_score,
-                e.green_card_history_coverage,
-                e.green_card_history_grade,
-                e.green_card_history_explanation,
-                e.sponsorship_history_score,
-                e.sponsorship_history_coverage,
-                e.sponsorship_history_confidence,
-                e.sponsorship_history_confidence_band,
-                e.sponsorship_history_status,
-                e.sponsorship_history_grade,
-                e.sponsorship_history_explanation,
-                e.immigration_evidence_score,
-                e.immigration_evidence_coverage,
-                e.immigration_evidence_confidence,
-                e.immigration_evidence_grade,
-                e.immigration_evidence_explanation,
-                e.evidence_confidence,
-                e.score_version,
+                e.*,
+                i.institution_id,
                 i.official_name AS research_institution,
-                i.decision_readiness_tier,
-                i.decision_readiness_explanation,
+                i.control,
+                i.sector,
+                i.higher_education_context,
+                i.latest_herd_year,
                 i.total_rd,
                 i.computing_rd,
                 i.engineering_rd,
                 i.federal_rd,
-                i.research_staff_h1b_policy,
-                i.research_staff_permanent_residence_policy,
-                i.perm_support,
-                i.eb1b_support,
-                i.policy_review_status,
-                i.core_policy_review_coverage,
-                i.core_policy_evidence_coverage,
-                i.research_strength_score,
-                i.research_strength_coverage,
-                i.research_strength_grade,
-                i.research_strength_explanation,
-                i.policy_support_score,
-                i.policy_support_coverage,
-                i.policy_support_grade,
-                i.policy_support_explanation,
-                i.research_pathway_score,
-                i.research_pathway_coverage,
-                i.research_pathway_confidence,
-                i.research_pathway_status,
-                i.research_pathway_grade,
-                i.research_pathway_explanation
-            FROM vw_employer_explorer AS e
+                i.research_scale_status,
+                i.research_scale_star_rating,
+                i.research_scale_stars,
+                i.research_scale_star_label,
+                i.research_scale_explanation
+            FROM employers AS e
             LEFT JOIN LATERAL (
-                SELECT *
-                FROM vw_institution_explorer AS candidate
+                SELECT * FROM institutions AS candidate
                 WHERE candidate.organization_id = e.organization_id
-                ORDER BY
-                    {_READINESS_TIER_ORDER},
-                    candidate.research_pathway_score DESC NULLS LAST,
-                    candidate.official_name
+                    OR candidate.legal_entity_id = e.organization_id
+                    OR candidate.parent_organization_id = e.organization_id
+                ORDER BY candidate.official_name
                 LIMIT 1
             ) AS i ON TRUE
             WHERE e.organization_id IN ({_placeholders(selected)})
@@ -956,16 +1145,113 @@ class DuckDBExplorerService:
             .drop("_selection_order")
         )
 
+    @staticmethod
+    def _organization_predicate(alias: str = "") -> str:
+        prefix = f"{alias}." if alias else ""
+        return (
+            f"({prefix}organization_id = ? OR {prefix}legal_entity_id = ? "
+            f"OR {prefix}parent_organization_id = ?)"
+        )
+
+    def get_rating_supporting_cases(
+        self, organization_id: str, *, limit: int = 250
+    ) -> pl.DataFrame:
+        """Return bounded, exact DOL rows that contribute positive Product A rating weight."""
+
+        selected_limit = max(1, min(limit, 1_000))
+        lca_status = canonical_case_status_sql("l.case_status")
+        perm_status = canonical_case_status_sql("p.case_status")
+        lca_predicate = self._organization_predicate("l")
+        perm_predicate = self._organization_predicate("p")
+        parameters: list[object] = [organization_id] * 7
+        parameters.append(selected_limit)
+        return self._query(
+            f"""
+            WITH rating_scope AS (
+                SELECT h1b_history_status, green_card_history_status
+                FROM vw_employer_explorer
+                WHERE organization_id = ?
+            )
+            SELECT * FROM (
+                SELECT
+                    'dol_lca' AS source_id,
+                    'H-1B LCA' AS program,
+                    l.visa_class,
+                    l.case_id,
+                    l.job_title_raw,
+                    l.role_family,
+                    l.case_status AS case_status_raw,
+                    {lca_status} AS canonical_status,
+                    l.worksite_city,
+                    l.worksite_state,
+                    l.wage_from,
+                    l.wage_to,
+                    l.wage_unit,
+                    l.fiscal_year,
+                    l.fiscal_quarter,
+                    l.is_partial_period,
+                    l.source_artifact_id,
+                    l.source_file_name,
+                    l.source_url AS official_url,
+                    l.source_sha256 AS sha256,
+                    l.schema_version
+                FROM lca_cases_resolved AS l
+                CROSS JOIN rating_scope AS rating
+                WHERE {lca_predicate}
+                    AND rating.h1b_history_status = 'RATED'
+                    AND l.technical_role IS TRUE
+                    AND upper(trim(coalesce(l.visa_class, ''))) = 'H-1B'
+                    AND {lca_status} IN ('CERTIFIED', 'CERTIFIED-WITHDRAWN')
+                UNION ALL
+                SELECT
+                    'dol_perm' AS source_id,
+                    'PERM' AS program,
+                    NULL::VARCHAR AS visa_class,
+                    p.case_id,
+                    p.job_title_raw,
+                    p.role_family,
+                    p.case_status AS case_status_raw,
+                    {perm_status} AS canonical_status,
+                    p.worksite_city,
+                    p.worksite_state,
+                    p.wage_from,
+                    p.wage_to,
+                    p.wage_unit,
+                    p.fiscal_year,
+                    p.fiscal_quarter,
+                    p.is_partial_period,
+                    p.source_artifact_id,
+                    p.source_file_name,
+                    p.source_url AS official_url,
+                    p.source_sha256 AS sha256,
+                    p.schema_version
+                FROM perm_cases_resolved AS p
+                CROSS JOIN rating_scope AS rating
+                WHERE {perm_predicate}
+                    AND rating.green_card_history_status = 'RATED'
+                    AND p.technical_role IS TRUE
+                    AND {perm_status} IN ('CERTIFIED', 'CERTIFIED-EXPIRED')
+            ) AS supporting
+            ORDER BY fiscal_year DESC, fiscal_quarter DESC NULLS LAST, source_id, case_id
+            LIMIT ?
+            """,
+            parameters,
+        )
+
     def get_organization_detail(self, organization_id: str) -> OrganizationDetail | None:
         summary = self._query(
-            "SELECT * FROM vw_organization_detail WHERE organization_id = ?", [organization_id]
+            f"""
+            WITH explorer AS ({self._employer_sql()})
+            SELECT * FROM explorer WHERE organization_id = ?
+            """,
+            [organization_id],
         )
         if summary.is_empty():
             return None
         legal_entities = self._query(
             """
-            SELECT legal_entity_id, legal_name, city, state, postal_code, organization_type,
-                institution_id, review_status
+            SELECT legal_entity_id, legal_name, parent_organization_id, city, state, postal_code,
+                organization_type, institution_id, review_status
             FROM legal_entities
             WHERE parent_organization_id = ? OR legal_entity_id = ?
             ORDER BY legal_name
@@ -982,41 +1268,43 @@ class DuckDBExplorerService:
             """,
             [organization_id, organization_id],
         )
+        predicate = self._organization_predicate()
+        scope_parameters: list[object] = [organization_id, organization_id, organization_id]
         case_statuses = self._query(
-            """
+            f"""
             SELECT source_id, case_status, count(*) AS case_count,
                 'DERIVED_METRIC' AS evidence_class
             FROM (
                 SELECT 'dol_lca' AS source_id, case_status FROM lca_cases_resolved
-                    WHERE organization_id = ?
+                    WHERE {predicate}
                 UNION ALL
                 SELECT 'dol_perm' AS source_id, case_status FROM perm_cases_resolved
-                    WHERE organization_id = ?
+                    WHERE {predicate}
             )
             GROUP BY source_id, case_status
             ORDER BY source_id, case_count DESC
             """,
-            [organization_id, organization_id],
+            [*scope_parameters, *scope_parameters],
         )
         worksite_states = self._query(
-            """
+            f"""
             SELECT source_id, worksite_state, count(*) AS case_count,
                 'DERIVED_METRIC' AS evidence_class
             FROM (
                 SELECT 'dol_lca' AS source_id, worksite_state FROM lca_cases_resolved
-                    WHERE organization_id = ?
+                    WHERE {predicate}
                 UNION ALL
                 SELECT 'dol_perm' AS source_id, worksite_state FROM perm_cases_resolved
-                    WHERE organization_id = ?
+                    WHERE {predicate}
             )
             WHERE worksite_state IS NOT NULL
             GROUP BY source_id, worksite_state
             ORDER BY case_count DESC, source_id, worksite_state
             """,
-            [organization_id, organization_id],
+            [*scope_parameters, *scope_parameters],
         )
         wage_summary = self._query(
-            """
+            f"""
             SELECT source_id, wage_unit, count(*) AS observation_count,
                 quantile_cont(wage_from, 0.25) AS wage_p25,
                 median(wage_from) AS wage_median,
@@ -1024,40 +1312,56 @@ class DuckDBExplorerService:
                 'DERIVED_METRIC' AS evidence_class
             FROM (
                 SELECT 'dol_lca' AS source_id, wage_unit, wage_from FROM lca_cases_resolved
-                    WHERE organization_id = ?
+                    WHERE {predicate}
                 UNION ALL
                 SELECT 'dol_perm' AS source_id, wage_unit, wage_from FROM perm_cases_resolved
-                    WHERE organization_id = ?
+                    WHERE {predicate}
             )
             WHERE wage_from > 0 AND wage_unit IS NOT NULL
             GROUP BY source_id, wage_unit
             ORDER BY source_id, observation_count DESC
             """,
-            [organization_id, organization_id],
+            [*scope_parameters, *scope_parameters],
         )
-        provenance = self._query(
-            """
-            SELECT source_id, source_artifact_id, source_file_name, fiscal_year,
-                bool_or(is_partial_period) AS is_partial_period, max(ingested_at) AS ingested_at,
-                count(*) AS record_count, 'OBSERVED_GOVERNMENT_RECORD' AS evidence_class
-            FROM (
-                SELECT 'dol_lca' AS source_id, source_artifact_id, source_file_name,
-                    fiscal_year, is_partial_period, ingested_at
-                FROM lca_cases_resolved WHERE organization_id = ?
-                UNION ALL
-                SELECT 'dol_perm' AS source_id, source_artifact_id, source_file_name,
-                    fiscal_year, is_partial_period, ingested_at
-                FROM perm_cases_resolved WHERE organization_id = ?
-                UNION ALL
-                SELECT 'uscis_h1b' AS source_id, source_artifact_id, source_file_name,
-                    fiscal_year, is_partial_period, ingested_at
-                FROM h1b_petitions_resolved WHERE organization_id = ?
+        provenance_sources: list[str] = []
+        for source_id, relation in (
+            ("dol_lca", "lca_cases_resolved"),
+            ("dol_perm", "perm_cases_resolved"),
+            ("uscis_h1b", "h1b_petitions_resolved"),
+        ):
+            columns = self._relation_columns(relation)
+            provenance_sources.append(
+                f"""
+                SELECT '{source_id}' AS source_id, source_artifact_id, source_file_name,
+                    fiscal_year, is_partial_period, ingested_at,
+                    {_available_column(columns, "source_url", "NULL::VARCHAR")} AS source_url,
+                    {_available_column(columns, "source_sha256", "NULL::VARCHAR")}
+                        AS source_sha256,
+                    {_available_column(columns, "schema_version", "NULL::VARCHAR")}
+                        AS schema_version,
+                    {_available_column(columns, "form_version", "NULL::VARCHAR")}
+                        AS form_version
+                FROM {relation} WHERE {predicate}
+                """
             )
+        provenance = self._query(
+            f"""
+            SELECT source_id, source_artifact_id, source_file_name, fiscal_year,
+                bool_or(is_partial_period) AS is_partial_period,
+                max(ingested_at) AS retrieved_at,
+                any_value(source_url) AS official_url,
+                any_value(source_sha256) AS sha256,
+                any_value(schema_version) AS schema_version,
+                any_value(form_version) AS form_version,
+                count(*) AS record_count,
+                'OBSERVED_GOVERNMENT_RECORD' AS evidence_class
+            FROM ({" UNION ALL ".join(provenance_sources)})
             GROUP BY source_id, source_artifact_id, source_file_name, fiscal_year
             ORDER BY source_id, fiscal_year
             """,
-            [organization_id, organization_id, organization_id],
+            [*scope_parameters, *scope_parameters, *scope_parameters],
         )
+        institution_relation = self._institution_sql()
         return OrganizationDetail(
             summary=summary,
             legal_entities=legal_entities,
@@ -1070,12 +1374,11 @@ class DuckDBExplorerService:
                 "SELECT * FROM vw_perm_trends WHERE organization_id = ? ORDER BY fiscal_year",
                 [organization_id],
             ),
+            rating_supporting_cases=self.get_rating_supporting_cases(organization_id),
             relevant_titles=self._query(
                 """
-                SELECT * FROM vw_relevant_titles
-                WHERE organization_id = ?
-                ORDER BY record_count DESC, source_id, job_title_raw
-                LIMIT 500
+                SELECT * FROM vw_relevant_titles WHERE organization_id = ?
+                ORDER BY record_count DESC, source_id, job_title_raw LIMIT 500
                 """,
                 [organization_id],
             ),
@@ -1083,61 +1386,35 @@ class DuckDBExplorerService:
             worksite_states=worksite_states,
             wage_summary=wage_summary,
             institutions=self._query(
-                """
-                SELECT * FROM vw_institution_explorer
-                WHERE organization_id = ?
-                ORDER BY
-                    CASE decision_readiness_tier
-                        WHEN 'TIER_1_REVIEWED' THEN 1
-                        WHEN 'TIER_2_STRONG_HISTORY_POLICY_INCOMPLETE' THEN 2
-                        WHEN 'TIER_3_PARTIAL_HISTORY' THEN 3
-                        ELSE 4
-                    END,
-                    research_pathway_score DESC NULLS LAST,
-                    official_name
+                f"""
+                WITH explorer AS ({institution_relation})
+                SELECT * FROM explorer
+                WHERE organization_id = ? OR legal_entity_id = ? OR parent_organization_id = ?
+                ORDER BY overall_sponsorship_score DESC NULLS LAST, official_name
                 """,
-                [organization_id],
+                scope_parameters,
             ),
             everify_evidence=self._query(
                 """
-                SELECT lookup_id, queried_name, enrollment_status, matched_name, matched_dba,
-                    state, enrollment_date, termination_date, workforce_size,
-                    hiring_site_count, hiring_site_locations, retrieved_at,
-                    match_confidence, match_method, review_status, review_reason, source_url
-                FROM vw_everify_evidence
-                WHERE organization_id = ?
-                ORDER BY retrieved_at DESC
+                SELECT * FROM vw_everify_evidence
+                WHERE organization_id = ? ORDER BY retrieved_at DESC
                 """,
                 [organization_id],
             ),
             opt_evidence=self._query(
                 """
-                SELECT observation_id, report_year, rank, employer_name_raw, program_type,
-                    reported_count, is_positive, match_method, match_confidence,
-                    review_status, retrieved_at, source_url, coverage_note
-                FROM vw_opt_evidence
-                WHERE organization_id = ?
-                ORDER BY report_year DESC, rank, program_type
+                SELECT * FROM vw_opt_evidence
+                WHERE organization_id = ? ORDER BY report_year DESC, rank
                 """,
                 [organization_id],
             ),
             policy_evidence=self._query(
                 """
-                SELECT policy_fact_id, institution_id, official_name, document_type,
-                    document_title, fact_type, fact_value, qualifier, supporting_excerpt,
-                    section_or_page, source_url, retrieved_at, published_or_updated_date,
-                    document_is_current, fact_is_current, confidence, human_review_status,
-                    reviewer_note, reviewer_id, reviewed_at, valid_from, valid_to,
-                    evidence_class
-                FROM vw_policy_evidence
+                SELECT * FROM vw_policy_evidence
                 WHERE organization_id = ?
-                    AND human_review_status IN (
-                        'REVIEWED_ACCEPTED', 'REVIEWED_NOT_STATED'
-                    )
+                    AND human_review_status IN ('REVIEWED_ACCEPTED', 'REVIEWED_NOT_STATED')
                     AND exact_excerpt_verified IS TRUE
-                    AND fact_is_current IS TRUE
-                    AND valid_to IS NULL
-                    AND starts_with(source_url, 'https://')
+                    AND fact_is_current IS TRUE AND valid_to IS NULL
                 ORDER BY institution_id, fact_type, retrieved_at DESC
                 """,
                 [organization_id],
@@ -1155,10 +1432,8 @@ class DuckDBExplorerService:
             ),
             opt=self._query(
                 """
-                SELECT * FROM vw_opt_evidence
-                WHERE review_status = 'NEEDS_REVIEW'
-                ORDER BY report_year DESC, rank, program_type
-                LIMIT ?
+                SELECT * FROM vw_opt_evidence WHERE review_status = 'NEEDS_REVIEW'
+                ORDER BY report_year DESC, rank LIMIT ?
                 """,
                 [selected_limit],
             ),
@@ -1166,20 +1441,65 @@ class DuckDBExplorerService:
         )
 
     def get_data_health(self) -> DataHealthSnapshot:
-        """Return source-period health and all persisted quality checks."""
+        """Return source selection, artifact provenance, and persisted quality checks."""
 
+        artifacts = _empty()
+        for relation in ("vw_source_artifacts", "source_artifacts"):
+            if self._relation_exists(relation):
+                artifacts = self._query(f"SELECT * FROM {relation} ORDER BY source_id, fiscal_year")
+                break
+        if artifacts.is_empty():
+            artifact_queries: list[str] = []
+            for source_id, relation in (
+                ("dol_lca", "lca_cases_resolved"),
+                ("dol_perm", "perm_cases_resolved"),
+                ("uscis_h1b", "h1b_petitions_resolved"),
+            ):
+                if not self._relation_exists(relation):
+                    continue
+                columns = self._relation_columns(relation)
+                artifact_queries.append(
+                    f"""
+                    SELECT
+                        '{source_id}' AS source_id,
+                        source_artifact_id,
+                        {_available_column(columns, "source_file_name", "NULL::VARCHAR")}
+                            AS source_file_name,
+                        fiscal_year,
+                        max({_available_column(columns, "fiscal_quarter", "NULL::INTEGER")})
+                            AS fiscal_quarter,
+                        bool_or(is_partial_period) AS is_partial_period,
+                        max({_available_column(columns, "ingested_at", "NULL::VARCHAR")})
+                            AS retrieved_at,
+                        any_value({_available_column(columns, "source_url", "NULL::VARCHAR")})
+                            AS official_url,
+                        any_value({_available_column(columns, "source_sha256", "NULL::VARCHAR")})
+                            AS sha256,
+                        any_value({_available_column(columns, "schema_version", "NULL::VARCHAR")})
+                            AS schema_version,
+                        any_value({_available_column(columns, "form_version", "NULL::VARCHAR")})
+                            AS form_version,
+                        NULL::BIGINT AS raw_row_count,
+                        count(*) AS normalized_row_count
+                    FROM {relation}
+                    GROUP BY source_artifact_id, source_file_name, fiscal_year
+                    """
+                )
+            if artifact_queries:
+                artifacts = self._query(
+                    " UNION ALL ".join(artifact_queries)
+                    + " ORDER BY source_id, fiscal_year, fiscal_quarter, source_artifact_id"
+                )
         return DataHealthSnapshot(
             source_coverage=self._query("SELECT * FROM vw_data_health ORDER BY source_id"),
             quality_checks=self._query(
                 """
                 SELECT * FROM vw_quality_checks
-                ORDER BY
-                    CASE status WHEN 'FAIL' THEN 0 WHEN 'WARN' THEN 1 ELSE 2 END,
-                    critical DESC,
-                    category,
-                    check_id
+                ORDER BY CASE status WHEN 'FAIL' THEN 0 WHEN 'WARN' THEN 1 ELSE 2 END,
+                    critical DESC, category, check_id
                 """
             ),
+            source_artifacts=artifacts,
         )
 
     def export_employers(self, filters: EmployerFilters, file_format: ExportFormat) -> bytes:
@@ -1195,4 +1515,10 @@ def get_explorer_service(*, database_path: Path | None = None) -> ExplorerServic
     selected = database_path if database_path is not None else load_settings().db_path
     if not selected.is_file():
         return FoundationExplorerService()
-    return DuckDBExplorerService(selected)
+    try:
+        return DuckDBExplorerService(selected)
+    except (duckdb.Error, IncompatibleProductADatabaseError):
+        return FoundationExplorerService(
+            "The presentation database is incompatible with Product A. Evidence remains UNKNOWN "
+            "until a current Product A database is built."
+        )
