@@ -2,10 +2,11 @@
 
 ## Purpose and stack
 
-- This repository builds a private, local-first sponsorship intelligence explorer.
-- Read `SPEC.md` before changing architecture, evidence semantics, or product behavior.
+- This repository builds the private, local-first Product A historical sponsorship explorer.
+- Read `PRODUCT_A_SPEC.md` before changing architecture, evidence semantics, or product behavior.
+- `SPEC.md` is retained historical Product B context and is superseded for active behavior.
 - Use Python 3.12, `uv`, Typer, Pydantic, and Streamlit. Keep application pages behind the service/query layer in `src/sponsor_intel/services/`.
-- Implement one approved specification phase at a time and do not broaden scope without explicit approval.
+- Product A is the approved active scope; do not reintroduce a policy-dependent product phase.
 
 ## Evidence and data invariants
 
@@ -15,7 +16,11 @@
 4. Keep legal entities and parent organizations separate.
 5. Route ambiguous entity matches to review rather than guessing.
 6. Do not present E-Verify, an LCA, historical PERM, or institution type as a sponsorship promise.
-7. Do not add job tracking, a public API, Postgres, or Supabase in V1.
+7. E-Verify, OPT, IPEDS, HERD, cap-exemption context, and policy evidence never alter sponsorship ratings.
+8. Only H-1B LCA rows may affect H-1B ratings; keep H-1B1 and E-3 queryable but unscored.
+9. A validated resolved zero is distinct from missing evidence: show no observed history versus `Unrated`.
+10. Policy evidence is supplemental, incomplete, non-blocking, and requires no OpenAI key for normal builds or releases.
+11. Do not add job tracking, a public API, Postgres, or Supabase in V1.
 
 ## Development conventions
 

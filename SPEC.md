@@ -1,3 +1,8 @@
+> **Superseded for active product behavior.** `PRODUCT_A_SPEC.md` is the authoritative current
+> specification for Historical Sponsorship Intelligence (Product A). This file is retained as the
+> historical Product B/V1 specification and must not control active ratings, rankings, quality
+> gates, releases, or required credentials.
+
 # Sponsorship Intelligence Explorer
 
 ## Product and Engineering Specification
