@@ -1,6 +1,6 @@
 # Product A complete execution plan
 
-**Plan status:** `IN_PROGRESS` — implementation and local verification complete; Git handoff in progress
+**Plan status:** `COMPLETE`
 **Branch:** `codex/phase-10-decision-readiness-deployment`  
 **Target:** Update draft PR #10 in place  
 **Created:** 2026-08-16  
@@ -245,7 +245,7 @@ Status values are `PENDING`, `IN_PROGRESS`, `COMPLETE`, and `BLOCKED`.
    Work: frozen sync, Ruff, Pyright, pytest, live contracts, real pipeline, quality, DuckDB,
    real-data Streamlit smoke, clean database restoration, Product A acceptance.  
    Verify: captured command results and zero critical Product A failures.
-10. `IN_PROGRESS` — Commit, push, and update PR #10.
+10. `COMPLETE` — Commit, push, and update PR #10.
     Work: logical commits, branch push, rewrite title/body with schema/data-quality effects and
     exact verification evidence; do not merge or publish a release.  
     Verify: clean status, remote SHA equals local SHA, PR #10 remains open draft with Product A
@@ -332,6 +332,8 @@ stable global `CERTIFIED` to `CERTIFIED-WITHDRAWN` case updates to their latest 
 immutable staging and a supersession ledger. This deviation prevents both missing-quarter evidence
 and cumulative double counting and is covered by source, entity, and independent acceptance checks.
 
-No implementation or local-verification item is blocked. Git push and the draft PR #10 rewrite remain
-the only in-progress plan item. Release publication, PR merge, repository visibility changes, and
-hosted deployment remain explicit owner actions and are not part of automated completion.
+No implementation, local-verification, or Git handoff item is blocked. The logical Product A commits
+were pushed to the existing branch, and draft PR #10 was rewritten in place with current scope,
+schema/data-quality effects, real results, verification, and owner-only actions. Release publication,
+PR merge, repository visibility changes, and hosted deployment remain explicit owner actions and are
+not part of automated completion.
