@@ -1,0 +1,1394 @@
+{
+  "acceptance_checks": [
+    {
+      "check_id": "v2_schema",
+      "code_testable": true,
+      "evidence": "All required V2 columns are present.",
+      "requirement": "Presentation views expose every required V2 decision field",
+      "status": "PASS"
+    },
+    {
+      "check_id": "quality_gate",
+      "code_testable": true,
+      "evidence": "Build v2-dcdfeabb8229bb92: passed=True; critical_failures=0.",
+      "requirement": "The current real-data build passes with zero critical failures",
+      "status": "PASS"
+    },
+    {
+      "check_id": "v2_versions",
+      "code_testable": true,
+      "evidence": "score_version=['evidence_scores_v2_2026_08']; metric_version=['scored_metrics_v2'].",
+      "requirement": "V2 scoring and metric interpretation are exact and versioned",
+      "status": "PASS"
+    },
+    {
+      "check_id": "v1_reproducibility",
+      "code_testable": true,
+      "evidence": "employer_scores_v1.parquet=present; institution_scores_v1.parquet=present",
+      "requirement": "Historical V1 score outputs remain available as sidecars",
+      "status": "PASS"
+    },
+    {
+      "check_id": "v2_formula",
+      "code_testable": true,
+      "evidence": "sponsorship={'h1b_history': 0.4, 'green_card_history': 0.6}; research_pathway={'sponsorship_history': 0.5, 'policy_support': 0.3, 'research_strength': 0.2}; core=('h1b_research_staff_eligible', 'pr_research_staff_eligible', 'perm_supported', 'eb1b_supported').",
+      "requirement": "V2 uses the approved 40/60 sponsorship and 50/30/20 pathway formulas",
+      "status": "PASS"
+    },
+    {
+      "check_id": "grade_gating",
+      "code_testable": true,
+      "evidence": "Misleading grade rows: 0.",
+      "requirement": "Partial sponsorship and incomplete pathway scores receive no letter grade",
+      "status": "PASS"
+    },
+    {
+      "check_id": "everify_independence",
+      "code_testable": true,
+      "evidence": "Employers scored for sponsorship with E-Verify UNKNOWN: 223,007.",
+      "requirement": "Sponsorship history is independent of missing E-Verify evidence",
+      "status": "PASS"
+    },
+    {
+      "check_id": "readiness_quality_prerequisite",
+      "code_testable": true,
+      "evidence": "Tier 1/2 rows without QUALITY_GATE_PASSED: 0.",
+      "requirement": "Published Tier 1/2 rows require the current critical quality gate",
+      "status": "PASS"
+    },
+    {
+      "check_id": "uncertainty_semantics",
+      "code_testable": true,
+      "evidence": "Typed policy contracts expose distinct UNKNOWN, NO, NOT_STATED, NEEDS_REVIEW, and REVIEWED_NOT_STATED states.",
+      "requirement": "UNKNOWN, NO, NOT_STATED, and pending review remain distinct",
+      "status": "PASS"
+    },
+    {
+      "check_id": "nonzero_service",
+      "code_testable": true,
+      "evidence": "Default employer and institution queries returned nonzero rows.",
+      "requirement": "The read-only service queries nonzero real employer and institution data",
+      "status": "PASS"
+    },
+    {
+      "check_id": "decision_first_default",
+      "code_testable": true,
+      "evidence": "The first five default IDs differ from research-activity ordering.",
+      "requirement": "Default institution ranking is not merely total R&D ordering",
+      "status": "PASS"
+    },
+    {
+      "check_id": "policy_review_packet",
+      "code_testable": true,
+      "evidence": "institutions=50; rows=200; pending=197.",
+      "requirement": "The deterministic top-50 packet contains four core questions per institution",
+      "status": "PASS"
+    },
+    {
+      "check_id": "entity_audit",
+      "code_testable": true,
+      "evidence": "companies=30; institutions=30; pending_human_review=60.",
+      "requirement": "Entity audit covers at least 30 companies and 30 institutions",
+      "status": "PASS"
+    },
+    {
+      "check_id": "classifier_audit",
+      "code_testable": true,
+      "evidence": "changed_records=11662; sample=43; pending_review=43.",
+      "requirement": "Role-classifier changes have before/after counts and a stratified review sample",
+      "status": "PASS"
+    },
+    {
+      "check_id": "deployment_package",
+      "code_testable": true,
+      "evidence": "src\\sponsor_intel\\deployment\\release_bootstrap.py=present; .streamlit\\config.toml=present; .streamlit\\secrets.example.toml=present; docs\\deployment\\community-cloud.md=present; app\\requirements.txt=present",
+      "requirement": "Private Community Cloud bootstrap and least-dependency configuration are present",
+      "status": "PASS"
+    },
+    {
+      "check_id": "local_v2_runtime_bundle",
+      "code_testable": true,
+      "evidence": "Local bundle metadata reports build=v2-dcdfeabb8229bb92; score=evidence_scores_v2_2026_08; metric=scored_metrics_v2.",
+      "requirement": "A quality-approved V2 runtime bundle is ready for controlled publication",
+      "status": "PASS"
+    },
+    {
+      "check_id": "published_v2_runtime_release",
+      "code_testable": false,
+      "evidence": "Remote release metadata reports build=v1-df123235990f8fbc; score=evidence_scores_v1_2026_08; metric=scored_metrics_v1. Publish the quality-approved V2 bundle only after repository privacy is established.",
+      "requirement": "A quality-approved V2 runtime release is available to the deployment bootstrap",
+      "status": "BLOCKED_OWNER_ACTION"
+    },
+    {
+      "check_id": "private_deployment",
+      "code_testable": false,
+      "evidence": "repository=ChimdumebiNebolisa/visa-sponsor-intelligence; visibility=PUBLIC; live_url=NONE; private_access_verified=False.",
+      "requirement": "Repository and live Streamlit app privacy are owner-verified",
+      "status": "BLOCKED_OWNER_ACTION"
+    }
+  ],
+  "deployment": {
+    "live_url": null,
+    "local_runtime_bundle": {
+      "build_id": "v2-dcdfeabb8229bb92",
+      "employer_count": 225996,
+      "generated_at": "2026-08-16T00:36:36.683587Z",
+      "institution_count": 5985,
+      "manifest_sha256": "48a752801f4813f2d5650e7c4fde20914f716fae399b3834951af5eef2af5901",
+      "metric_version": "scored_metrics_v2",
+      "output_fingerprints": {
+        "employer_metrics.parquet": "ee87d1557ca0dcc1e216572dc01ac8c0de71af06ad06aed4af76779a523ed59e",
+        "institution_metrics.parquet": "c136692402737bd3f397d1edb3ca25ac4fa0e02971ca765681550972821e9e5c",
+        "policy_facts.parquet": "7750194e0364dec625f1f99150b23f2bbf4a1df50156ecab5711037aeafadc2e"
+      },
+      "quality_passed": true,
+      "score_version": "evidence_scores_v2_2026_08"
+    },
+    "private_access_verified": false,
+    "published_runtime_release": {
+      "build_id": "v1-df123235990f8fbc",
+      "employer_count": 201000,
+      "generated_at": "2026-08-15T17:23:55.742576+00:00",
+      "institution_count": 5985,
+      "manifest_sha256": "48a752801f4813f2d5650e7c4fde20914f716fae399b3834951af5eef2af5901",
+      "metric_version": "scored_metrics_v1",
+      "output_fingerprints": {
+        "employer_metrics.parquet": "e2c1575170b7e3cad19eff1db0ea322b347bf4a29ac5c205f0ca321a74db5838",
+        "institution_metrics.parquet": "10b7b370762f12a84b4066aa6a2f6ee5fb158fe77c230b31c3bcf83d018d7bd3",
+        "policy_facts.parquet": "7750194e0364dec625f1f99150b23f2bbf4a1df50156ecab5711037aeafadc2e"
+      },
+      "quality_passed": true,
+      "score_version": "evidence_scores_v1_2026_08"
+    },
+    "repository": {
+      "isPrivate": false,
+      "nameWithOwner": "ChimdumebiNebolisa/visa-sponsor-intelligence",
+      "url": "https://github.com/ChimdumebiNebolisa/visa-sponsor-intelligence",
+      "visibility": "PUBLIC"
+    },
+    "repository_visibility": "PUBLIC",
+    "status": "BLOCKED_OWNER_ACTION"
+  },
+  "generated_at": "2026-08-16T00:50:04.834934+00:00",
+  "git_commit_sha": "9a6b5178b140d3ad683f533fd00ff823a3c0f2da",
+  "manual_review": {
+    "entity_audit_pending_count": 60,
+    "role_sample_pending_count": 43
+  },
+  "performance_report": "outputs/reports/phase10/performance.json",
+  "policy_review": {
+    "institution_count": 50,
+    "packet_exists": true,
+    "pending_row_count": 197,
+    "row_count": 200
+  },
+  "release": {
+    "database_path": "db\\immigration.duckdb",
+    "database_sha256": "104a218fe680c47ad1e2b9cb617ce47042f51c91f171bcbc07721701480121fa",
+    "database_size_bytes": 276312064,
+    "local_quality_build_id": "v2-dcdfeabb8229bb92",
+    "metric_version": [
+      "scored_metrics_v2"
+    ],
+    "score_version": [
+      "evidence_scores_v2_2026_08"
+    ],
+    "source_data_release_tag": "data-2026-08-15"
+  },
+  "schema_version": "phase10-v2-acceptance-1",
+  "summary": {
+    "code_checks_passed": 16,
+    "code_checks_total": 16,
+    "overall_status": "COMPLETE_EXCEPT_FOR_HUMAN_OR_OWNER_ACTION",
+    "process_exit_policy": "Nonzero only for failed/not-run code-testable checks or UAT tasks; human-review and owner-action blockers remain visible without masquerading as code failures.",
+    "uat_failed": 0,
+    "uat_human_blocked": 2,
+    "uat_owner_blocked": 0,
+    "uat_passed": 16,
+    "uat_total": 18
+  },
+  "uat_tasks": [
+    {
+      "attempts": [
+        {
+          "evidence": "The real release returned zero institutions with 100% core review. The top-50 packet retains 197 pending core rows; no result was fabricated.",
+          "observed_at": "2026-08-15T23:42:50.643410+00:00",
+          "selected_organizations": [],
+          "status": "BLOCKED_HUMAN_REVIEW"
+        }
+      ],
+      "evidence": "The real release returned zero institutions with 100% core review. The top-50 packet retains 197 pending core rows; no result was fabricated.",
+      "item": 1,
+      "requirement": "Find research institutions with complete core-policy review",
+      "selected_organizations": [],
+      "status": "BLOCKED_HUMAN_REVIEW"
+    },
+    {
+      "attempts": [
+        {
+          "evidence": "The real release returned zero rows where research_staff_permanent_residence_policy=YES. The top-50 packet retains 197 pending core rows; no result was fabricated.",
+          "observed_at": "2026-08-15T23:42:50.643410+00:00",
+          "selected_organizations": [],
+          "status": "BLOCKED_HUMAN_REVIEW"
+        }
+      ],
+      "evidence": "The real release returned zero rows where research_staff_permanent_residence_policy=YES. The top-50 packet retains 197 pending core rows; no result was fabricated.",
+      "item": 2,
+      "requirement": "Filter for research-staff permanent-residence eligibility",
+      "selected_organizations": [],
+      "status": "BLOCKED_HUMAN_REVIEW"
+    },
+    {
+      "attempts": [
+        {
+          "evidence": "Found 9 result(s); every returned row has perm_support=YES.",
+          "observed_at": "2026-08-15T23:42:50.643410+00:00",
+          "selected_organizations": [
+            {
+              "institution_id": "ipeds:211440",
+              "official_name": "Carnegie Mellon University",
+              "organization_id": "legal_ipeds_211440",
+              "perm_support": "YES"
+            },
+            {
+              "institution_id": "ipeds:229027",
+              "official_name": "The University of Texas at San Antonio",
+              "organization_id": "parent_ipeds_44d83978300eafc34564",
+              "perm_support": "YES"
+            },
+            {
+              "institution_id": "ipeds:106263",
+              "official_name": "University of Arkansas for Medical Sciences",
+              "organization_id": "parent_ipeds_a88e181de6408e0f4a13",
+              "perm_support": "YES"
+            },
+            {
+              "institution_id": "ipeds:236939",
+              "official_name": "Washington State University",
+              "organization_id": "legal_ipeds_236939",
+              "perm_support": "YES"
+            },
+            {
+              "institution_id": "ipeds:213543",
+              "official_name": "Lehigh University",
+              "organization_id": "legal_ipeds_213543",
+              "perm_support": "YES"
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "evidence": "Found 9 result(s); every returned row has perm_support=YES.",
+      "item": 3,
+      "requirement": "Filter for PERM support",
+      "selected_organizations": [
+        {
+          "institution_id": "ipeds:211440",
+          "official_name": "Carnegie Mellon University",
+          "organization_id": "legal_ipeds_211440",
+          "perm_support": "YES"
+        },
+        {
+          "institution_id": "ipeds:229027",
+          "official_name": "The University of Texas at San Antonio",
+          "organization_id": "parent_ipeds_44d83978300eafc34564",
+          "perm_support": "YES"
+        },
+        {
+          "institution_id": "ipeds:106263",
+          "official_name": "University of Arkansas for Medical Sciences",
+          "organization_id": "parent_ipeds_a88e181de6408e0f4a13",
+          "perm_support": "YES"
+        },
+        {
+          "institution_id": "ipeds:236939",
+          "official_name": "Washington State University",
+          "organization_id": "legal_ipeds_236939",
+          "perm_support": "YES"
+        },
+        {
+          "institution_id": "ipeds:213543",
+          "official_name": "Lehigh University",
+          "organization_id": "legal_ipeds_213543",
+          "perm_support": "YES"
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "attempts": [
+        {
+          "evidence": "Found 1 result(s); every returned row has eb1b_support=YES.",
+          "observed_at": "2026-08-15T23:42:50.643410+00:00",
+          "selected_organizations": [
+            {
+              "eb1b_support": "YES",
+              "institution_id": "ipeds:201645",
+              "official_name": "Case Western Reserve University",
+              "organization_id": "legal_ipeds_201645"
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "evidence": "Found 1 result(s); every returned row has eb1b_support=YES.",
+      "item": 4,
+      "requirement": "Filter for EB-1B support",
+      "selected_organizations": [
+        {
+          "eb1b_support": "YES",
+          "institution_id": "ipeds:201645",
+          "official_name": "Case Western Reserve University",
+          "organization_id": "legal_ipeds_201645"
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "attempts": [
+        {
+          "evidence": "Found 144 institution(s) with H-1B score >=60 and core review below 100%.",
+          "observed_at": "2026-08-15T23:42:50.643410+00:00",
+          "selected_organizations": [
+            {
+              "core_policy_review_coverage": 0.0,
+              "h1b_history_score": 80.35,
+              "institution_id": "ipeds:162928",
+              "official_name": "Johns Hopkins University",
+              "organization_id": "legal_ipeds_162928",
+              "relevant_lca_count": 84
+            },
+            {
+              "core_policy_review_coverage": 0.0,
+              "h1b_history_score": 80.02,
+              "institution_id": "ipeds:144050",
+              "official_name": "University of Chicago",
+              "organization_id": "legal_ipeds_144050",
+              "relevant_lca_count": 71
+            },
+            {
+              "core_policy_review_coverage": 0.0,
+              "h1b_history_score": 79.66,
+              "institution_id": "ipeds:123961",
+              "official_name": "University of Southern California",
+              "organization_id": "legal_ipeds_123961",
+              "relevant_lca_count": 74
+            },
+            {
+              "core_policy_review_coverage": 0.25,
+              "h1b_history_score": 78.29,
+              "institution_id": "ipeds:211440",
+              "official_name": "Carnegie Mellon University",
+              "organization_id": "legal_ipeds_211440",
+              "relevant_lca_count": 65
+            },
+            {
+              "core_policy_review_coverage": 0.0,
+              "h1b_history_score": 77.91,
+              "institution_id": "ipeds:134130",
+              "official_name": "University of Florida",
+              "organization_id": "parent_ipeds_afe8f0977506352598e8",
+              "relevant_lca_count": 50
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "evidence": "Found 144 institution(s) with H-1B score >=60 and core review below 100%.",
+      "item": 5,
+      "requirement": "Find institutions with strong technical H-1B history but incomplete policy evidence",
+      "selected_organizations": [
+        {
+          "core_policy_review_coverage": 0.0,
+          "h1b_history_score": 80.35,
+          "institution_id": "ipeds:162928",
+          "official_name": "Johns Hopkins University",
+          "organization_id": "legal_ipeds_162928",
+          "relevant_lca_count": 84
+        },
+        {
+          "core_policy_review_coverage": 0.0,
+          "h1b_history_score": 80.02,
+          "institution_id": "ipeds:144050",
+          "official_name": "University of Chicago",
+          "organization_id": "legal_ipeds_144050",
+          "relevant_lca_count": 71
+        },
+        {
+          "core_policy_review_coverage": 0.0,
+          "h1b_history_score": 79.66,
+          "institution_id": "ipeds:123961",
+          "official_name": "University of Southern California",
+          "organization_id": "legal_ipeds_123961",
+          "relevant_lca_count": 74
+        },
+        {
+          "core_policy_review_coverage": 0.25,
+          "h1b_history_score": 78.29,
+          "institution_id": "ipeds:211440",
+          "official_name": "Carnegie Mellon University",
+          "organization_id": "legal_ipeds_211440",
+          "relevant_lca_count": 65
+        },
+        {
+          "core_policy_review_coverage": 0.0,
+          "h1b_history_score": 77.91,
+          "institution_id": "ipeds:134130",
+          "official_name": "University of Florida",
+          "organization_id": "parent_ipeds_afe8f0977506352598e8",
+          "relevant_lca_count": 50
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "attempts": [
+        {
+          "evidence": "Found 660 institution(s) after sorting by research activity and applying the weak/unknown green-card rule.",
+          "observed_at": "2026-08-15T23:42:50.643410+00:00",
+          "selected_organizations": [
+            {
+              "green_card_history_coverage": 0.0,
+              "green_card_history_score": null,
+              "institution_id": "ipeds:139755",
+              "official_name": "Georgia Institute of Technology-Main Campus",
+              "organization_id": "parent_ipeds_bc8dcfe31876a2a2eca5",
+              "relevant_certified_perm_count": 0,
+              "total_rd": 1528637000
+            },
+            {
+              "green_card_history_coverage": 0.0,
+              "green_card_history_score": null,
+              "institution_id": "ipeds:214777",
+              "official_name": "Pennsylvania State University-Main Campus",
+              "organization_id": "parent_ipeds_54fa76ba10809724d713",
+              "relevant_certified_perm_count": 0,
+              "total_rd": 1302971000
+            },
+            {
+              "green_card_history_coverage": 0.0,
+              "green_card_history_score": null,
+              "institution_id": "ipeds:240444",
+              "official_name": "University of Wisconsin-Madison",
+              "organization_id": "parent_ipeds_2ece19e2fe13b042025c",
+              "relevant_certified_perm_count": 0,
+              "total_rd": 1933229000
+            },
+            {
+              "green_card_history_coverage": 0.0,
+              "green_card_history_score": null,
+              "institution_id": "ipeds:236948",
+              "official_name": "University of Washington-Seattle Campus",
+              "organization_id": "parent_ipeds_9c1ca61d4a4e2d801d39",
+              "relevant_certified_perm_count": 0,
+              "total_rd": 1691302000
+            },
+            {
+              "green_card_history_coverage": 0.0,
+              "green_card_history_score": null,
+              "institution_id": "ipeds:170976",
+              "official_name": "University of Michigan-Ann Arbor",
+              "organization_id": "legal_ipeds_170976",
+              "relevant_certified_perm_count": 0,
+              "total_rd": 2110961000
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "evidence": "Found 660 institution(s) after sorting by research activity and applying the weak/unknown green-card rule.",
+      "item": 6,
+      "requirement": "Find high-research institutions with weak or unknown green-card evidence",
+      "selected_organizations": [
+        {
+          "green_card_history_coverage": 0.0,
+          "green_card_history_score": null,
+          "institution_id": "ipeds:139755",
+          "official_name": "Georgia Institute of Technology-Main Campus",
+          "organization_id": "parent_ipeds_bc8dcfe31876a2a2eca5",
+          "relevant_certified_perm_count": 0,
+          "total_rd": 1528637000
+        },
+        {
+          "green_card_history_coverage": 0.0,
+          "green_card_history_score": null,
+          "institution_id": "ipeds:214777",
+          "official_name": "Pennsylvania State University-Main Campus",
+          "organization_id": "parent_ipeds_54fa76ba10809724d713",
+          "relevant_certified_perm_count": 0,
+          "total_rd": 1302971000
+        },
+        {
+          "green_card_history_coverage": 0.0,
+          "green_card_history_score": null,
+          "institution_id": "ipeds:240444",
+          "official_name": "University of Wisconsin-Madison",
+          "organization_id": "parent_ipeds_2ece19e2fe13b042025c",
+          "relevant_certified_perm_count": 0,
+          "total_rd": 1933229000
+        },
+        {
+          "green_card_history_coverage": 0.0,
+          "green_card_history_score": null,
+          "institution_id": "ipeds:236948",
+          "official_name": "University of Washington-Seattle Campus",
+          "organization_id": "parent_ipeds_9c1ca61d4a4e2d801d39",
+          "relevant_certified_perm_count": 0,
+          "total_rd": 1691302000
+        },
+        {
+          "green_card_history_coverage": 0.0,
+          "green_card_history_score": null,
+          "institution_id": "ipeds:170976",
+          "official_name": "University of Michigan-Ann Arbor",
+          "organization_id": "legal_ipeds_170976",
+          "relevant_certified_perm_count": 0,
+          "total_rd": 2110961000
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "attempts": [
+        {
+          "evidence": "Found 5 non-institution legal names with a corporate suffix, complete sponsorship coverage, and nonzero technical LCA/PERM history.",
+          "observed_at": "2026-08-15T23:42:50.643410+00:00",
+          "selected_organizations": [
+            {
+              "green_card_history_score": 93.14,
+              "h1b_history_score": 99.32,
+              "organization_id": "legal_source_0a6cf2a36712d7810743",
+              "organization_name": "ORACLE AMERICA, INC.",
+              "organization_type": "unknown",
+              "relevant_certified_perm_count": 3062,
+              "relevant_lca_count": 1374,
+              "sponsorship_history_coverage": 1.0,
+              "sponsorship_history_score": 95.61
+            },
+            {
+              "green_card_history_score": 93.44,
+              "h1b_history_score": 98.64,
+              "organization_id": "legal_source_3e0c47f1f421ea53999b",
+              "organization_name": "Microsoft Corporation",
+              "organization_type": "unknown",
+              "relevant_certified_perm_count": 8724,
+              "relevant_lca_count": 10136,
+              "sponsorship_history_coverage": 1.0,
+              "sponsorship_history_score": 95.52
+            },
+            {
+              "green_card_history_score": 91.67,
+              "h1b_history_score": 98.78,
+              "organization_id": "legal_source_2f1522ba21ebf91af533",
+              "organization_name": "CGI Technologies and Solutions Inc.",
+              "organization_type": "unknown",
+              "relevant_certified_perm_count": 631,
+              "relevant_lca_count": 976,
+              "sponsorship_history_coverage": 1.0,
+              "sponsorship_history_score": 94.51
+            },
+            {
+              "green_card_history_score": 88.95,
+              "h1b_history_score": 98.39,
+              "organization_id": "legal_source_abd57176c9a018302e0e",
+              "organization_name": "Adobe Inc.",
+              "organization_type": "unknown",
+              "relevant_certified_perm_count": 908,
+              "relevant_lca_count": 1142,
+              "sponsorship_history_coverage": 1.0,
+              "sponsorship_history_score": 92.73
+            },
+            {
+              "green_card_history_score": 88.98,
+              "h1b_history_score": 97.71,
+              "organization_id": "legal_source_2803244c862b19b733ab",
+              "organization_name": "CISCO SYSTEMS, INC.",
+              "organization_type": "unknown",
+              "relevant_certified_perm_count": 1738,
+              "relevant_lca_count": 1305,
+              "sponsorship_history_coverage": 1.0,
+              "sponsorship_history_score": 92.47
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "evidence": "Found 5 non-institution legal names with a corporate suffix, complete sponsorship coverage, and nonzero technical LCA/PERM history.",
+      "item": 7,
+      "requirement": "Find private companies with strong technical H-1B and PERM histories",
+      "selected_organizations": [
+        {
+          "green_card_history_score": 93.14,
+          "h1b_history_score": 99.32,
+          "organization_id": "legal_source_0a6cf2a36712d7810743",
+          "organization_name": "ORACLE AMERICA, INC.",
+          "organization_type": "unknown",
+          "relevant_certified_perm_count": 3062,
+          "relevant_lca_count": 1374,
+          "sponsorship_history_coverage": 1.0,
+          "sponsorship_history_score": 95.61
+        },
+        {
+          "green_card_history_score": 93.44,
+          "h1b_history_score": 98.64,
+          "organization_id": "legal_source_3e0c47f1f421ea53999b",
+          "organization_name": "Microsoft Corporation",
+          "organization_type": "unknown",
+          "relevant_certified_perm_count": 8724,
+          "relevant_lca_count": 10136,
+          "sponsorship_history_coverage": 1.0,
+          "sponsorship_history_score": 95.52
+        },
+        {
+          "green_card_history_score": 91.67,
+          "h1b_history_score": 98.78,
+          "organization_id": "legal_source_2f1522ba21ebf91af533",
+          "organization_name": "CGI Technologies and Solutions Inc.",
+          "organization_type": "unknown",
+          "relevant_certified_perm_count": 631,
+          "relevant_lca_count": 976,
+          "sponsorship_history_coverage": 1.0,
+          "sponsorship_history_score": 94.51
+        },
+        {
+          "green_card_history_score": 88.95,
+          "h1b_history_score": 98.39,
+          "organization_id": "legal_source_abd57176c9a018302e0e",
+          "organization_name": "Adobe Inc.",
+          "organization_type": "unknown",
+          "relevant_certified_perm_count": 908,
+          "relevant_lca_count": 1142,
+          "sponsorship_history_coverage": 1.0,
+          "sponsorship_history_score": 92.73
+        },
+        {
+          "green_card_history_score": 88.98,
+          "h1b_history_score": 97.71,
+          "organization_id": "legal_source_2803244c862b19b733ab",
+          "organization_name": "CISCO SYSTEMS, INC.",
+          "organization_type": "unknown",
+          "relevant_certified_perm_count": 1738,
+          "relevant_lca_count": 1305,
+          "sponsorship_history_coverage": 1.0,
+          "sponsorship_history_score": 92.47
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "attempts": [
+        {
+          "evidence": "Comparison returned 3/3 unique rows selected by deterministic evidence/type rules.",
+          "observed_at": "2026-08-15T23:42:50.643410+00:00",
+          "selected_organizations": [
+            {
+              "cap_exemption_status": "POTENTIALLY_CAP_EXEMPT_HIGHER_ED",
+              "computing_rd": 226521000,
+              "control": "PRIVATE_NONPROFIT",
+              "core_policy_evidence_coverage": 0.25,
+              "core_policy_review_coverage": 0.25,
+              "decision_readiness_explanation": "TIER_2_STRONG_HISTORY_POLICY_INCOMPLETE is the deterministic evidence tier. Final publication eligibility is pending the current build's critical quality gate; the tier is not a sponsorship probability.",
+              "decision_readiness_tier": "TIER_2_STRONG_HISTORY_POLICY_INCOMPLETE",
+              "eb1b_support": "UNKNOWN",
+              "engineering_rd": 160149000,
+              "everify_lookup_status": "NOT_CHECKED",
+              "everify_retrieved_at": null,
+              "everify_status": "UNKNOWN",
+              "evidence_classes": "OBSERVED_GOVERNMENT_RECORD|DERIVED_METRIC|REVIEWED_OFFICIAL_POLICY",
+              "federal_rd": 280169000,
+              "general_staff_permanent_residence_policy": "UNKNOWN",
+              "green_card_history_coverage": 1.0,
+              "green_card_history_explanation": "Observed 23 PERM records, including 7 relevant certified technical records; component coverage is 1.0.",
+              "green_card_history_grade": "D",
+              "green_card_history_score": 57.7,
+              "h1b_history_coverage": 1.0,
+              "h1b_history_explanation": "Observed 65 relevant LCA records and 239 USCIS initial approvals; component coverage is 1.0.",
+              "h1b_history_grade": "B",
+              "h1b_history_score": 78.29,
+              "has_computing_rd_data": true,
+              "has_engineering_rd_data": true,
+              "has_federal_rd_data": true,
+              "has_total_rd_data": true,
+              "immigration_evidence_confidence": 0.86,
+              "immigration_evidence_coverage": 0.86,
+              "immigration_evidence_grade": "C",
+              "immigration_evidence_score": 64.37,
+              "initial_approvals": 239,
+              "institution_id": "ipeds:211440",
+              "ipeds_unitid": "211440",
+              "known_opt_observation": "OBSERVED_POSITIVE",
+              "last_observed_activity_year": 2026,
+              "latest_herd_year": 2024,
+              "metric_version": "scored_metrics_v2",
+              "official_name": "Carnegie Mellon University",
+              "opt_report_year": 2024,
+              "opt_reported_count": 416,
+              "organization_id": "legal_ipeds_211440",
+              "parent_system": null,
+              "perm_support": "YES",
+              "policy_review_status": "PARTIALLY_REVIEWED",
+              "policy_support_confidence": 0.16,
+              "policy_support_coverage": 0.16,
+              "policy_support_grade": null,
+              "policy_support_score": 100.0,
+              "relevant_certified_perm_count": 7,
+              "relevant_lca_count": 65,
+              "research_pathway_confidence": 0.748,
+              "research_pathway_coverage": 0.748,
+              "research_pathway_explanation": "Numerical partial score only: coverage is 0.748; core-policy review coverage is 0.25. No letter grade is assigned.",
+              "research_pathway_grade": null,
+              "research_pathway_score": 82.01,
+              "research_pathway_status": "INCOMPLETE_EVIDENCE",
+              "research_staff_h1b_policy": "UNKNOWN",
+              "research_staff_permanent_residence_policy": "UNKNOWN",
+              "research_strength_confidence": 1.0,
+              "research_strength_coverage": 1.0,
+              "research_strength_explanation": "HERD total, computing, engineering, and federal R&D percentiles; unavailable short-form fields reduce coverage.",
+              "research_strength_grade": "A+",
+              "research_strength_score": 95.19,
+              "sample_type": "university",
+              "score_coverage": 0.748,
+              "score_version": "evidence_scores_v2_2026_08",
+              "sponsorship_history_confidence": 1.0,
+              "sponsorship_history_confidence_band": "HIGH",
+              "sponsorship_history_coverage": 1.0,
+              "sponsorship_history_explanation": "Complete H-1B and green-card history: 40% H-1B (65 relevant LCA; 239 initial approvals) and 60% green card (7 relevant certified PERM).",
+              "sponsorship_history_grade": "C",
+              "sponsorship_history_score": 65.94,
+              "sponsorship_history_status": "COMPLETE",
+              "state": "PA",
+              "stem_opt_readiness_coverage": 0.3,
+              "stem_opt_readiness_score": 55.0,
+              "stem_opt_readiness_status": "LIMITED",
+              "total_rd": 505262000
+            },
+            {
+              "green_card_history_score": 61.5,
+              "h1b_history_score": 69.5,
+              "organization_id": "legal_source_64b7c55c69820aebcd40",
+              "organization_name": "Lawrence Berkeley National Laboratory",
+              "organization_type": "unknown",
+              "relevant_certified_perm_count": 18,
+              "relevant_lca_count": 63,
+              "sample_type": "research_nonprofit_or_lab",
+              "sponsorship_history_coverage": 1.0,
+              "sponsorship_history_score": 64.7
+            },
+            {
+              "green_card_history_score": 93.14,
+              "h1b_history_score": 99.32,
+              "organization_id": "legal_source_0a6cf2a36712d7810743",
+              "organization_name": "ORACLE AMERICA, INC.",
+              "organization_type": "unknown",
+              "relevant_certified_perm_count": 3062,
+              "relevant_lca_count": 1374,
+              "sample_type": "private_company",
+              "sponsorship_history_coverage": 1.0,
+              "sponsorship_history_score": 95.61
+            }
+          ],
+          "status": "PASS"
+        },
+        {
+          "evidence": "Comparison returned 3/3 unique rows selected by deterministic evidence/type rules.",
+          "observed_at": "2026-08-16T00:13:58.887777+00:00",
+          "selected_organizations": [
+            {
+              "cap_exemption_status": "POTENTIALLY_CAP_EXEMPT_HIGHER_ED",
+              "computing_rd": 226521000,
+              "control": "PRIVATE_NONPROFIT",
+              "core_policy_evidence_coverage": 0.25,
+              "core_policy_review_coverage": 0.25,
+              "decision_readiness_explanation": "TIER_2_STRONG_HISTORY_POLICY_INCOMPLETE is the deterministic evidence tier. The current build's critical quality gate passed; the tier is not a sponsorship probability.",
+              "decision_readiness_tier": "TIER_2_STRONG_HISTORY_POLICY_INCOMPLETE",
+              "eb1b_support": "UNKNOWN",
+              "engineering_rd": 160149000,
+              "everify_lookup_status": "NOT_CHECKED",
+              "everify_retrieved_at": null,
+              "everify_status": "UNKNOWN",
+              "evidence_classes": "OBSERVED_GOVERNMENT_RECORD|DERIVED_METRIC|REVIEWED_OFFICIAL_POLICY",
+              "federal_rd": 280169000,
+              "general_staff_permanent_residence_policy": "UNKNOWN",
+              "green_card_history_coverage": 1.0,
+              "green_card_history_explanation": "Observed 23 PERM records, including 7 relevant certified technical records; component coverage is 1.0.",
+              "green_card_history_grade": "D",
+              "green_card_history_score": 57.7,
+              "h1b_history_coverage": 1.0,
+              "h1b_history_explanation": "Observed 65 relevant LCA records and 239 USCIS initial approvals; component coverage is 1.0.",
+              "h1b_history_grade": "B",
+              "h1b_history_score": 78.29,
+              "has_computing_rd_data": true,
+              "has_engineering_rd_data": true,
+              "has_federal_rd_data": true,
+              "has_total_rd_data": true,
+              "immigration_evidence_confidence": 0.86,
+              "immigration_evidence_coverage": 0.86,
+              "immigration_evidence_grade": "C",
+              "immigration_evidence_score": 64.37,
+              "initial_approvals": 239,
+              "institution_id": "ipeds:211440",
+              "ipeds_unitid": "211440",
+              "known_opt_observation": "OBSERVED_POSITIVE",
+              "last_observed_activity_year": 2026,
+              "latest_herd_year": 2024,
+              "metric_version": "scored_metrics_v2",
+              "official_name": "Carnegie Mellon University",
+              "opt_report_year": 2024,
+              "opt_reported_count": 416,
+              "organization_id": "legal_ipeds_211440",
+              "parent_system": null,
+              "perm_support": "YES",
+              "policy_review_status": "PARTIALLY_REVIEWED",
+              "policy_support_confidence": 0.16,
+              "policy_support_coverage": 0.16,
+              "policy_support_grade": null,
+              "policy_support_score": 100.0,
+              "relevant_certified_perm_count": 7,
+              "relevant_lca_count": 65,
+              "research_pathway_confidence": 0.748,
+              "research_pathway_coverage": 0.748,
+              "research_pathway_explanation": "Numerical partial score only: coverage is 0.748; core-policy review coverage is 0.25. No letter grade is assigned.",
+              "research_pathway_grade": null,
+              "research_pathway_score": 82.01,
+              "research_pathway_status": "INCOMPLETE_EVIDENCE",
+              "research_staff_h1b_policy": "UNKNOWN",
+              "research_staff_permanent_residence_policy": "UNKNOWN",
+              "research_strength_confidence": 1.0,
+              "research_strength_coverage": 1.0,
+              "research_strength_explanation": "HERD total, computing, engineering, and federal R&D percentiles; unavailable short-form fields reduce coverage.",
+              "research_strength_grade": "A+",
+              "research_strength_score": 95.19,
+              "sample_type": "university",
+              "score_coverage": 0.748,
+              "score_version": "evidence_scores_v2_2026_08",
+              "sponsorship_history_confidence": 1.0,
+              "sponsorship_history_confidence_band": "HIGH",
+              "sponsorship_history_coverage": 1.0,
+              "sponsorship_history_explanation": "Complete H-1B and green-card history: 40% H-1B (65 relevant LCA; 239 initial approvals) and 60% green card (7 relevant certified PERM).",
+              "sponsorship_history_grade": "C",
+              "sponsorship_history_score": 65.94,
+              "sponsorship_history_status": "COMPLETE",
+              "state": "PA",
+              "stem_opt_readiness_coverage": 0.3,
+              "stem_opt_readiness_score": 55.0,
+              "stem_opt_readiness_status": "LIMITED",
+              "total_rd": 505262000
+            },
+            {
+              "green_card_history_score": 61.5,
+              "h1b_history_score": 69.5,
+              "organization_id": "legal_source_64b7c55c69820aebcd40",
+              "organization_name": "Lawrence Berkeley National Laboratory",
+              "organization_type": "unknown",
+              "relevant_certified_perm_count": 18,
+              "relevant_lca_count": 63,
+              "sample_type": "research_nonprofit_or_lab",
+              "sponsorship_history_coverage": 1.0,
+              "sponsorship_history_score": 64.7
+            },
+            {
+              "green_card_history_score": 93.14,
+              "h1b_history_score": 99.32,
+              "organization_id": "legal_source_0a6cf2a36712d7810743",
+              "organization_name": "ORACLE AMERICA, INC.",
+              "organization_type": "unknown",
+              "relevant_certified_perm_count": 3062,
+              "relevant_lca_count": 1374,
+              "sample_type": "private_company",
+              "sponsorship_history_coverage": 1.0,
+              "sponsorship_history_score": 95.61
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "evidence": "Comparison returned 3/3 unique rows selected by deterministic evidence/type rules.",
+      "item": 8,
+      "requirement": "Compare a university, a research nonprofit/lab, and a private company",
+      "selected_organizations": [
+        {
+          "cap_exemption_status": "POTENTIALLY_CAP_EXEMPT_HIGHER_ED",
+          "computing_rd": 226521000,
+          "control": "PRIVATE_NONPROFIT",
+          "core_policy_evidence_coverage": 0.25,
+          "core_policy_review_coverage": 0.25,
+          "decision_readiness_explanation": "TIER_2_STRONG_HISTORY_POLICY_INCOMPLETE is the deterministic evidence tier. The current build's critical quality gate passed; the tier is not a sponsorship probability.",
+          "decision_readiness_tier": "TIER_2_STRONG_HISTORY_POLICY_INCOMPLETE",
+          "eb1b_support": "UNKNOWN",
+          "engineering_rd": 160149000,
+          "everify_lookup_status": "NOT_CHECKED",
+          "everify_retrieved_at": null,
+          "everify_status": "UNKNOWN",
+          "evidence_classes": "OBSERVED_GOVERNMENT_RECORD|DERIVED_METRIC|REVIEWED_OFFICIAL_POLICY",
+          "federal_rd": 280169000,
+          "general_staff_permanent_residence_policy": "UNKNOWN",
+          "green_card_history_coverage": 1.0,
+          "green_card_history_explanation": "Observed 23 PERM records, including 7 relevant certified technical records; component coverage is 1.0.",
+          "green_card_history_grade": "D",
+          "green_card_history_score": 57.7,
+          "h1b_history_coverage": 1.0,
+          "h1b_history_explanation": "Observed 65 relevant LCA records and 239 USCIS initial approvals; component coverage is 1.0.",
+          "h1b_history_grade": "B",
+          "h1b_history_score": 78.29,
+          "has_computing_rd_data": true,
+          "has_engineering_rd_data": true,
+          "has_federal_rd_data": true,
+          "has_total_rd_data": true,
+          "immigration_evidence_confidence": 0.86,
+          "immigration_evidence_coverage": 0.86,
+          "immigration_evidence_grade": "C",
+          "immigration_evidence_score": 64.37,
+          "initial_approvals": 239,
+          "institution_id": "ipeds:211440",
+          "ipeds_unitid": "211440",
+          "known_opt_observation": "OBSERVED_POSITIVE",
+          "last_observed_activity_year": 2026,
+          "latest_herd_year": 2024,
+          "metric_version": "scored_metrics_v2",
+          "official_name": "Carnegie Mellon University",
+          "opt_report_year": 2024,
+          "opt_reported_count": 416,
+          "organization_id": "legal_ipeds_211440",
+          "parent_system": null,
+          "perm_support": "YES",
+          "policy_review_status": "PARTIALLY_REVIEWED",
+          "policy_support_confidence": 0.16,
+          "policy_support_coverage": 0.16,
+          "policy_support_grade": null,
+          "policy_support_score": 100.0,
+          "relevant_certified_perm_count": 7,
+          "relevant_lca_count": 65,
+          "research_pathway_confidence": 0.748,
+          "research_pathway_coverage": 0.748,
+          "research_pathway_explanation": "Numerical partial score only: coverage is 0.748; core-policy review coverage is 0.25. No letter grade is assigned.",
+          "research_pathway_grade": null,
+          "research_pathway_score": 82.01,
+          "research_pathway_status": "INCOMPLETE_EVIDENCE",
+          "research_staff_h1b_policy": "UNKNOWN",
+          "research_staff_permanent_residence_policy": "UNKNOWN",
+          "research_strength_confidence": 1.0,
+          "research_strength_coverage": 1.0,
+          "research_strength_explanation": "HERD total, computing, engineering, and federal R&D percentiles; unavailable short-form fields reduce coverage.",
+          "research_strength_grade": "A+",
+          "research_strength_score": 95.19,
+          "sample_type": "university",
+          "score_coverage": 0.748,
+          "score_version": "evidence_scores_v2_2026_08",
+          "sponsorship_history_confidence": 1.0,
+          "sponsorship_history_confidence_band": "HIGH",
+          "sponsorship_history_coverage": 1.0,
+          "sponsorship_history_explanation": "Complete H-1B and green-card history: 40% H-1B (65 relevant LCA; 239 initial approvals) and 60% green card (7 relevant certified PERM).",
+          "sponsorship_history_grade": "C",
+          "sponsorship_history_score": 65.94,
+          "sponsorship_history_status": "COMPLETE",
+          "state": "PA",
+          "stem_opt_readiness_coverage": 0.3,
+          "stem_opt_readiness_score": 55.0,
+          "stem_opt_readiness_status": "LIMITED",
+          "total_rd": 505262000
+        },
+        {
+          "green_card_history_score": 61.5,
+          "h1b_history_score": 69.5,
+          "organization_id": "legal_source_64b7c55c69820aebcd40",
+          "organization_name": "Lawrence Berkeley National Laboratory",
+          "organization_type": "unknown",
+          "relevant_certified_perm_count": 18,
+          "relevant_lca_count": 63,
+          "sample_type": "research_nonprofit_or_lab",
+          "sponsorship_history_coverage": 1.0,
+          "sponsorship_history_score": 64.7
+        },
+        {
+          "green_card_history_score": 93.14,
+          "h1b_history_score": 99.32,
+          "organization_id": "legal_source_0a6cf2a36712d7810743",
+          "organization_name": "ORACLE AMERICA, INC.",
+          "organization_type": "unknown",
+          "relevant_certified_perm_count": 3062,
+          "relevant_lca_count": 1374,
+          "sample_type": "private_company",
+          "sponsorship_history_coverage": 1.0,
+          "sponsorship_history_score": 95.61
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "attempts": [
+        {
+          "evidence": "Selected parent detail exposed 96 legal entities.",
+          "observed_at": "2026-08-15T23:42:50.643410+00:00",
+          "selected_organizations": [
+            {
+              "legal_entity_count": 96,
+              "organization_id": "parent_ipeds_a21620f2a2251a8cfbed",
+              "organization_name": "California Community College System"
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "evidence": "Selected parent detail exposed 96 legal entities.",
+      "item": 9,
+      "requirement": "Open a parent organization and inspect its legal entities",
+      "selected_organizations": [
+        {
+          "legal_entity_count": 96,
+          "organization_id": "parent_ipeds_a21620f2a2251a8cfbed",
+          "organization_name": "California Community College System"
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "attempts": [
+        {
+          "evidence": "Presentation review queue rows=0; independently selected real-data audit conflicts held for human review=36.",
+          "observed_at": "2026-08-15T23:42:50.643410+00:00",
+          "selected_organizations": [
+            {
+              "audit_review_status": "PENDING_HUMAN_REVIEW",
+              "human_override_required": "YES",
+              "location_conflict_observations": "2",
+              "resolution_confidence": "LOCATION_CONFLICT_REVIEW_REQUIRED",
+              "selection_name": "Microsoft Corporation"
+            }
+          ],
+          "status": "FAIL"
+        },
+        {
+          "evidence": "Presentation review queue rows=21117; independently selected real-data audit conflicts held for human review=36.",
+          "observed_at": "2026-08-15T23:45:15.272119+00:00",
+          "selected_organizations": [
+            {
+              "audit_review_status": "PENDING_HUMAN_REVIEW",
+              "human_override_required": "YES",
+              "location_conflict_observations": "2",
+              "resolution_confidence": "LOCATION_CONFLICT_REVIEW_REQUIRED",
+              "selection_name": "Microsoft Corporation"
+            }
+          ],
+          "status": "PASS"
+        },
+        {
+          "evidence": "Presentation review queue rows=21117; independently selected real-data audit conflicts held for human review=2.",
+          "observed_at": "2026-08-16T00:43:41.642833+00:00",
+          "selected_organizations": [
+            {
+              "audit_review_status": "PENDING_HUMAN_REVIEW",
+              "human_override_required": "YES",
+              "location_conflict_observations": "0",
+              "resolution_confidence": "REVIEW_REQUIRED",
+              "selection_name": "TATA CONSULTANCY SERVICES LIMITED"
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "evidence": "Presentation review queue rows=21117; independently selected real-data audit conflicts held for human review=2.",
+      "item": 10,
+      "requirement": "Confirm an ambiguous organization does not silently merge",
+      "selected_organizations": [
+        {
+          "audit_review_status": "PENDING_HUMAN_REVIEW",
+          "human_override_required": "YES",
+          "location_conflict_observations": "0",
+          "resolution_confidence": "REVIEW_REQUIRED",
+          "selection_name": "TATA CONSULTANCY SERVICES LIMITED"
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "attempts": [
+        {
+          "evidence": "Default sponsorship ranking contains 1993 of the first 2,000 employers with E-Verify UNKNOWN and nonzero technical LCA/PERM evidence.",
+          "observed_at": "2026-08-15T23:42:50.643410+00:00",
+          "selected_organizations": [
+            {
+              "everify_status": "UNKNOWN",
+              "organization_id": "legal_source_0a6cf2a36712d7810743",
+              "organization_name": "ORACLE AMERICA, INC.",
+              "relevant_certified_perm_count": 3062,
+              "relevant_lca_count": 1374,
+              "sponsorship_history_score": 95.61
+            },
+            {
+              "everify_status": "UNKNOWN",
+              "organization_id": "legal_source_2f1522ba21ebf91af533",
+              "organization_name": "CGI Technologies and Solutions Inc.",
+              "relevant_certified_perm_count": 631,
+              "relevant_lca_count": 976,
+              "sponsorship_history_score": 94.51
+            },
+            {
+              "everify_status": "UNKNOWN",
+              "organization_id": "legal_source_906226fd001d9b158018",
+              "organization_name": "KFORCE INC. ",
+              "relevant_certified_perm_count": 769,
+              "relevant_lca_count": 853,
+              "sponsorship_history_score": 94.24
+            },
+            {
+              "everify_status": "UNKNOWN",
+              "organization_id": "parent_amazon",
+              "organization_name": "Amazon",
+              "relevant_certified_perm_count": 13011,
+              "relevant_lca_count": 20951,
+              "sponsorship_history_score": 93.09
+            },
+            {
+              "everify_status": "UNKNOWN",
+              "organization_id": "legal_source_dccca3204ebbb8b88413",
+              "organization_name": "Expedia, Inc. ",
+              "relevant_certified_perm_count": 472,
+              "relevant_lca_count": 560,
+              "sponsorship_history_score": 93.02
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "evidence": "Default sponsorship ranking contains 1993 of the first 2,000 employers with E-Verify UNKNOWN and nonzero technical LCA/PERM evidence.",
+      "item": 11,
+      "requirement": "Confirm missing E-Verify does not suppress H-1B/PERM ranking",
+      "selected_organizations": [
+        {
+          "everify_status": "UNKNOWN",
+          "organization_id": "legal_source_0a6cf2a36712d7810743",
+          "organization_name": "ORACLE AMERICA, INC.",
+          "relevant_certified_perm_count": 3062,
+          "relevant_lca_count": 1374,
+          "sponsorship_history_score": 95.61
+        },
+        {
+          "everify_status": "UNKNOWN",
+          "organization_id": "legal_source_2f1522ba21ebf91af533",
+          "organization_name": "CGI Technologies and Solutions Inc.",
+          "relevant_certified_perm_count": 631,
+          "relevant_lca_count": 976,
+          "sponsorship_history_score": 94.51
+        },
+        {
+          "everify_status": "UNKNOWN",
+          "organization_id": "legal_source_906226fd001d9b158018",
+          "organization_name": "KFORCE INC. ",
+          "relevant_certified_perm_count": 769,
+          "relevant_lca_count": 853,
+          "sponsorship_history_score": 94.24
+        },
+        {
+          "everify_status": "UNKNOWN",
+          "organization_id": "parent_amazon",
+          "organization_name": "Amazon",
+          "relevant_certified_perm_count": 13011,
+          "relevant_lca_count": 20951,
+          "sponsorship_history_score": 93.09
+        },
+        {
+          "everify_status": "UNKNOWN",
+          "organization_id": "legal_source_dccca3204ebbb8b88413",
+          "organization_name": "Expedia, Inc. ",
+          "relevant_certified_perm_count": 472,
+          "relevant_lca_count": 560,
+          "sponsorship_history_score": 93.02
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "attempts": [
+        {
+          "evidence": "Observed E-Verify display=UNKNOWN; nullable score CSV='sponsorship_history_score'.",
+          "observed_at": "2026-08-15T23:42:50.643410+00:00",
+          "selected_organizations": [
+            {
+              "everify_status": "UNKNOWN",
+              "organization_id": "legal_source_0a6cf2a36712d7810743",
+              "organization_name": "ORACLE AMERICA, INC."
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "evidence": "Observed E-Verify display=UNKNOWN; nullable score CSV='sponsorship_history_score'.",
+      "item": 12,
+      "requirement": "Confirm UNKNOWN is not displayed or exported as NO or zero",
+      "selected_organizations": [
+        {
+          "everify_status": "UNKNOWN",
+          "organization_id": "legal_source_0a6cf2a36712d7810743",
+          "organization_name": "ORACLE AMERICA, INC."
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "attempts": [
+        {
+          "evidence": "latest_complete_fy=2025; partial_fy=2026; partial_quarter=2; message=Processed government and institution metrics are available. FY2026 is partial and must not be compared directly with complete years.",
+          "observed_at": "2026-08-15T23:42:50.643410+00:00",
+          "selected_organizations": [],
+          "status": "PASS"
+        }
+      ],
+      "evidence": "latest_complete_fy=2025; partial_fy=2026; partial_quarter=2; message=Processed government and institution metrics are available. FY2026 is partial and must not be compared directly with complete years.",
+      "item": 13,
+      "requirement": "Confirm partial FY2026 evidence is visibly labeled",
+      "selected_organizations": [],
+      "status": "PASS"
+    },
+    {
+      "attempts": [
+        {
+          "evidence": "Exported 167,849 bytes and 123 data rows for LCA>=5 and PERM>=1.",
+          "observed_at": "2026-08-15T23:42:50.643410+00:00",
+          "selected_organizations": [],
+          "status": "PASS"
+        },
+        {
+          "evidence": "Exported 163,667 bytes and 123 data rows for LCA>=5 and PERM>=1.",
+          "observed_at": "2026-08-16T00:13:58.887777+00:00",
+          "selected_organizations": [],
+          "status": "PASS"
+        }
+      ],
+      "evidence": "Exported 163,667 bytes and 123 data rows for LCA>=5 and PERM>=1.",
+      "item": 14,
+      "requirement": "Export a filtered institution result",
+      "selected_organizations": [],
+      "status": "PASS"
+    },
+    {
+      "attempts": [
+        {
+          "evidence": "Exported 3,851,703 bytes and 4,403 data rows for LCA>=10 and PERM>=1.",
+          "observed_at": "2026-08-15T23:42:50.643410+00:00",
+          "selected_organizations": [],
+          "status": "PASS"
+        }
+      ],
+      "evidence": "Exported 3,851,703 bytes and 4,403 data rows for LCA>=10 and PERM>=1.",
+      "item": 15,
+      "requirement": "Export a filtered employer result",
+      "selected_organizations": [],
+      "status": "PASS"
+    },
+    {
+      "attempts": [
+        {
+          "evidence": "The selected detail exposed 4 reviewed current fact(s); all have HTTPS source links and nonempty exact excerpts, and the view gates on exact_excerpt_verified.",
+          "observed_at": "2026-08-15T23:42:50.643410+00:00",
+          "selected_organizations": [
+            {
+              "official_name": "Appalachian State University",
+              "organization_id": "parent_ipeds_c049f196ef36a5706b80",
+              "visible_policy_fact_count": 1
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "evidence": "The selected detail exposed 4 reviewed current fact(s); all have HTTPS source links and nonempty exact excerpts, and the view gates on exact_excerpt_verified.",
+      "item": 16,
+      "requirement": "Verify every policy claim in detail links to an official source and exact excerpt",
+      "selected_organizations": [
+        {
+          "official_name": "Appalachian State University",
+          "organization_id": "parent_ipeds_c049f196ef36a5706b80",
+          "visible_policy_fact_count": 1
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "attempts": [
+        {
+          "evidence": "Formula match=True; detail trend/count match=True; stored explanation present=True.",
+          "observed_at": "2026-08-15T23:42:50.643410+00:00",
+          "selected_organizations": [
+            {
+              "green_card_history_score": 93.14,
+              "h1b_history_score": 99.32,
+              "organization_id": "legal_source_0a6cf2a36712d7810743",
+              "organization_name": "ORACLE AMERICA, INC.",
+              "recomputed_sponsorship_score": 95.61,
+              "relevant_certified_perm_count": 3062,
+              "relevant_lca_count": 1374,
+              "stored_sponsorship_score": 95.61
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "evidence": "Formula match=True; detail trend/count match=True; stored explanation present=True.",
+      "item": 17,
+      "requirement": "Verify ranking explanations match underlying raw counts",
+      "selected_organizations": [
+        {
+          "green_card_history_score": 93.14,
+          "h1b_history_score": 99.32,
+          "organization_id": "legal_source_0a6cf2a36712d7810743",
+          "organization_name": "ORACLE AMERICA, INC.",
+          "recomputed_sponsorship_score": 95.61,
+          "relevant_certified_perm_count": 3062,
+          "relevant_lca_count": 1374,
+          "stored_sponsorship_score": 95.61
+        }
+      ],
+      "status": "PASS"
+    },
+    {
+      "attempts": [
+        {
+          "evidence": "Found a lower-R&D institution ranked earlier because it has complete sponsorship coverage and stronger green-card evidence. The earlier row is Tier 2 (policy incomplete), so this does not claim a Tier 1 decision-ready comparison.",
+          "observed_at": "2026-08-15T23:42:50.643410+00:00",
+          "selected_organizations": [
+            {
+              "decision_readiness_tier": "TIER_2_STRONG_HISTORY_POLICY_INCOMPLETE",
+              "green_card_history_score": 57.7,
+              "institution_id": "ipeds:211440",
+              "official_name": "Carnegie Mellon University",
+              "sample_type": "earlier_decision_evidence",
+              "total_rd": 505262000
+            },
+            {
+              "decision_readiness_tier": "TIER_4_INSUFFICIENT_EVIDENCE",
+              "default_zero_based_rank": 1419,
+              "green_card_history_score": null,
+              "institution_id": "ipeds:139755",
+              "official_name": "Georgia Institute of Technology-Main Campus",
+              "sample_type": "higher_rd_weaker_immigration",
+              "total_rd": 1528637000
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "evidence": "Found a lower-R&D institution ranked earlier because it has complete sponsorship coverage and stronger green-card evidence. The earlier row is Tier 2 (policy incomplete), so this does not claim a Tier 1 decision-ready comparison.",
+      "item": 18,
+      "requirement": "Verify high R&D alone does not override stronger immigration evidence",
+      "selected_organizations": [
+        {
+          "decision_readiness_tier": "TIER_2_STRONG_HISTORY_POLICY_INCOMPLETE",
+          "green_card_history_score": 57.7,
+          "institution_id": "ipeds:211440",
+          "official_name": "Carnegie Mellon University",
+          "sample_type": "earlier_decision_evidence",
+          "total_rd": 505262000
+        },
+        {
+          "decision_readiness_tier": "TIER_4_INSUFFICIENT_EVIDENCE",
+          "default_zero_based_rank": 1419,
+          "green_card_history_score": null,
+          "institution_id": "ipeds:139755",
+          "official_name": "Georgia Institute of Technology-Main Campus",
+          "sample_type": "higher_rd_weaker_immigration",
+          "total_rd": 1528637000
+        }
+      ],
+      "status": "PASS"
+    }
+  ]
+}
