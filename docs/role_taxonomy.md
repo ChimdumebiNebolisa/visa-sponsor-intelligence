@@ -11,20 +11,21 @@ Classified source mirrors preserve every Phase 3 source column and add:
 - `role_confidence`: deterministic rule confidence from 0 to 1;
 - `classification_method`: the evidence tier that made the decision;
 - `classification_rule`: the exact reviewed mapping or rule ID;
-- `classification_version`: currently `role_taxonomy_v1`;
+- `classification_version`: currently `role_taxonomy_v2`;
 - `review_status`: `NOT_REQUIRED` or `NEEDS_REVIEW`.
 
 ## Classification precedence
 
 1. Exact reviewed title override.
-2. SOC-code family mapping.
-3. Strong positive title pattern.
-4. Strong exclusion pattern.
-5. Combined SOC plus title rule.
-6. Ambiguous-title routing.
-7. Default to `not_relevant` when no technical evidence exists.
+2. Evaluate strong positive and strong exclusion title evidence.
+3. Apply a strong exclusion before broad SOC-only inclusion, unless the complete title independently supplies strong technical evidence.
+4. SOC-code family mapping.
+5. Strong positive title pattern when SOC evidence did not decide the role.
+6. Combined SOC plus title rule.
+7. Ambiguous-title routing.
+8. Default to `not_relevant` when no technical evidence exists.
 
-The taxonomy and all rules live in `configs/role_taxonomy.yaml`. Rules run against Unicode-folded uppercase titles and normalized SOC codes. Strong technical rules contain local guards for sales, recruiting, medical, and internship terms so an earlier positive pattern cannot bypass a required exclusion.
+The taxonomy and all rules live in `configs/role_taxonomy.yaml`. Rules run against Unicode-folded uppercase titles and normalized SOC codes. Reviewed overrides remain the highest priority. A specific computing title can protect a genuine technical role from an overly broad contextual exclusion, while a computing SOC by itself cannot turn internships, physicians, sales engineers, recruiters, or helpdesk roles into target roles.
 
 ## Role families
 
@@ -34,7 +35,9 @@ The technical families are `software_engineering`, `research_software`, `researc
 
 Generic Research Scientist, Research Engineer, Engineer, Systems Engineer, Architect, Scientist, Applied Scientist, research-associate, postdoc, and Technical Lead titles are not assumed technical. They enter the review queue unless a prior computing SOC, strong computing title, or combined SOC/title rule supplies evidence.
 
-Explicit medical, biological/chemical, noncomputing faculty, sales engineering, recruiting, helpdesk/desktop support, generic business analysis/project management, internship, and clearly nontechnical production or service titles are excluded. A technical SOC may still establish computing evidence before a title exclusion, which preserves legitimate cases such as nursing informatics. Staffing-firm placement filtering is applied later as an employer-level query filter; it is not inferred from a job title.
+Explicit medical, biological/chemical, noncomputing faculty, sales engineering, recruiting, helpdesk/desktop support, generic business analysis/project management, internship, and clearly nontechnical production or service titles are excluded before broad SOC-only inclusion. The specific `25-1021` Computer Science Teachers SOC keeps generic computing faculty in scope. Staffing-firm placement filtering is applied later as an employer-level query filter; it is not inferred from a job title.
+
+Run `python scripts/generate_phase10_data_quality_reports.py` against the restored V1 classification lookup to produce record-weighted before/after counts, the complete changed-combination CSV, and a deterministic stratified inspection packet. Pending inspection rows are not represented as human-reviewed.
 
 ## Outputs and commands
 

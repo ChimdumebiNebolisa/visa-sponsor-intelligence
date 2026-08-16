@@ -15,7 +15,7 @@ Name normalization and legal-suffix removal produce candidate features, not repl
 ## Matching sequence
 
 1. Apply a committed reviewed alias or rejection from `configs/entity_overrides.yaml`.
-2. Accept a unique exact normalized legal name. When authoritative records contain duplicate exact names, location disambiguates them.
+2. Accept an exact normalized legal name only when known legal-employer locations do not conflict. A unique name candidate with a conflicting state or city remains separate and is routed to review. When authoritative records contain duplicate exact names, location disambiguates them.
 3. Generate fuzzy candidates only from reviewed legal entities and authoritative IPEDS UNITID identities. Source-created provisional identities never expand later fuzzy candidate pools.
 4. Score token and character similarity plus state, city, and ZIP agreement.
 5. Auto-accept only when score is at least `0.97`, the candidate margin is at least `0.05`, location agrees, legal suffixes do not conflict, and informative token counts and organization-scope markers are compatible.
@@ -23,6 +23,8 @@ Name normalization and legal-suffix removal produce candidate features, not repl
 7. Preserve lower-scoring named observations as deterministic source legal identities. Blank names remain `UNRESOLVED` and retain null legal IDs.
 
 Fuzzy matching never creates a parent relationship. Parents come only from official IPEDS system identifiers or committed reviewed overrides. A campus and its system therefore retain different IDs.
+
+Employer identity uses petitioner or legal-employer address columns. Worksite city, state, and ZIP remain activity evidence and are never substituted for the legal-employer location. Polluted historical PERM state/province values are normalized only when a known U.S. state can be identified; otherwise they remain missing rather than becoming a false state code.
 
 ## Status semantics
 
@@ -59,7 +61,9 @@ Reviewed decisions have regression coverage. Do not add a parent mapping based o
 
 ## Validation evidence
 
-The committed gold CSV contains 200 pairs: 50 technology employers, 50 universities, and 25 each for university systems, hospitals or medical organizations, research institutes or national laboratories, and staffing or consulting firms. Current results are 100% auto-accepted precision, zero false auto-accepts, zero parent/legal collapses, and all 25 ambiguous system/campus pairs routed without merging.
+The committed gold CSV contains 201 pairs: the original 50 technology employers, 50 universities, and 25 each for university systems, hospitals or medical organizations, research institutes or national laboratories, and staffing or consulting firms, plus an exact-name/conflicting-state regression. Current results retain 100% auto-accepted precision, zero false auto-accepts, zero parent/legal collapses, and route all 26 ambiguous pairs without merging.
+
+Phase 10 audit packets are generated with `python scripts/generate_phase10_data_quality_reports.py`. The packet covers at least 30 significant companies and 30 significant universities or research institutions. Generated rows remain `PENDING_HUMAN_REVIEW` until a person records the review; the generator never auto-approves uncertain parents or location conflicts.
 
 The verified full build on August 14, 2026 produced:
 

@@ -131,3 +131,66 @@ def test_pipeline_builds_auditable_registries_and_resolved_mirrors(
         "Amazon.com Services LLC",
     ]
     assert set(resolved_dol["legal_entity_id"]) == {"legal_amazon_com_services"}
+
+
+def test_pipeline_uses_legal_employer_location_not_worksite_location(tmp_path: Path) -> None:
+    registry = SourceRegistry.from_yaml()
+    output_root = tmp_path / "outputs"
+    manifest = ArtifactManifestStore(output_root / "manifests" / "source_artifacts.jsonl")
+    manifest.upsert(
+        _record(
+            tmp_path,
+            registry,
+            "dol_lca",
+            2026,
+            pl.DataFrame(
+                {
+                    "case_id": ["LCA-LOCATION-1"],
+                    "employer_name_raw": ["University of Texas at Austin"],
+                    "employer_city": ["Austin"],
+                    "employer_state": ["TX"],
+                    "employer_postal_code": ["78712"],
+                    "worksite_city": ["Boston"],
+                    "worksite_state": ["MA"],
+                    "worksite_postal_code": ["02108"],
+                    "source_id": ["dol_lca"],
+                }
+            ),
+        )
+    )
+    manifest.upsert(
+        _record(
+            tmp_path,
+            registry,
+            "ipeds",
+            2025,
+            pl.DataFrame(
+                {
+                    "unitid": ["228778"],
+                    "instnm": ["University of Texas at Austin"],
+                    "city": ["Austin"],
+                    "stabbr": ["TX"],
+                    "zip": ["78712"],
+                    "f1sysnam": ["The University of Texas System"],
+                    "f1syscod": ["128010"],
+                    "source_id": ["ipeds"],
+                }
+            ),
+        )
+    )
+    data_root = tmp_path / "data"
+
+    summary = EntityResolutionPipeline(
+        registry, data_root=data_root, output_root=output_root
+    ).build()
+
+    aliases = pl.read_parquet(summary.aliases_path)
+    lca_alias = aliases.filter(pl.col("source_id") == "dol_lca").row(0, named=True)
+    assert lca_alias["city"] == "AUSTIN"
+    assert lca_alias["state"] == "TX"
+    assert lca_alias["legal_entity_id"] == "legal_ipeds_228778"
+    resolved = pl.read_parquet(
+        next((data_root / "resolved" / "sources" / "dol_lca").rglob("*.parquet"))
+    )
+    assert resolved["worksite_state"].to_list() == ["MA"]
+    assert resolved["legal_entity_id"].to_list() == ["legal_ipeds_228778"]

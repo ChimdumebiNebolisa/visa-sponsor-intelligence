@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import polars as pl
+import pytest
 
 from sponsor_intel.entity_resolution.models import (
     EntityOverrides,
@@ -73,6 +74,10 @@ def test_normalization_preserves_raw_and_normalizes_common_variants() -> None:
     assert core_name(normalized, config) == "ACME TECHNOLOGY"
     assert normalize_state("Washington") == "WA"
     assert normalize_state("District of Columbia") == "DC"
+    assert normalize_state("MASSACHUSETTS MASSACHUSETTS") == "MA"
+    assert normalize_state("TENNESSEE TENNESSEE(TN)") == "TN"
+    assert normalize_state("NORTH CAROLINA WATAUGA COUNTY") == "NC"
+    assert normalize_state("not a legal-employer state") == ""
 
 
 def test_exact_name_is_deterministic() -> None:
@@ -86,6 +91,46 @@ def test_exact_name_is_deterministic() -> None:
     alias = result.aliases.row(0, named=True)
     assert alias["legal_entity_id"] == "legal_ipeds_228778"
     assert alias["match_status"] == MatchStatus.DETERMINISTIC
+
+
+def test_exact_name_with_conflicting_legal_employer_state_routes_to_review() -> None:
+    overrides = EntityOverrides.model_validate(
+        {
+            "schema_version": "test",
+            "legal_entities": [
+                {
+                    "legal_entity_id": "legal_acme_labs",
+                    "legal_name": "Acme Labs LLC",
+                    "city": "Austin",
+                    "state": "TX",
+                    "organization_type": "RESEARCH",
+                }
+            ],
+        }
+    )
+
+    same_location = resolve_observations(
+        _observations("ACME LABS, LLC", city="AUSTIN", state="TX"),
+        pl.DataFrame(),
+        _config(),
+        overrides,
+    ).aliases.row(0, named=True)
+    conflicting_location = resolve_observations(
+        _observations("ACME LABS, LLC", city="BOSTON", state="MA"),
+        pl.DataFrame(),
+        _config(),
+        overrides,
+    )
+    conflict_alias = conflicting_location.aliases.row(0, named=True)
+
+    assert same_location["match_status"] == MatchStatus.DETERMINISTIC
+    assert same_location["legal_entity_id"] == "legal_acme_labs"
+    assert conflict_alias["match_status"] == MatchStatus.REVIEW_REQUIRED
+    assert conflict_alias["match_method"] == "EXACT_NAME_LOCATION_CONFLICT_UNMERGED"
+    assert conflict_alias["candidate_legal_entity_id"] == "legal_acme_labs"
+    assert conflict_alias["legal_entity_id"] != "legal_acme_labs"
+    assert conflict_alias["location_agreement"] is False
+    assert conflicting_location.review_queue.height == 1
 
 
 def test_fuzzy_auto_requires_location_margin_and_no_suffix_conflict() -> None:
@@ -167,6 +212,48 @@ def test_ipeds_parent_and_campus_legal_identity_never_collapse() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "observed_name",
+    [
+        "The University of Texas System",
+        "University of Texas at Austin Hospital",
+        "University of Texas at Austin Laboratory",
+    ],
+)
+def test_university_system_hospital_and_laboratory_scopes_remain_separate(
+    observed_name: str,
+) -> None:
+    result = resolve_observations(
+        _observations(observed_name),
+        _ipeds(),
+        _config(),
+        EntityOverrides(schema_version="test"),
+    )
+    alias = result.aliases.row(0, named=True)
+
+    assert alias["match_status"] == MatchStatus.REVIEW_REQUIRED
+    assert alias["candidate_legal_entity_id"] == "legal_ipeds_228778"
+    assert alias["legal_entity_id"] != "legal_ipeds_228778"
+
+
+def test_parent_company_and_petitioning_subsidiaries_remain_separate() -> None:
+    result = resolve_observations(
+        _observations("AMAZON COM SERVICES LLC", "AMAZON WEB SERVICES INC"),
+        pl.DataFrame(),
+        _config(),
+        EntityOverrides.from_yaml(),
+    )
+    aliases = {row["alias_raw"]: row for row in result.aliases.iter_rows(named=True)}
+
+    services = aliases["AMAZON COM SERVICES LLC"]
+    web_services = aliases["AMAZON WEB SERVICES INC"]
+    assert services["match_status"] == web_services["match_status"] == MatchStatus.MANUAL_OVERRIDE
+    assert services["legal_entity_id"] == "legal_amazon_com_services"
+    assert web_services["legal_entity_id"] == "legal_amazon_web_services"
+    assert services["legal_entity_id"] != web_services["legal_entity_id"]
+    assert services["parent_organization_id"] == web_services["parent_organization_id"]
+
+
 def test_reviewed_alias_and_rejection_regressions() -> None:
     overrides = EntityOverrides.from_yaml()
     alias = resolve_observations(
@@ -190,7 +277,7 @@ def test_reviewed_alias_and_rejection_regressions() -> None:
 def test_gold_set_meets_precision_and_separation_acceptance() -> None:
     result = validate_gold_dataset(Path("tests/fixtures/entity_resolution_gold.csv"), _config())
 
-    assert result.row_count == 200
+    assert result.row_count >= 200
     assert result.auto_precision >= 0.99
     assert result.false_auto_accept_count == 0
     assert result.parent_legal_collapse_count == 0

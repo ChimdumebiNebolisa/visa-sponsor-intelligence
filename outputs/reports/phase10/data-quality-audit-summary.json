@@ -1,0 +1,25 @@
+{
+  "classification_change_report": {
+    "baseline_versions": [
+      "role_taxonomy_v1"
+    ],
+    "current_version": "role_taxonomy_v2",
+    "json_path": "outputs\\reports\\phase10\\role-classification-summary.json",
+    "manual_sample_count": 43,
+    "manual_sample_pending_count": 43,
+    "markdown_path": "outputs\\reports\\phase10\\role-classification-summary.md",
+    "semantic_changed_combination_count": 810,
+    "semantic_changed_record_count": 11662,
+    "unique_combination_count": 347979
+  },
+  "entity_audit": {
+    "company_count": 30,
+    "csv_path": "outputs\\reports\\phase10\\entity-audit.csv",
+    "human_override_required_count": 2,
+    "institution_count": 30,
+    "markdown_path": "outputs\\reports\\phase10\\entity-audit.md",
+    "pending_human_review_count": 60,
+    "row_count": 60
+  },
+  "generated_at": "2026-08-16T00:42:57.234504+00:00"
+}

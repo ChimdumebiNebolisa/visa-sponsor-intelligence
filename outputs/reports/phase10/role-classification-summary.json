@@ -1,0 +1,202 @@
+{
+  "after": {
+    "family_counts": {
+      "ambiguous": 13040,
+      "cloud": 90,
+      "computer_science_research": 8896,
+      "data_engineering": 14344,
+      "data_science": 49164,
+      "devops_sre": 559,
+      "hpc": 2,
+      "machine_learning_ai": 650,
+      "not_relevant": 530135,
+      "other_computing": 76301,
+      "research_engineering": 9019,
+      "research_software": 37,
+      "software_engineering": 428759,
+      "systems_infrastructure": 76083,
+      "technical_management_related": 31926
+    },
+    "method_counts": {
+      "AMBIGUOUS_TITLE": 10756,
+      "COMBINED_SOC_TITLE": 14476,
+      "DEFAULT_NOT_RELEVANT": 423716,
+      "EXACT_REVIEWED_TITLE": 8366,
+      "MISSING_EVIDENCE": 200,
+      "SOC_MAPPING": 653775,
+      "STRONG_EXCLUSION_PATTERN": 106419,
+      "STRONG_TITLE_PATTERN": 21297
+    },
+    "record_count": 1239005,
+    "technical_status_counts": {
+      "AMBIGUOUS": 13040,
+      "NOT_RELEVANT": 530135,
+      "TECHNICAL": 695830
+    }
+  },
+  "baseline_path": "role_classifications.parquet",
+  "baseline_sha256": "008026f75108e675ffb3795be5dda75c75c47cc9d672ed6d5779cfda2d7a2587",
+  "baseline_versions": [
+    "role_taxonomy_v1"
+  ],
+  "before": {
+    "family_counts": {
+      "ambiguous": 13040,
+      "cloud": 85,
+      "computer_science_research": 8915,
+      "data_engineering": 14495,
+      "data_science": 50440,
+      "devops_sre": 559,
+      "hpc": 2,
+      "machine_learning_ai": 648,
+      "not_relevant": 518725,
+      "other_computing": 79445,
+      "research_engineering": 9019,
+      "research_software": 36,
+      "software_engineering": 432232,
+      "systems_infrastructure": 78066,
+      "technical_management_related": 33298
+    },
+    "method_counts": {
+      "AMBIGUOUS_TITLE": 10756,
+      "COMBINED_SOC_TITLE": 14479,
+      "DEFAULT_NOT_RELEVANT": 423942,
+      "EXACT_REVIEWED_TITLE": 8366,
+      "MISSING_EVIDENCE": 200,
+      "SOC_MAPPING": 665205,
+      "STRONG_EXCLUSION_PATTERN": 94783,
+      "STRONG_TITLE_PATTERN": 21274
+    },
+    "record_count": 1239005,
+    "technical_status_counts": {
+      "AMBIGUOUS": 13040,
+      "NOT_RELEVANT": 518725,
+      "TECHNICAL": 707240
+    }
+  },
+  "changes_path": "outputs\\reports\\phase10\\role-classification-changes.csv",
+  "current_version": "role_taxonomy_v2",
+  "generated_at": "2026-08-16T00:42:57.197434+00:00",
+  "manual_sample_count": 43,
+  "manual_sample_pending_count": 43,
+  "sample_path": "outputs\\reports\\phase10\\role-classification-review-sample.csv",
+  "semantic_changed_combination_count": 810,
+  "semantic_changed_record_count": 11662,
+  "transitions": [
+    {
+      "after": "NOT_RELEVANT:not_relevant",
+      "before": "TECHNICAL:software_engineering",
+      "changed_combinations": 142,
+      "changed_records": 3473
+    },
+    {
+      "after": "NOT_RELEVANT:not_relevant",
+      "before": "TECHNICAL:other_computing",
+      "changed_combinations": 140,
+      "changed_records": 3144
+    },
+    {
+      "after": "NOT_RELEVANT:not_relevant",
+      "before": "TECHNICAL:systems_infrastructure",
+      "changed_combinations": 149,
+      "changed_records": 1980
+    },
+    {
+      "after": "NOT_RELEVANT:not_relevant",
+      "before": "TECHNICAL:technical_management_related",
+      "changed_combinations": 44,
+      "changed_records": 1372
+    },
+    {
+      "after": "NOT_RELEVANT:not_relevant",
+      "before": "TECHNICAL:data_science",
+      "changed_combinations": 92,
+      "changed_records": 1275
+    },
+    {
+      "after": "NOT_RELEVANT:not_relevant",
+      "before": "NOT_RELEVANT:not_relevant",
+      "changed_combinations": 177,
+      "changed_records": 224
+    },
+    {
+      "after": "NOT_RELEVANT:not_relevant",
+      "before": "TECHNICAL:data_engineering",
+      "changed_combinations": 35,
+      "changed_records": 151
+    },
+    {
+      "after": "NOT_RELEVANT:not_relevant",
+      "before": "TECHNICAL:computer_science_research",
+      "changed_combinations": 10,
+      "changed_records": 17
+    },
+    {
+      "after": "TECHNICAL:data_science",
+      "before": "TECHNICAL:data_science",
+      "changed_combinations": 5,
+      "changed_records": 8
+    },
+    {
+      "after": "TECHNICAL:software_engineering",
+      "before": "TECHNICAL:software_engineering",
+      "changed_combinations": 3,
+      "changed_records": 4
+    },
+    {
+      "after": "TECHNICAL:cloud",
+      "before": "TECHNICAL:systems_infrastructure",
+      "changed_combinations": 3,
+      "changed_records": 3
+    },
+    {
+      "after": "TECHNICAL:cloud",
+      "before": "NOT_RELEVANT:not_relevant",
+      "changed_combinations": 2,
+      "changed_records": 2
+    },
+    {
+      "after": "TECHNICAL:machine_learning_ai",
+      "before": "TECHNICAL:computer_science_research",
+      "changed_combinations": 2,
+      "changed_records": 2
+    },
+    {
+      "after": "TECHNICAL:technical_management_related",
+      "before": "TECHNICAL:technical_management_related",
+      "changed_combinations": 1,
+      "changed_records": 2
+    },
+    {
+      "after": "TECHNICAL:software_engineering",
+      "before": "TECHNICAL:data_engineering",
+      "changed_combinations": 1,
+      "changed_records": 1
+    },
+    {
+      "after": "TECHNICAL:data_engineering",
+      "before": "TECHNICAL:data_science",
+      "changed_combinations": 1,
+      "changed_records": 1
+    },
+    {
+      "after": "TECHNICAL:technical_management_related",
+      "before": "TECHNICAL:data_science",
+      "changed_combinations": 1,
+      "changed_records": 1
+    },
+    {
+      "after": "TECHNICAL:research_software",
+      "before": "TECHNICAL:software_engineering",
+      "changed_combinations": 1,
+      "changed_records": 1
+    },
+    {
+      "after": "TECHNICAL:data_science",
+      "before": "TECHNICAL:technical_management_related",
+      "changed_combinations": 1,
+      "changed_records": 1
+    }
+  ],
+  "unique_combination_count": 347979
+}

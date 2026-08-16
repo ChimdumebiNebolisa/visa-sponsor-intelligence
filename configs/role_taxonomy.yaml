@@ -1,4 +1,4 @@
-classification_version: role_taxonomy_v1
+classification_version: role_taxonomy_v2
 review_confidence_threshold: 0.90
 role_families:
   - software_engineering
@@ -75,7 +75,7 @@ positive_title_rules:
   - rule_id: cloud
     role_family: cloud
     confidence: 0.95
-    patterns: ["\\bCLOUD (ENGINEER|ARCHITECT|DEVELOPER|SPECIALIST|CONSULTANT)\\b", "\\bAWS (ENGINEER|ARCHITECT|DEVELOPER)\\b", "\\bAZURE (ENGINEER|ARCHITECT|DEVELOPER)\\b"]
+    patterns: ["\\bCLOUD (ENGINEER|ARCHITECT|DEVELOPER|SPECIALIST|CONSULTANT)\\b", "\\bCLOUD INFRASTRUCTURE (ENGINEER|ARCHITECT|DEVELOPER|SPECIALIST)\\b", "\\bAWS (ENGINEER|ARCHITECT|DEVELOPER)\\b", "\\bAZURE (ENGINEER|ARCHITECT|DEVELOPER)\\b"]
   - rule_id: data_engineering
     role_family: data_engineering
     confidence: 0.96
@@ -123,7 +123,7 @@ exclusion_rules:
     patterns: ["\\b(BIOLOGICAL|BIOLOGY|CHEMICAL|CHEMISTRY|BIOMEDICAL|MOLECULAR BIOLOGY|BIOCHEM)\\b"]
   - rule_id: sales_recruiting
     confidence: 0.98
-    patterns: ["\\bSALES ENGINEER", "\\bRECRUITER", "\\bTALENT ACQUISITION", "\\bACCOUNT EXECUTIVE"]
+    patterns: ["\\bSALES ENGINEER", "\\bRECRUIT(ER|ING|MENT)\\b", "\\bTALENT ACQUISITION", "\\bACCOUNT EXECUTIVE"]
   - rule_id: low_level_it_support
     confidence: 0.97
     patterns: ["\\bHELP ?DESK", "\\bDESKTOP SUPPORT", "\\bIT SUPPORT TECHNICIAN", "\\bCOMPUTER SUPPORT SPECIALIST"]

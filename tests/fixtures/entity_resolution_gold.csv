@@ -199,3 +199,4 @@ staffing_consulting,"EPAM Systems, Inc.",EPAM SYSTEMS INC,Newtown,Newtown,PA,PA,
 staffing_consulting,"Slalom, LLC",SLALOM LLC,Seattle,Seattle,WA,WA,true,false,false
 staffing_consulting,"Booz Allen Hamilton, Inc.",BOOZ ALLEN HAMILTON INC,McLean,McLean,VA,VA,true,false,false
 staffing_consulting,"McKinsey & Company, Inc.",MCKINSEY AND COMPANY INC,New York,New York,NY,NY,true,false,false
+tech,"Acme Labs LLC","ACME LABS, LLC",Austin,Boston,TX,MA,false,true,false

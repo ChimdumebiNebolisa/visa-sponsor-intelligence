@@ -320,13 +320,34 @@ def resolve_observations(
             location_exact = [
                 item for item in exact_candidates if not _location_conflicts(observation, item)
             ]
-            selected_exact = exact_candidates if len(exact_candidates) == 1 else location_exact
+            selected_exact = location_exact
             if len(selected_exact) == 1:
                 candidate = selected_exact[0]
                 legal_entity_id = candidate.legal_entity_id
                 status = MatchStatus.DETERMINISTIC
                 method = "EXACT_NORMALIZED_NAME"
                 score = 1.0
+            elif len(exact_candidates) == 1:
+                # Exact name equality is candidate evidence, not permission to
+                # discard a conflicting known legal-employer location. Reviewed
+                # aliases are applied above and remain the only name-only escape
+                # hatch; otherwise retain this observation as a separate legal
+                # identity and route the candidate relationship to review.
+                candidate = exact_candidates[0]
+                candidate_id = candidate.legal_entity_id
+                features = score_pair(
+                    str(observation["core_name"]),
+                    candidate.core_name,
+                    left_city=str(observation["city"]),
+                    right_city=candidate.city,
+                    left_state=str(observation["state"]),
+                    right_state=candidate.state,
+                    left_postal_code=str(observation["postal_code"]),
+                    right_postal_code=candidate.postal_code,
+                )
+                score = features.score
+                status = MatchStatus.REVIEW_REQUIRED
+                method = "EXACT_NAME_LOCATION_CONFLICT_UNMERGED"
             else:
                 core = str(observation["core_name"])
                 acronym = str(observation["acronym"])
