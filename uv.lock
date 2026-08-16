@@ -1126,22 +1126,15 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "duckdb" },
-    { name = "fastexcel" },
+    { name = "filelock" },
     { name = "httpx" },
-    { name = "openai" },
-    { name = "pdfplumber" },
-    { name = "playwright" },
     { name = "polars" },
     { name = "pyarrow" },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
-    { name = "rapidfuzz" },
-    { name = "selectolax" },
     { name = "streamlit" },
     { name = "tenacity" },
-    { name = "typer" },
-    { name = "xlsx2csv" },
 ]
 
 [package.dev-dependencies]
@@ -1153,26 +1146,29 @@ dev = [
     { name = "ruff" },
     { name = "xlsxwriter" },
 ]
+ingestion = [
+    { name = "fastexcel" },
+    { name = "openai" },
+    { name = "pdfplumber" },
+    { name = "playwright" },
+    { name = "rapidfuzz" },
+    { name = "selectolax" },
+    { name = "typer" },
+    { name = "xlsx2csv" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "duckdb", specifier = ">=1.4,<2" },
-    { name = "fastexcel", specifier = ">=0.16,<1" },
+    { name = "filelock", specifier = ">=3.20,<4" },
     { name = "httpx", specifier = ">=0.28,<1" },
-    { name = "openai", specifier = ">=2,<3" },
-    { name = "pdfplumber", specifier = ">=0.11,<1" },
-    { name = "playwright", specifier = ">=1.54,<2" },
     { name = "polars", specifier = ">=1.35,<2" },
     { name = "pyarrow", specifier = ">=20,<25" },
     { name = "pydantic", specifier = ">=2.10,<3" },
     { name = "python-dotenv", specifier = ">=1,<2" },
     { name = "pyyaml", specifier = ">=6.0,<7" },
-    { name = "rapidfuzz", specifier = ">=3.14,<4" },
-    { name = "selectolax", specifier = ">=0.3,<1" },
     { name = "streamlit", specifier = ">=1.50,<2" },
     { name = "tenacity", specifier = ">=9,<10" },
-    { name = "typer", specifier = ">=0.16,<1" },
-    { name = "xlsx2csv", specifier = ">=0.8,<1" },
 ]
 
 [package.metadata.requires-dev]
@@ -1183,6 +1179,16 @@ dev = [
     { name = "pytest-cov", specifier = ">=6.0,<8" },
     { name = "ruff", specifier = ">=0.9,<1" },
     { name = "xlsxwriter", specifier = ">=3.2,<4" },
+]
+ingestion = [
+    { name = "fastexcel", specifier = ">=0.16,<1" },
+    { name = "openai", specifier = ">=2,<3" },
+    { name = "pdfplumber", specifier = ">=0.11,<1" },
+    { name = "playwright", specifier = ">=1.54,<2" },
+    { name = "rapidfuzz", specifier = ">=3.14,<4" },
+    { name = "selectolax", specifier = ">=0.3,<1" },
+    { name = "typer", specifier = ">=0.16,<1" },
+    { name = "xlsx2csv", specifier = ">=0.8,<1" },
 ]
 
 [[package]]

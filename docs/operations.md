@@ -37,7 +37,12 @@ uv run sponsor-intel app
 
 The metrics command writes compact processed cases, employer and institution metrics, and source-health Parquet. The database command atomically materializes those tables, indexes organization identifiers, and creates all presentation views. Streamlit reads only that database through the service boundary.
 
-The full verified build contains 201,000 employer groups, 202,867 separately retained legal entities, 5,985 institutions, 696,448 LCA cases, 542,557 PERM cases, and 290,945 USCIS employer-year rows. Parent/legal totals, source aggregates, partial-period labels, and future-field `UNKNOWN` semantics are checked after the build.
+The restored V1 baseline contains 201,000 employer groups and 202,867 legal entities. Rebuilding
+the same observations with the Phase 10 location guard produces 225,996 employer groups and
+227,863 separately retained legal entities because conflicting legal-employer locations are no
+longer silently merged. The build retains 5,985 institutions, 696,448 LCA cases, 542,557 PERM
+cases, and 290,945 USCIS employer-year rows. The resulting entity review queue contains 21,117
+rows and must not be auto-approved.
 
 Measured on the development laptop, a filtered employer query completed in 1.52 seconds, an organization detail query in 0.61 seconds, and full employer CSV/Parquet exports in under two seconds. The fixture integration test builds a fresh DuckDB and verifies the same query/export boundary in CI.
 
@@ -105,7 +110,7 @@ uv run sponsor-intel db build
 
 Raw pages, discovery responses, and extraction responses are cached. Processed completed-document metadata is reusable for 24 hours, so those documents need no discovery, network, or OpenAI call on an immediate replay. Exact failed source URLs use a matching 24-hour retry backoff recorded in the error report. After 24 hours, sources are fetched again and unchanged text still produces no extraction call. Deleting cache files is not part of normal recovery; rerun the same command after a transient failure and the content-addressed completed work will be reused.
 
-## Phase 8 scoring and comparison
+## Phase 10 scoring, ranking, and comparison
 
 Rebuild scores from the checked-in formula configuration, then refresh DuckDB:
 
@@ -114,13 +119,26 @@ uv run sponsor-intel scores build
 uv run sponsor-intel db build
 ```
 
-The score command atomically rewrites processed metrics and `employer_scores.parquet`. Invalid
-weights or mappings fail before any output is replaced. Re-running unchanged evidence and
-configuration is deterministic. Verify the formula contract with
+The score command atomically writes canonical V2 metrics and `employer_scores.parquet`, while
+preserving V1 outputs in `employer_scores_v1.parquet` and `institution_scores_v1.parquet`.
+`configs/scoring_v2.yaml` defines the 40/60 H-1B/green-card sponsorship score and the 50/30/20
+sponsorship/policy/research pathway score. Invalid weights or mappings fail before any output is
+replaced. Re-running unchanged evidence and configuration is deterministic. Verify the formula contract with
 `uv run pytest tests/unit/test_scoring.py tests/integration/test_metrics_explorer.py` and inspect
 the Compare page with one to five organizations. Unknown scores, partial coverage, raw counts,
-score version, and explanations must remain visible. Scores must be described only as historical
-evidence strength, never as legal probability.
+score version, and explanations must remain visible. Readiness tiers become final only when the
+current quality build has no critical failure. Scores and tiers describe evidence readiness, never
+legal probability.
+
+Generate the bounded top-50 operator packet with:
+
+```bash
+uv run python scripts/generate_phase10_policy_review.py
+```
+
+The packet contains exactly four rows per priority institution. Model-extracted values remain
+pending until a named reviewer checks the official URL, exact excerpt, currency, and campus/system
+scope. `REVIEWED_NOT_STATED` is a completed review state, not `NO` or extraction failure.
 
 The OpenAI live contract is intentionally opt-in and must run only where a secret key is available:
 
@@ -137,9 +155,21 @@ uv sync --frozen
 uv run playwright install chromium
 ```
 
-To restore the latest private quality-approved build, authenticate `gh`, download the latest
-release's `processed-parquet.zip`, `build-state.zip`, and `source-manifests.zip`, then extract each
-at the repository root. Rebuild and verify the presentation layer:
+To restore a quality-approved build, authenticate `gh`, download all assets for the selected tag,
+and verify `checksums.sha256` before extracting anything. Do not infer privacy from a release name;
+first verify repository visibility. On a POSIX host:
+
+```bash
+gh release download data-YYYY-MM-DD --dir outputs/release
+cd outputs/release
+sha256sum -c checksums.sha256
+cd ../..
+```
+
+On Windows, compare every `Get-FileHash -Algorithm SHA256` result with the manifest. Stop on any
+missing or mismatched asset. Extract `processed-parquet.zip`, `build-state.zip`, and
+`source-manifests.zip` at the repository root only after verification, then rebuild the
+presentation layer:
 
 ```bash
 uv run sponsor-intel scores build
@@ -151,7 +181,7 @@ uv run python scripts/smoke_streamlit.py
 To reproduce government data from authoritative sources instead of restoring it, run
 `uv run sponsor-intel refresh government --everify-limit 0`. This ingests FY2022 onward, rebuilds
 entities, roles, OPT evidence, metrics, scores, quality checks, and DuckDB. Restore the previous
-private release first when reviewed policy history and extraction caches must carry forward. A
+quality-approved release first when reviewed policy history and extraction caches must carry forward. A
 first-ever policy bootstrap still requires the explicit Phase 7 review workflow.
 
 ## Scheduled refresh workflows
@@ -168,8 +198,9 @@ policy set, reruns the reviewed benchmark, metrics, quality checks, DuckDB, and 
 
 `.github/workflows/publish_data_release.yml` runs only after a successful refresh (or an explicit
 run-ID dispatch). It downloads the exact workflow artifact, verifies every SHA-256 checksum and the
-zero-critical-failure quality result, then creates or updates the private repository release tagged
-`data-YYYY-MM-DD`. Failed refreshes and failed critical checks cannot reach the publication job.
+zero-critical-failure quality result, and refuses publication unless GitHub reports that the
+repository is private. It then creates or updates the release tagged `data-YYYY-MM-DD`. Failed
+refreshes, failed critical checks, and public-repository state cannot reach release upload.
 
 ## Quality gates and Data Health
 
@@ -190,7 +221,7 @@ package any build whose current report has a critical failure.
 The Data Health page displays source row counts and periods, warnings, build ID, manifest/schema
 versions and checksum, failed checks, identity/role coverage, policy coverage, and score contract.
 
-## Private release contents
+## Quality-approved release contents
 
 After quality and DuckDB pass, run `uv run sponsor-intel release bundle`. It atomically creates:
 
@@ -202,8 +233,10 @@ After quality and DuckDB pass, run `uv run sponsor-intel release bundle`. It ato
 - `build-metadata.json`
 - `checksums.sha256`
 
-Large data, databases, and release assets remain ignored by Git. GitHub Releases inherit the
-repository's private visibility.
+Large data, databases, and release assets remain ignored by Git. Release assets inherit the
+repository's current visibility. As of August 15, 2026 this repository is public and existing
+release assets have been anonymously accessible; follow `docs/deployment/community-cloud.md`
+before treating future artifacts as private.
 
 ## Full V1 acceptance
 
@@ -218,6 +251,19 @@ repository and exact current-main CI result, extracts the release archives into 
 root, rebuilds metrics, quality outputs, and DuckDB from the restored state, and writes the
 machine-readable result to `outputs/reports/acceptance/v1.json`. It exits nonzero if any item is
 not supported by current build evidence.
+
+## Phase 10 acceptance and UAT
+
+After rebuilding V2 quality and DuckDB, run:
+
+```bash
+uv run python scripts/run_v2_acceptance.py
+```
+
+The runner exercises V2 score/version contracts and the 18 real-data research tasks, records
+representative selections and latency, and writes tracked UAT reports under
+`outputs/reports/phase10/`. Owner-only privacy/deployment checks and incomplete human policy/entity
+review remain explicit external prerequisites rather than being marked as passed.
 
 ## Failure recovery
 

@@ -62,6 +62,16 @@ jobs:
       - name: Build private release assets
         run: uv run sponsor-intel release bundle
 
+      - name: Refuse release artifact upload from a public repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VISIBILITY="$(gh repo view "$GITHUB_REPOSITORY" --json visibility --jq .visibility)"
+          if [ "$VISIBILITY" != "PRIVATE" ]; then
+            echo "Private data release artifacts require a private GitHub repository."
+            exit 1
+          fi
+
       - name: Upload quality-approved release input
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

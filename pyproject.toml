@@ -5,29 +5,22 @@ build-backend = "hatchling.build"
 [project]
 name = "sponsorship-intelligence-explorer"
 version = "0.1.0"
-description = "Private, evidence-first U.S. employer sponsorship intelligence explorer"
+description = "Evidence-first U.S. employer sponsorship intelligence explorer"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 license = { text = "Proprietary" }
 authors = [{ name = "Mitch" }]
 dependencies = [
   "duckdb>=1.4,<2",
-  "fastexcel>=0.16,<1",
+  "filelock>=3.20,<4",
   "httpx>=0.28,<1",
-  "openai>=2,<3",
-  "pdfplumber>=0.11,<1",
-  "playwright>=1.54,<2",
   "polars>=1.35,<2",
   "pyarrow>=20,<25",
   "pydantic>=2.10,<3",
   "python-dotenv>=1,<2",
   "pyyaml>=6.0,<7",
-  "rapidfuzz>=3.14,<4",
-  "selectolax>=0.3,<1",
   "streamlit>=1.50,<2",
   "tenacity>=9,<10",
-  "typer>=0.16,<1",
-  "xlsx2csv>=0.8,<1",
 ]
 
 [project.scripts]
@@ -42,9 +35,20 @@ dev = [
   "ruff>=0.9,<1",
   "xlsxwriter>=3.2,<4",
 ]
+ingestion = [
+  "fastexcel>=0.16,<1",
+  "openai>=2,<3",
+  "pdfplumber>=0.11,<1",
+  "playwright>=1.54,<2",
+  "rapidfuzz>=3.14,<4",
+  "selectolax>=0.3,<1",
+  "typer>=0.16,<1",
+  "xlsx2csv>=0.8,<1",
+]
 
 [tool.uv]
 required-version = ">=0.11.27,<0.12"
+default-groups = ["dev", "ingestion"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sponsor_intel"]

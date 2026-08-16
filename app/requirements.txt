@@ -1,0 +1,3 @@
+# Community Cloud runs from the repository root. Installing the local project
+# uses only its read-only runtime dependencies; ingestion tools are a uv group.
+-e .

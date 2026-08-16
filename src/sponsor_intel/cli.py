@@ -563,7 +563,7 @@ def refresh_government(
         typer.Option("--config", help="Optional application configuration path."),
     ] = None,
 ) -> None:
-    """Refresh all official government/institution sources and rebuild V1 outputs."""
+    """Refresh official government/institution sources and rebuild canonical outputs."""
 
     settings = load_settings(config_file)
     configure_logging(settings.log_level)
