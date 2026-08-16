@@ -1,4 +1,4 @@
-"""Download and cache one checksum-verified, quality-approved V2 data release."""
+"""Download and cache one checksum-verified, quality-approved Product A data release."""
 
 from __future__ import annotations
 
@@ -31,8 +31,8 @@ RUNTIME_ASSET_NAMES = (
     "build-metadata.json",
     "checksums.sha256",
 )
-EXPECTED_METRIC_VERSION = "scored_metrics_v2"
-EXPECTED_SCORE_VERSION = "evidence_scores_v2_2026_08"
+EXPECTED_METRIC_VERSION = "product_a_metrics_v1"
+EXPECTED_SCORE_VERSION = "product_a_scores_v1"
 _ASSET_LIMITS = {
     "immigration.duckdb": 1024 * 1024 * 1024,
     "data-quality.json": 2 * 1024 * 1024,
@@ -43,46 +43,67 @@ _RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
 _REDIRECT_STATUSES = {301, 302, 303, 307, 308}
 _MAX_RELEASE_METADATA_BYTES = 2 * 1024 * 1024
 _CHECKSUM_LINE = re.compile(r"^([0-9a-fA-F]{64})  ([A-Za-z0-9][A-Za-z0-9._-]*)$")
-_REQUIRED_VIEWS = set(PRESENTATION_REQUIRED_VIEWS)
+_REQUIRED_VIEWS = set(PRESENTATION_REQUIRED_VIEWS) - {
+    "vw_policy_evidence",
+    "vw_policy_review_queue",
+}
 _REQUIRED_EMPLOYER_COLUMNS = {
     "organization_id",
-    "h1b_history_score",
-    "green_card_history_score",
     "metric_version",
     "score_version",
-    "last_observed_activity_year",
-    "sponsorship_history_score",
-    "sponsorship_history_coverage",
-    "sponsorship_history_confidence",
-    "sponsorship_history_confidence_band",
-    "sponsorship_history_status",
-    "sponsorship_history_grade",
-    "sponsorship_history_explanation",
+    "h1b_history_score",
+    "h1b_history_status",
+    "h1b_history_coverage",
+    "h1b_history_star_rating",
+    "h1b_history_stars",
+    "h1b_history_star_label",
+    "h1b_history_explanation",
+    "green_card_history_score",
+    "green_card_history_status",
+    "green_card_history_coverage",
+    "green_card_history_star_rating",
+    "green_card_history_stars",
+    "green_card_history_star_label",
+    "green_card_history_explanation",
+    "overall_sponsorship_score",
+    "overall_sponsorship_status",
+    "overall_sponsorship_coverage",
+    "overall_sponsorship_star_rating",
+    "overall_sponsorship_stars",
+    "overall_sponsorship_star_label",
+    "overall_sponsorship_explanation",
 }
 _REQUIRED_INSTITUTION_COLUMNS = {
     "institution_id",
     "metric_version",
     "score_version",
-    "last_observed_activity_year",
-    "sponsorship_history_score",
-    "sponsorship_history_coverage",
-    "sponsorship_history_confidence",
-    "sponsorship_history_confidence_band",
-    "sponsorship_history_status",
-    "sponsorship_history_grade",
-    "sponsorship_history_explanation",
-    "research_pathway_score",
-    "research_pathway_status",
-    "core_policy_reviewed_count",
-    "core_policy_evidence_count",
-    "core_policy_review_coverage",
-    "core_policy_evidence_coverage",
-    "core_policy_profile_status",
-    "decision_readiness_evidence_tier",
-    "decision_readiness_tier",
-    "decision_readiness_explanation",
-    "decision_readiness_prerequisite_status",
-    "decision_readiness_tier_is_final",
+    "h1b_history_score",
+    "h1b_history_status",
+    "h1b_history_coverage",
+    "h1b_history_star_rating",
+    "h1b_history_stars",
+    "h1b_history_star_label",
+    "h1b_history_explanation",
+    "green_card_history_score",
+    "green_card_history_status",
+    "green_card_history_coverage",
+    "green_card_history_star_rating",
+    "green_card_history_stars",
+    "green_card_history_star_label",
+    "green_card_history_explanation",
+    "overall_sponsorship_score",
+    "overall_sponsorship_status",
+    "overall_sponsorship_coverage",
+    "overall_sponsorship_star_rating",
+    "overall_sponsorship_stars",
+    "overall_sponsorship_star_label",
+    "overall_sponsorship_explanation",
+    "research_scale_score",
+    "research_scale_status",
+    "research_scale_star_rating",
+    "research_scale_stars",
+    "research_scale_star_label",
+    "research_scale_explanation",
 }
 _T = TypeVar("_T")
 
@@ -483,7 +504,7 @@ class ReleaseBootstrap:
         return checksums
 
     @staticmethod
-    def _database_schema_is_v2(database_path: Path) -> tuple[int, int]:
+    def _database_schema_is_product_a(database_path: Path) -> tuple[int, int]:
         try:
             with duckdb.connect(str(database_path), read_only=True) as connection:
                 views = {
@@ -495,7 +516,7 @@ class ReleaseBootstrap:
                 missing_views = _REQUIRED_VIEWS - views
                 if missing_views:
                     raise ReleaseValidationError(
-                        f"Presentation database is missing V2 views: {sorted(missing_views)}"
+                        f"Presentation database is missing Product A views: {sorted(missing_views)}"
                     )
                 employer_columns = {
                     str(row[0])
@@ -511,11 +532,11 @@ class ReleaseBootstrap:
                 }
                 if missing := _REQUIRED_EMPLOYER_COLUMNS - employer_columns:
                     raise ReleaseValidationError(
-                        f"Employer explorer is missing V2 columns: {sorted(missing)}"
+                        f"Employer explorer is missing Product A columns: {sorted(missing)}"
                     )
                 if missing := _REQUIRED_INSTITUTION_COLUMNS - institution_columns:
                     raise ReleaseValidationError(
-                        f"Institution explorer is missing V2 columns: {sorted(missing)}"
+                        f"Institution explorer is missing Product A columns: {sorted(missing)}"
                     )
                 employer_count_row = connection.execute(
                     "SELECT count(*) FROM vw_employer_explorer"
@@ -543,7 +564,7 @@ class ReleaseBootstrap:
                     ).fetchone()
                     if invalid_version_row is None or int(invalid_version_row[0]) != 0:
                         raise ReleaseValidationError(
-                            f"Presentation database contains non-V2 rows: {view_name}"
+                            f"Presentation database contains non-Product A rows: {view_name}"
                         )
                 return employer_count, institution_count
         except ReleaseValidationError:
@@ -608,7 +629,7 @@ class ReleaseBootstrap:
             or quality.get("critical_failure_count") != 0
             or metadata.get("quality_passed") is not True
             or not isinstance(build_id, str)
-            or re.fullmatch(r"v2-[0-9a-f]{16}", build_id) is None
+            or re.fullmatch(r"product-a-[0-9a-f]{16}", build_id) is None
             or metadata.get("build_id") != build_id
             or not isinstance(manifest_sha256, str)
             or re.fullmatch(r"[0-9a-f]{64}", manifest_sha256) is None
@@ -626,7 +647,9 @@ class ReleaseBootstrap:
             or isinstance(institution_count, bool)
             or institution_count <= 0
         ):
-            raise ReleaseValidationError("Release quality or V2 build metadata is inconsistent.")
+            raise ReleaseValidationError(
+                "Release quality or Product A build metadata is inconsistent."
+            )
         checks = quality.get("checks")
         if (
             not isinstance(checks, list)
@@ -653,7 +676,7 @@ class ReleaseBootstrap:
         if tag != f"data-{build_date.isoformat()}":
             raise ReleaseValidationError("Release tag does not match its build date.")
 
-        database_counts = self._database_schema_is_v2(paths["immigration.duckdb"])
+        database_counts = self._database_schema_is_product_a(paths["immigration.duckdb"])
         if database_counts != (employer_count, institution_count):
             raise ReleaseValidationError("Release metadata row counts do not match its database.")
         return _ValidatedRelease(

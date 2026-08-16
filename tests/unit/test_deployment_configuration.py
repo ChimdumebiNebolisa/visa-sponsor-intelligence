@@ -6,6 +6,7 @@ import tomllib
 from pathlib import Path
 
 import pytest
+import yaml
 from pydantic import ValidationError
 
 from sponsor_intel.config import load_settings
@@ -108,20 +109,74 @@ def test_release_workflow_blocks_public_repository_publication() -> None:
     assert "Refuse publication from a public repository" in workflow
     assert "--json visibility" in workflow
     assert '!= "PRIVATE"' in workflow
-    assert '"metric_version": "scored_metrics_v2"' in workflow
-    assert '"score_version": "evidence_scores_v2_2026_08"' in workflow
+    assert '"metric_version": "product_a_metrics_v1"' in workflow
+    assert '"score_version": "product_a_scores_v1"' in workflow
+    assert "product-a-[0-9a-f]{16}" in workflow
     assert "Required runtime release assets are missing" in workflow
 
 
-@pytest.mark.parametrize(
-    "workflow_name",
-    ["refresh_government_data.yml", "refresh_policies.yml"],
-)
-def test_refresh_workflows_block_public_release_artifact_upload(workflow_name: str) -> None:
-    workflow = (ROOT / ".github" / "workflows" / workflow_name).read_text(encoding="utf-8")
+def test_government_refresh_blocks_public_release_artifact_upload() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "refresh_government_data.yml").read_text(
+        encoding="utf-8"
+    )
+    parsed = yaml.safe_load(workflow)
 
     guard = "Refuse release artifact upload from a public repository"
     upload = "Upload quality-approved release input"
+    acceptance = "Require Product A real-data acceptance"
+    bundle = "Build private release assets"
     assert guard in workflow
     assert "--json visibility --jq .visibility" in workflow
     assert workflow.index(guard) < workflow.index(upload)
+    steps = parsed["jobs"]["refresh"]["steps"]
+    step_names = [step["name"] for step in steps]
+    assert step_names.index("Confirm publication quality gates") < step_names.index(acceptance)
+    assert step_names.index(acceptance) < step_names.index(bundle)
+    acceptance_step = next(step for step in steps if step["name"] == acceptance)
+    assert "scripts/run_product_a_acceptance.py" in acceptance_step["run"]
+    assert "--data-root data" in acceptance_step["run"]
+    assert "--database db/immigration.duckdb" in acceptance_step["run"]
+    assert "--output-root outputs/reports/product-a" in acceptance_step["run"]
+
+
+def test_policy_refresh_is_manual_and_government_refresh_excludes_policy_state() -> None:
+    government = (ROOT / ".github" / "workflows" / "refresh_government_data.yml").read_text(
+        encoding="utf-8"
+    )
+    policies = (ROOT / ".github" / "workflows" / "refresh_policies.yml").read_text(encoding="utf-8")
+
+    assert "workflow_dispatch:" in policies
+    assert "schedule:" not in policies
+    assert "uv run sponsor-intel refresh policies" in policies
+    assert "OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}" in policies
+    assert "OPENAI_POLICY_MODEL: gpt-5.6-luna" in policies
+    assert "quality report" not in policies
+    assert "release bundle" not in policies
+    assert "outputs/release" not in policies
+    assert "--json visibility" not in policies
+    assert "publish_data_release.yml" not in policies
+
+    policy_workflow = yaml.safe_load(policies)
+    assert set(policy_workflow["jobs"]) == {"refresh"}
+    upload = next(
+        step
+        for step in policy_workflow["jobs"]["refresh"]["steps"]
+        if step["name"] == "Upload supplemental manual policy review artifacts"
+    )
+    assert upload["with"]["name"] == "supplemental-manual-policy-review"
+    assert upload["with"]["if-no-files-found"] == "warn"
+    assert upload["with"]["retention-days"] == 7
+    assert set(upload["with"]["path"].splitlines()) == {
+        "data/processed/policy_documents.parquet",
+        "data/processed/policy_facts.parquet",
+        "data/processed/policy_review_queue.parquet",
+        "data/review/policy_review_decisions.parquet",
+        "outputs/reports/policy/summary.json",
+        "outputs/reports/policy/errors.json",
+        "outputs/reports/policy/evaluation.json",
+    }
+
+    assert "data/processed/policy_*" in government
+    assert "data/cache/policy_discovery/*" in government
+    assert "data/cache/policy_extraction/*" in government
+    assert "OPENAI_API_KEY" not in government

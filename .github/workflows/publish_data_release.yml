@@ -78,22 +78,27 @@ jobs:
           if report.get("passed") is not True or report.get("critical_failure_count") != 0:
               raise SystemExit("Critical quality gates failed; publication is blocked")
           expected_versions = {
-              "metric_version": "scored_metrics_v2",
-              "score_version": "evidence_scores_v2_2026_08",
+              "metric_version": "product_a_metrics_v1",
+              "score_version": "product_a_scores_v1",
           }
           if any(
               report.get(field) != expected or metadata.get(field) != expected
               for field, expected in expected_versions.items()
           ):
-              raise SystemExit("Exact V2 metric and score versions are required for publication")
+              raise SystemExit(
+                  "Exact Product A metric and score versions are required for publication"
+              )
           for field in ("build_id", "generated_at", "manifest_sha256"):
               if report.get(field) != metadata.get(field):
                   raise SystemExit(f"Quality and build metadata disagree on {field}")
           build_id = report.get("build_id")
           manifest_sha256 = report.get("manifest_sha256")
           generated_at = report.get("generated_at")
-          if not isinstance(build_id, str) or re.fullmatch(r"v2-[0-9a-f]{16}", build_id) is None:
-              raise SystemExit("V2 build ID is invalid")
+          if (
+              not isinstance(build_id, str)
+              or re.fullmatch(r"product-a-[0-9a-f]{16}", build_id) is None
+          ):
+              raise SystemExit("Product A build ID is invalid")
           if (
               not isinstance(manifest_sha256, str)
               or re.fullmatch(r"[0-9a-f]{64}", manifest_sha256) is None
@@ -135,5 +140,5 @@ jobs:
             gh release create "$TAG" outputs/release/* \
               --repo "$GITHUB_REPOSITORY" \
               --title "Private sponsorship data ${BUILD_DATE}" \
-              --notes "Quality-approved private V2 data artifacts. See data-quality.json and checksums.sha256."
+              --notes "Quality-approved private Product A data artifacts. See data-quality.json and checksums.sha256."
           fi

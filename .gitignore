@@ -15,6 +15,7 @@ htmlcov/
 .playwright-cli/
 
 # Generated data and application outputs
+.ci/
 data/raw/
 data/staging/
 data/resolved/

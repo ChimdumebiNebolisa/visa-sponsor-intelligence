@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import os
 import socket
 import subprocess
@@ -13,7 +14,11 @@ import urllib.request
 from pathlib import Path
 
 import duckdb
-from build_phase10_ci_fixture import build_phase10_ci_fixture
+
+try:
+    from build_phase10_ci_fixture import build_phase10_ci_fixture
+except ModuleNotFoundError:  # Imported as ``scripts.smoke_streamlit`` in tests.
+    from scripts.build_phase10_ci_fixture import build_phase10_ci_fixture
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -24,32 +29,65 @@ def _available_local_port() -> int:
         return int(listener.getsockname()[1])
 
 
-def _verify_fixture(database_path: Path) -> tuple[int, int]:
+def _verify_database(database_path: Path, *, real_database: bool) -> tuple[int, int]:
     if not database_path.is_file():
-        raise RuntimeError(f"Streamlit fixture database is unavailable: {database_path}")
+        kind = "real" if real_database else "fixture"
+        raise RuntimeError(f"Streamlit {kind} database is unavailable: {database_path}")
     with duckdb.connect(str(database_path), read_only=True) as connection:
         employer_row = connection.execute("SELECT count(*) FROM employer_metrics").fetchone()
         institution_row = connection.execute("SELECT count(*) FROM institution_metrics").fetchone()
+        score_version_row = connection.execute(
+            """
+            SELECT count(*) FROM employer_metrics
+            WHERE score_version = 'product_a_scores_v1'
+            """
+        ).fetchone()
     if employer_row is None or institution_row is None:
         raise RuntimeError("Streamlit smoke fixture count query returned no row")
     employer_count = int(employer_row[0])
     institution_count = int(institution_row[0])
     if employer_count == 0 or institution_count == 0:
-        raise RuntimeError("Streamlit smoke fixture must contain employers and institutions")
+        kind = "real database" if real_database else "smoke fixture"
+        raise RuntimeError(f"Streamlit {kind} must contain employers and institutions")
+    if score_version_row is None or int(score_version_row[0]) != employer_count:
+        kind = "real database" if real_database else "smoke fixture"
+        raise RuntimeError(f"Streamlit {kind} must contain only Product A rating rows")
     return employer_count, institution_count
 
 
 def main() -> None:
-    """Fail unless Streamlit starts with a nonempty sanitized fixture."""
+    """Fail unless Streamlit starts with a nonempty fixture or supplied real database."""
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--database",
+        type=Path,
+        help=(
+            "Existing real presentation database. If omitted, "
+            "SPONSOR_INTEL_SMOKE_DATABASE or SPONSOR_INTEL_DB_PATH is used before falling "
+            "back to the CI fixture."
+        ),
+    )
+    args = parser.parse_args()
 
     configured_root = os.environ.get("SPONSOR_INTEL_CI_FIXTURE_ROOT")
+    database_value = os.environ.get("SPONSOR_INTEL_SMOKE_DATABASE") or os.environ.get(
+        "SPONSOR_INTEL_DB_PATH"
+    )
+    configured_database = args.database or (Path(database_value) if database_value else None)
     temporary_directory: tempfile.TemporaryDirectory[str] | None = None
-    if configured_root:
+    real_database = configured_database is not None
+    if configured_database is not None:
+        database_path = configured_database.expanduser().resolve()
+    elif configured_root:
         database_path = Path(configured_root).resolve() / "db" / "phase10-ci.duckdb"
     else:
         temporary_directory = tempfile.TemporaryDirectory(prefix="sponsor-intel-streamlit-")
         database_path = build_phase10_ci_fixture(Path(temporary_directory.name))
-    employer_count, institution_count = _verify_fixture(database_path)
+    employer_count, institution_count = _verify_database(
+        database_path,
+        real_database=real_database,
+    )
 
     port = _available_local_port()
     command = [
@@ -89,7 +127,8 @@ def main() -> None:
                     body = response.read().decode("utf-8").strip()
                     if response.status == 200 and body == "ok":
                         print(
-                            "Streamlit health check passed with "
+                            f"Streamlit {'real-database' if real_database else 'fixture'} "
+                            "health check passed with "
                             f"{employer_count} employers and {institution_count} institutions "
                             f"on port {port}."
                         )

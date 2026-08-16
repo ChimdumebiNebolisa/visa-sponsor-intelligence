@@ -1,4 +1,4 @@
-.PHONY: setup test test-contract lint typecheck smoke metrics scores evidence policy policy-evaluate quality db release acceptance refresh-government refresh-policies app
+.PHONY: setup test test-contract lint typecheck smoke metrics scores evidence policy policy-evaluate quality db release acceptance acceptance-ci refresh-government refresh-policies app
 
 setup:
 	uv sync --frozen
@@ -45,7 +45,10 @@ release:
 	uv run sponsor-intel release bundle
 
 acceptance:
-	uv run python scripts/run_v1_acceptance.py --verify-restore
+	uv run python scripts/run_product_a_acceptance.py
+
+acceptance-ci:
+	uv run pytest --no-cov tests/integration/test_product_a_acceptance.py
 
 refresh-government:
 	uv run sponsor-intel refresh government --everify-limit 0

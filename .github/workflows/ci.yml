@@ -13,7 +13,7 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     env:
-      SPONSOR_INTEL_CI_FIXTURE_ROOT: .ci/phase10-fixture
+      SPONSOR_INTEL_CI_FIXTURE_ROOT: .ci/product-a-fixture
       SPONSOR_INTEL_DEPLOYMENT_MODE: local
       SPONSOR_INTEL_REQUIRE_DATA: "true"
     steps:
@@ -35,7 +35,7 @@ jobs:
       - name: Install locked dependencies
         run: uv sync --frozen
 
-      - name: Build sanitized Phase 10 fixture
+      - name: Build sanitized Product A metrics and DuckDB fixture
         run: >-
           uv run python scripts/build_phase10_ci_fixture.py
           --output-root "$SPONSOR_INTEL_CI_FIXTURE_ROOT"
@@ -46,11 +46,17 @@ jobs:
       - name: Type-check
         run: make typecheck
 
+      - name: Exercise Product A quality contracts without network or secrets
+        run: uv run pytest --no-cov tests/unit/test_quality_release.py
+
       - name: Test
         run: make test
 
-      - name: Smoke-test Streamlit startup
+      - name: Smoke-test Streamlit against the nonempty Product A fixture
         run: make smoke
+
+      - name: Exercise the Product A acceptance runner on an offline fixture
+        run: make acceptance-ci
 
   deployment-install:
     runs-on: ubuntu-latest

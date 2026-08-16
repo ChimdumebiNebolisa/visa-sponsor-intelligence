@@ -42,7 +42,7 @@ jobs:
           uv sync --frozen
           uv run playwright install --with-deps chromium
 
-      - name: Restore reviewed policy state and reusable caches
+      - name: Restore reusable non-policy build inputs
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -53,8 +53,11 @@ jobs:
               --pattern "build-state.zip" \
               --pattern "source-manifests.zip" \
               --dir /tmp/sponsor-intel-release
-            unzip -o /tmp/sponsor-intel-release/processed-parquet.zip -d .
-            unzip -o /tmp/sponsor-intel-release/build-state.zip -d .
+            unzip -o /tmp/sponsor-intel-release/processed-parquet.zip \
+              -x 'data/processed/policy_*' -d .
+            unzip -o /tmp/sponsor-intel-release/build-state.zip \
+              -x 'data/cache/policy_discovery/*' \
+                 'data/cache/policy_extraction/*' -d .
             unzip -o /tmp/sponsor-intel-release/source-manifests.zip -d .
           fi
 
@@ -71,6 +74,14 @@ jobs:
 
       - name: Confirm publication quality gates
         run: uv run sponsor-intel quality report
+
+      - name: Require Product A real-data acceptance
+        run: >-
+          uv run python scripts/run_product_a_acceptance.py
+          --data-root data
+          --database db/immigration.duckdb
+          --output-root outputs/reports/product-a
+          --manifest outputs/manifests/source_artifacts.jsonl
 
       - name: Build private release assets
         run: uv run sponsor-intel release bundle

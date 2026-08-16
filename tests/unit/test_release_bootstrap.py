@@ -30,29 +30,42 @@ TOKEN = "test-token-never-render-this-secret"
 def _database_bytes(
     root: Path,
     *,
-    v2_schema: bool = True,
+    product_a_schema: bool = True,
     missing_required_view: bool = False,
 ) -> bytes:
     path = root / f"fixture-{time.time_ns()}.duckdb"
-    decision_column = ", 'TIER_1_REVIEWED' AS decision_readiness_tier" if v2_schema else ""
+    research_explanation_column = (
+        ", 'Fixture HERD explanation.' AS research_scale_explanation" if product_a_schema else ""
+    )
     with duckdb.connect(str(path)) as connection:
         connection.execute(
             """
             CREATE VIEW vw_employer_explorer AS
             SELECT
                 'org-1' AS organization_id,
+                'product_a_metrics_v1' AS metric_version,
+                'product_a_scores_v1' AS score_version,
                 80.0 AS h1b_history_score,
+                'RATED' AS h1b_history_status,
+                1.0 AS h1b_history_coverage,
+                5 AS h1b_history_star_rating,
+                '★★★★★' AS h1b_history_stars,
+                '5 out of 5 stars' AS h1b_history_star_label,
+                'Fixture H-1B explanation.' AS h1b_history_explanation,
                 75.0 AS green_card_history_score,
-                'scored_metrics_v2' AS metric_version,
-                'evidence_scores_v2_2026_08' AS score_version,
-                2026 AS last_observed_activity_year,
-                77.0 AS sponsorship_history_score,
-                1.0 AS sponsorship_history_coverage,
-                0.9 AS sponsorship_history_confidence,
-                'HIGH' AS sponsorship_history_confidence_band,
-                'SCORED' AS sponsorship_history_status,
-                'A' AS sponsorship_history_grade,
-                'Fixture explanation.' AS sponsorship_history_explanation
+                'RATED' AS green_card_history_status,
+                1.0 AS green_card_history_coverage,
+                4 AS green_card_history_star_rating,
+                '★★★★☆' AS green_card_history_stars,
+                '4 out of 5 stars' AS green_card_history_star_label,
+                'Fixture green-card explanation.' AS green_card_history_explanation,
+                77.0 AS overall_sponsorship_score,
+                'RATED' AS overall_sponsorship_status,
+                1.0 AS overall_sponsorship_coverage,
+                4 AS overall_sponsorship_star_rating,
+                '★★★★☆' AS overall_sponsorship_stars,
+                '4 out of 5 stars' AS overall_sponsorship_star_label,
+                'Fixture overall explanation.' AS overall_sponsorship_explanation
             """
         )
         connection.execute(
@@ -60,28 +73,36 @@ def _database_bytes(
             CREATE VIEW vw_institution_explorer AS
             SELECT
                 'ipeds:1' AS institution_id,
-                'scored_metrics_v2' AS metric_version,
-                'evidence_scores_v2_2026_08' AS score_version,
-                2026 AS last_observed_activity_year,
-                77.0 AS sponsorship_history_score,
-                1.0 AS sponsorship_history_coverage,
-                0.9 AS sponsorship_history_confidence,
-                'HIGH' AS sponsorship_history_confidence_band,
-                'SCORED' AS sponsorship_history_status,
-                'A' AS sponsorship_history_grade,
-                'Fixture explanation.' AS sponsorship_history_explanation,
-                72.0 AS research_pathway_score,
-                'SCORED' AS research_pathway_status,
-                4 AS core_policy_reviewed_count,
-                3 AS core_policy_evidence_count,
-                1.0 AS core_policy_review_coverage,
-                0.75 AS core_policy_evidence_coverage,
-                'COMPLETE' AS core_policy_profile_status,
-                'TIER_1_REVIEWED' AS decision_readiness_evidence_tier,
-                'Fixture explanation.' AS decision_readiness_explanation,
-                'READY' AS decision_readiness_prerequisite_status,
-                TRUE AS decision_readiness_tier_is_final
-                {decision_column}
+                metric_version,
+                score_version,
+                h1b_history_score,
+                h1b_history_status,
+                h1b_history_coverage,
+                h1b_history_star_rating,
+                h1b_history_stars,
+                h1b_history_star_label,
+                h1b_history_explanation,
+                green_card_history_score,
+                green_card_history_status,
+                green_card_history_coverage,
+                green_card_history_star_rating,
+                green_card_history_stars,
+                green_card_history_star_label,
+                green_card_history_explanation,
+                overall_sponsorship_score,
+                overall_sponsorship_status,
+                overall_sponsorship_coverage,
+                overall_sponsorship_star_rating,
+                overall_sponsorship_stars,
+                overall_sponsorship_star_label,
+                overall_sponsorship_explanation,
+                72.0 AS research_scale_score,
+                'RATED' AS research_scale_status,
+                4 AS research_scale_star_rating,
+                '★★★★☆' AS research_scale_stars,
+                '4 out of 5 stars' AS research_scale_star_label
+                {research_explanation_column}
+            FROM vw_employer_explorer
             """
         )
         connection.execute(
@@ -93,12 +114,11 @@ def _database_bytes(
             "vw_relevant_titles",
             "vw_everify_evidence",
             "vw_opt_evidence",
-            "vw_policy_evidence",
             "vw_entity_review_queue",
             "vw_everify_review_queue",
-            "vw_policy_review_queue",
+            "vw_source_artifacts",
         ):
-            if missing_required_view and view_name == "vw_policy_review_queue":
+            if missing_required_view and view_name == "vw_entity_review_queue":
                 continue
             connection.execute(f"CREATE VIEW {view_name} AS SELECT 'fixture' AS value")
         connection.execute("CREATE VIEW vw_data_health AS SELECT 'dol_lca' AS source_id")
@@ -113,13 +133,13 @@ def _release_payload(
     checksum_matches: bool = True,
     build_id_matches: bool = True,
     tag_matches_date: bool = True,
-    v2_schema: bool = True,
+    product_a_schema: bool = True,
     missing_required_view: bool = False,
 ) -> tuple[dict[str, Any], dict[int, bytes]]:
-    build_id = "v2-0123456789abcdef"
+    build_id = "product-a-0123456789abcdef"
     database = _database_bytes(
         tmp_path,
-        v2_schema=v2_schema,
+        product_a_schema=product_a_schema,
         missing_required_view=missing_required_view,
     )
     generated_at = "2026-08-16T12:30:00+00:00" if tag_matches_date else "2026-08-15T12:30:00+00:00"
@@ -131,8 +151,8 @@ def _release_payload(
             "passed": quality_passed,
             "critical_failure_count": 0 if quality_passed else 1,
             "manifest_sha256": manifest_sha256,
-            "metric_version": "scored_metrics_v2",
-            "score_version": "evidence_scores_v2_2026_08",
+            "metric_version": "product_a_metrics_v1",
+            "score_version": "product_a_scores_v1",
             "checks": [
                 {
                     "check_id": "fixture",
@@ -145,11 +165,11 @@ def _release_payload(
     ).encode()
     metadata = json.dumps(
         {
-            "build_id": build_id if build_id_matches else "v2-fedcba9876543210",
+            "build_id": (build_id if build_id_matches else "product-a-fedcba9876543210"),
             "generated_at": generated_at,
             "manifest_sha256": manifest_sha256,
-            "metric_version": "scored_metrics_v2",
-            "score_version": "evidence_scores_v2_2026_08",
+            "metric_version": "product_a_metrics_v1",
+            "score_version": "product_a_scores_v1",
             "quality_passed": quality_passed,
             "employer_count": 1,
             "institution_count": 1,
@@ -238,7 +258,9 @@ def _bootstrap(
     )
 
 
-def test_bootstrap_downloads_only_four_verified_runtime_assets(tmp_path: Path) -> None:
+def test_bootstrap_accepts_policy_absent_product_a_database_and_downloads_runtime_assets(
+    tmp_path: Path,
+) -> None:
     payload, content = _release_payload(tmp_path)
     requests: list[httpx.Request] = []
 
@@ -246,7 +268,7 @@ def test_bootstrap_downloads_only_four_verified_runtime_assets(tmp_path: Path) -
         runtime = bootstrap.ensure()
 
     assert runtime.release_tag == TAG
-    assert runtime.build_id == "v2-0123456789abcdef"
+    assert runtime.build_id == "product-a-0123456789abcdef"
     assert runtime.cache_hit is False
     assert runtime.database_path.is_file()
     requested_asset_ids = {
@@ -262,11 +284,11 @@ def test_bootstrap_downloads_only_four_verified_runtime_assets(tmp_path: Path) -
     ("release_options", "message"),
     [
         ({"checksum_matches": False}, "checksum mismatch"),
-        ({"quality_passed": False}, "quality or V2 build metadata"),
-        ({"build_id_matches": False}, "quality or V2 build metadata"),
+        ({"quality_passed": False}, "quality or Product A build metadata"),
+        ({"build_id_matches": False}, "quality or Product A build metadata"),
         ({"tag_matches_date": False}, "tag does not match"),
-        ({"v2_schema": False}, "missing V2 columns"),
-        ({"missing_required_view": True}, "missing V2 views"),
+        ({"product_a_schema": False}, "missing Product A columns"),
+        ({"missing_required_view": True}, "missing Product A views"),
     ],
 )
 def test_invalid_release_fails_closed_without_promoting_cache(

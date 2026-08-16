@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import tempfile
@@ -20,24 +21,60 @@ REQUIRED_TABLE_COLUMNS = {
         "organization_id",
         "metric_version",
         "score_version",
-        "immigration_evidence_coverage",
-        "sponsorship_history_score",
-        "sponsorship_history_coverage",
-        "sponsorship_history_status",
+        "h1b_history_score",
+        "h1b_history_status",
+        "h1b_history_coverage",
+        "h1b_history_star_rating",
+        "h1b_history_stars",
+        "h1b_history_star_label",
+        "h1b_history_explanation",
+        "green_card_history_score",
+        "green_card_history_status",
+        "green_card_history_coverage",
+        "green_card_history_star_rating",
+        "green_card_history_stars",
+        "green_card_history_star_label",
+        "green_card_history_explanation",
+        "overall_sponsorship_score",
+        "overall_sponsorship_status",
+        "overall_sponsorship_coverage",
+        "overall_sponsorship_star_rating",
+        "overall_sponsorship_stars",
+        "overall_sponsorship_star_label",
+        "overall_sponsorship_explanation",
     },
     "institution_metrics.parquet": {
         "institution_id",
         "metric_version",
         "score_version",
-        "research_pathway_coverage",
-        "research_pathway_status",
-        "core_policy_review_coverage",
-        "core_policy_evidence_coverage",
-        "decision_readiness_tier",
+        "h1b_history_score",
+        "h1b_history_status",
+        "h1b_history_coverage",
+        "h1b_history_star_rating",
+        "h1b_history_stars",
+        "h1b_history_star_label",
+        "h1b_history_explanation",
+        "green_card_history_score",
+        "green_card_history_status",
+        "green_card_history_coverage",
+        "green_card_history_star_rating",
+        "green_card_history_stars",
+        "green_card_history_star_label",
+        "green_card_history_explanation",
+        "overall_sponsorship_score",
+        "overall_sponsorship_status",
+        "overall_sponsorship_coverage",
+        "overall_sponsorship_star_rating",
+        "overall_sponsorship_stars",
+        "overall_sponsorship_star_label",
+        "overall_sponsorship_explanation",
+        "research_scale_score",
+        "research_scale_status",
+        "research_scale_star_rating",
+        "research_scale_stars",
+        "research_scale_star_label",
+        "research_scale_explanation",
     },
-    "employer_scores.parquet": {"organization_id", "score_version"},
-    "employer_scores_v1.parquet": {"organization_id", "score_version"},
-    "institution_scores_v1.parquet": {"institution_id", "score_version"},
     "lca_cases_resolved.parquet": {"source_artifact_id", "case_id", "organization_id"},
     "perm_cases_resolved.parquet": {"source_artifact_id", "case_id", "organization_id"},
     "h1b_petitions_resolved.parquet": {
@@ -49,18 +86,18 @@ REQUIRED_TABLE_COLUMNS = {
     "legal_entities.parquet": {"legal_entity_id", "parent_organization_id"},
     "parent_organizations.parquet": {"parent_organization_id"},
     "institutions.parquet": {"institution_id"},
+    "source_artifacts.parquet": {
+        "source_artifact_id",
+        "source_id",
+        "schema_version",
+        "parser_version",
+        "sha256",
+        "validation_status",
+    },
 }
 
-EXPECTED_METRIC_VERSION = "scored_metrics_v2"
-EXPECTED_SCORE_VERSION = "evidence_scores_v2_2026_08"
-
-
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as source:
-        for chunk in iter(lambda: source.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+EXPECTED_METRIC_VERSION = "product_a_metrics_v1"
+EXPECTED_SCORE_VERSION = "product_a_scores_v1"
 
 
 def _write_parquet_atomic(frame: pl.DataFrame, target: Path) -> None:
@@ -90,38 +127,86 @@ def _frame_or_none(path: Path) -> pl.DataFrame | None:
     return pl.read_parquet(path) if path.is_file() else None
 
 
-def _manifest_metadata(path: Path) -> tuple[int, int, int, list[str]]:
-    if not path.is_file():
-        return 0, 0, 0, []
+def _product_a_metric_fingerprint(
+    frame: pl.DataFrame,
+    *,
+    required_columns: set[str],
+    identity_column: str,
+) -> str:
+    """Fingerprint only the active Product A contract, excluding supplemental columns."""
+
+    selected_columns = sorted(required_columns & set(frame.columns))
+    if not selected_columns:
+        return hashlib.sha256(b"").hexdigest()
+    selected = frame.select(selected_columns)
+    if identity_column in selected_columns:
+        selected = selected.sort(identity_column)
+    buffer = io.BytesIO()
+    selected.write_parquet(buffer, compression="zstd", statistics=True)
+    return hashlib.sha256(buffer.getbuffer()).hexdigest()
+
+
+def _manifest_metadata(
+    path: Path, active_artifact_ids: set[str]
+) -> tuple[int, int, int, list[str], list[str], list[str], str]:
+    if not path.is_file() or not active_artifact_ids:
+        return 0, 0, 0, [], sorted(active_artifact_ids), [], "UNAVAILABLE"
     rows: list[dict[str, Any]] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.strip():
             rows.append(json.loads(line))
-    failed = sum(row.get("validation_status") == "FAILED" for row in rows)
-    warnings = sum(row.get("validation_status") == "WARNING" for row in rows)
+    selected = [
+        row for row in rows if str(row.get("source_artifact_id", "")) in active_artifact_ids
+    ]
+    selected_counts: dict[str, int] = {}
+    for row in selected:
+        artifact_id = str(row.get("source_artifact_id", ""))
+        selected_counts[artifact_id] = selected_counts.get(artifact_id, 0) + 1
+    missing = sorted(active_artifact_ids - set(selected_counts))
+    duplicates = sorted(artifact_id for artifact_id, count in selected_counts.items() if count != 1)
+    failed = sum(row.get("validation_status") == "FAILED" for row in selected)
+    warnings = sum(row.get("validation_status") == "WARNING" for row in selected)
     versions = sorted(
         {
             f"{row.get('source_id')}:{row.get('schema_version')}:{row.get('parser_version')}"
-            for row in rows
+            for row in selected
         }
     )
-    return len(rows), failed, warnings, versions
+    canonical = "\n".join(
+        json.dumps(row, sort_keys=True, separators=(",", ":"))
+        for row in sorted(selected, key=lambda row: str(row.get("source_artifact_id", "")))
+    )
+    selected_sha256 = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return (
+        len(selected),
+        failed,
+        warnings,
+        versions,
+        missing,
+        duplicates,
+        selected_sha256,
+    )
 
 
-def _schema_failures(root: Path) -> tuple[int, int]:
+def _schema_failures(root: Path, active_artifact_ids: set[str]) -> tuple[int, int, int]:
     report_count = 0
     missing_count = 0
-    if not root.is_dir():
-        return report_count, missing_count
+    observed_artifact_ids: set[str] = set()
+    if not root.is_dir() or not active_artifact_ids:
+        return report_count, missing_count, len(active_artifact_ids)
     for path in root.rglob("*.json"):
+        if path.stem not in active_artifact_ids:
+            continue
         report_count += 1
+        observed_artifact_ids.add(path.stem)
         values = json.loads(path.read_text(encoding="utf-8"))
         missing_count += len(values.get("missing_required_columns", []))
-    return report_count, missing_count
+    missing_report_count = len(active_artifact_ids - observed_artifact_ids)
+    return report_count, missing_count, missing_report_count
 
 
 class QualityReporter:
-    """Measure V2 build health and fail publication on critical violations."""
+    """Measure Product A build health and fail publication on critical violations."""
 
     def __init__(
         self,
@@ -201,18 +286,42 @@ class QualityReporter:
             ),
         )
 
-        manifest_count, manifest_failures, manifest_warnings, schema_versions = _manifest_metadata(
-            manifest_path
+        source_artifacts = _frame_or_none(processed / "source_artifacts.parquet")
+        active_artifact_values = (
+            source_artifacts.get_column("source_artifact_id").drop_nulls().cast(pl.String).to_list()
+            if source_artifacts is not None and "source_artifact_id" in source_artifacts.columns
+            else []
         )
-        manifest_sha256 = _sha256(manifest_path) if manifest_path.is_file() else "UNAVAILABLE"
+        active_artifact_ids = {value.strip() for value in active_artifact_values if value.strip()}
+        invalid_active_id_count = (
+            0
+            if source_artifacts is not None
+            and source_artifacts.height == len(active_artifact_values) == len(active_artifact_ids)
+            else 1
+        )
+        (
+            manifest_count,
+            manifest_failures,
+            manifest_warnings,
+            schema_versions,
+            missing_manifest_ids,
+            duplicate_manifest_ids,
+            manifest_sha256,
+        ) = _manifest_metadata(manifest_path, active_artifact_ids)
         add(
             "source_manifest",
             "provenance",
-            manifest_count > 0,
+            manifest_count > 0
+            and invalid_active_id_count == 0
+            and not missing_manifest_ids
+            and not duplicate_manifest_ids,
             critical=True,
             value=float(manifest_count),
-            threshold="> 0 validated source artifacts",
-            details=f"SHA-256 {manifest_sha256}; versions: {', '.join(schema_versions)}",
+            threshold="every active artifact maps to exactly one validated manifest record",
+            details=(
+                f"Selected SHA-256 {manifest_sha256}; versions: {', '.join(schema_versions)}; "
+                f"missing={missing_manifest_ids}; duplicates={duplicate_manifest_ids}."
+            ),
         )
         add(
             "manifest_validations",
@@ -234,17 +343,22 @@ class QualityReporter:
             warn_only=True,
         )
 
-        schema_report_count, schema_missing_count = _schema_failures(schema_root)
+        schema_report_count, schema_missing_count, missing_schema_report_count = _schema_failures(
+            schema_root, active_artifact_ids
+        )
         add(
             "schema_reports",
             "schema",
-            schema_report_count > 0 and schema_missing_count == 0,
+            schema_report_count > 0
+            and schema_missing_count == 0
+            and missing_schema_report_count == 0,
             critical=True,
-            value=float(schema_missing_count),
-            threshold="reports present and 0 missing required source columns",
+            value=float(schema_missing_count + missing_schema_report_count),
+            threshold="one active report per artifact and 0 missing required source columns",
             details="; ".join(
                 [
-                    f"{schema_report_count} schema reports",
+                    f"{schema_report_count} active schema reports",
+                    f"{missing_schema_report_count} missing reports",
                     f"{schema_missing_count} missing columns.",
                 ]
             ),
@@ -326,112 +440,6 @@ class QualityReporter:
 
         employer_metrics = _frame_or_none(processed / "employer_metrics.parquet")
         institution_metrics = _frame_or_none(processed / "institution_metrics.parquet")
-        facts = _frame_or_none(processed / "policy_facts.parquet")
-        accepted = facts.head(0) if facts is not None else None
-        reviewed_not_stated = facts.head(0) if facts is not None else None
-        if facts is not None:
-            accepted = facts.filter(pl.col("human_review_status") == "REVIEWED_ACCEPTED")
-            reviewed_not_stated = facts.filter(
-                pl.col("human_review_status") == "REVIEWED_NOT_STATED"
-            )
-        institution_ids = (
-            institution_metrics["institution_id"].drop_nulls().unique().to_list()
-            if institution_metrics is not None
-            else []
-        )
-        reviewed_institutions = (
-            accepted.filter(pl.col("institution_id").is_in(institution_ids))[
-                "institution_id"
-            ].n_unique()
-            if accepted is not None
-            else 0
-        )
-        invalid_accepted = 0
-        if accepted is not None and not accepted.is_empty():
-            required_reviewer_columns = {"reviewer_id", "reviewed_at"}
-            if required_reviewer_columns <= set(accepted.columns):
-                invalid_accepted = accepted.filter(
-                    ~pl.col("exact_excerpt_verified").fill_null(False)
-                    | ~pl.col("source_url").fill_null("").str.starts_with("https://")
-                    | pl.col("supporting_excerpt").fill_null("").str.strip_chars().eq("")
-                    | pl.col("reviewer_id").fill_null("").str.strip_chars().eq("")
-                    | pl.col("reviewed_at")
-                    .cast(pl.String, strict=False)
-                    .fill_null("")
-                    .str.strip_chars()
-                    .eq("")
-                ).height
-            else:
-                invalid_accepted = accepted.height
-        invalid_not_stated = 0
-        if reviewed_not_stated is not None and not reviewed_not_stated.is_empty():
-            required_reviewer_columns = {"reviewer_id", "reviewed_at"}
-            if required_reviewer_columns <= set(reviewed_not_stated.columns):
-                invalid_not_stated = reviewed_not_stated.filter(
-                    (pl.col("fact_value") != "NOT_STATED")
-                    | ~pl.col("source_url").fill_null("").str.starts_with("https://")
-                    | pl.col("reviewer_id").fill_null("").str.strip_chars().eq("")
-                    | pl.col("reviewed_at")
-                    .cast(pl.String, strict=False)
-                    .fill_null("")
-                    .str.strip_chars()
-                    .eq("")
-                ).height
-            else:
-                invalid_not_stated = reviewed_not_stated.height
-        add(
-            "reviewed_policy_coverage",
-            "policy",
-            reviewed_institutions >= 100,
-            critical=True,
-            value=float(reviewed_institutions),
-            threshold=">= 100 institutions",
-            details=f"{reviewed_institutions} institutions have accepted policy evidence.",
-        )
-        add(
-            "accepted_policy_evidence",
-            "policy",
-            invalid_accepted == 0,
-            critical=True,
-            value=float(invalid_accepted),
-            threshold="0 accepted facts without exact official evidence and reviewer provenance",
-            details=f"{invalid_accepted} accepted facts fail URL/excerpt/reviewer gates.",
-        )
-        add(
-            "reviewed_not_stated_semantics",
-            "policy",
-            invalid_not_stated == 0,
-            critical=True,
-            value=float(invalid_not_stated),
-            threshold="0 REVIEWED_NOT_STATED rows with invalid state or reviewer provenance",
-            details=(
-                f"{invalid_not_stated} reviewed-not-stated facts fail value, URL, or reviewer "
-                "provenance gates."
-            ),
-        )
-
-        top50_complete = 0
-        candidates = _frame_or_none(processed / "policy_candidates.parquet")
-        if candidates is not None and institution_metrics is not None:
-            priority_ids = candidates.sort("candidate_rank").head(50)["institution_id"].to_list()
-            top50_complete = institution_metrics.filter(
-                pl.col("institution_id").is_in(priority_ids)
-                & (pl.col("core_policy_review_coverage") == 1.0)
-            ).height
-        add(
-            "core_policy_top50_review",
-            "policy",
-            top50_complete == 50,
-            critical=False,
-            value=float(top50_complete),
-            threshold="50 priority institutions with all four core questions reviewed",
-            details=(
-                f"{top50_complete} of 50 priority institutions have complete core-policy review; "
-                "incomplete profiles remain visibly non-decision-ready."
-            ),
-            warn_only=True,
-        )
-
         employer_metric_version = (
             _unique_text(employer_metrics, "metric_version")
             if employer_metrics is not None
@@ -460,14 +468,58 @@ class QualityReporter:
         score_version = (
             employer_score_version if employer_score_version == institution_score_version else None
         )
-        coverage_errors = 0
+        rating_contract_errors = 0
+        rating_pairs = (
+            ("h1b_history_score", "h1b_history_star_rating"),
+            ("green_card_history_score", "green_card_history_star_rating"),
+            ("overall_sponsorship_score", "overall_sponsorship_star_rating"),
+        )
         for frame in (employer_metrics, institution_metrics):
             if frame is None:
                 continue
-            for column in (name for name in frame.columns if name.endswith("_coverage")):
-                coverage_errors += frame.filter(
-                    pl.col(column).is_not_null() & ~pl.col(column).is_between(0, 1)
-                ).height
+            for score_column, stars_column in rating_pairs:
+                if {score_column, stars_column} <= set(frame.columns):
+                    rating_contract_errors += frame.filter(
+                        (
+                            pl.col(score_column).is_not_null()
+                            & ~pl.col(score_column).is_between(0, 100)
+                        )
+                        | (
+                            pl.col(stars_column).is_not_null()
+                            & ~pl.col(stars_column).is_between(1, 5)
+                        )
+                        | (pl.col(score_column).is_null() & pl.col(stars_column).is_not_null())
+                        | (pl.col(score_column).eq(0) & pl.col(stars_column).is_not_null())
+                        | (pl.col(score_column).gt(0) & pl.col(stars_column).is_null())
+                    ).height
+            for coverage_column in (
+                "h1b_history_coverage",
+                "green_card_history_coverage",
+                "overall_sponsorship_coverage",
+            ):
+                if coverage_column in frame.columns:
+                    rating_contract_errors += frame.filter(
+                        pl.col(coverage_column).is_not_null()
+                        & ~pl.col(coverage_column).is_between(0, 1)
+                    ).height
+        if institution_metrics is not None and {
+            "research_scale_score",
+            "research_scale_star_rating",
+        } <= set(institution_metrics.columns):
+            rating_contract_errors += institution_metrics.filter(
+                (
+                    pl.col("research_scale_score").is_not_null()
+                    & ~pl.col("research_scale_score").is_between(0, 100)
+                )
+                | (
+                    pl.col("research_scale_star_rating").is_not_null()
+                    & ~pl.col("research_scale_star_rating").is_between(1, 5)
+                )
+                | (
+                    pl.col("research_scale_score").is_null()
+                    & pl.col("research_scale_star_rating").is_not_null()
+                )
+            ).height
         add(
             "score_contract",
             "scoring",
@@ -475,50 +527,19 @@ class QualityReporter:
             and institution_metric_version == EXPECTED_METRIC_VERSION
             and employer_score_version == EXPECTED_SCORE_VERSION
             and institution_score_version == EXPECTED_SCORE_VERSION
-            and coverage_errors == 0,
+            and rating_contract_errors == 0,
             critical=True,
-            value=float(coverage_errors),
-            threshold="one metric/score version and all coverage in [0, 1]",
+            value=float(rating_contract_errors),
+            threshold="Product A versions and valid 0-100 score/1-5 star semantics",
             details="; ".join(
                 [
                     f"employer metric={employer_metric_version}",
                     f"institution metric={institution_metric_version}",
                     f"employer score={employer_score_version}",
                     f"institution score={institution_score_version}",
-                    f"range errors={coverage_errors}.",
+                    f"rating contract errors={rating_contract_errors}.",
                 ]
             ),
-        )
-
-        grade_gating_errors = 0
-        employer_grade_columns = {
-            "sponsorship_history_coverage",
-            "sponsorship_history_grade",
-        }
-        if employer_metrics is not None and employer_grade_columns <= set(employer_metrics.columns):
-            grade_gating_errors += employer_metrics.filter(
-                (pl.col("sponsorship_history_coverage") < 1.0)
-                & (pl.col("sponsorship_history_grade") != "UNKNOWN")
-            ).height
-        institution_grade_columns = {
-            "research_pathway_status",
-            "research_pathway_grade",
-        }
-        if institution_metrics is not None and institution_grade_columns <= set(
-            institution_metrics.columns
-        ):
-            grade_gating_errors += institution_metrics.filter(
-                (pl.col("research_pathway_status") != "COMPLETE")
-                & (pl.col("research_pathway_grade") != "UNKNOWN")
-            ).height
-        add(
-            "v2_grade_gating",
-            "scoring",
-            grade_gating_errors == 0,
-            critical=True,
-            value=float(grade_gating_errors),
-            threshold="0 partial or incomplete V2 profiles with a letter grade",
-            details=f"{grade_gating_errors} V2 scores violate grade-suppression rules.",
         )
 
         health = _frame_or_none(processed / "data_health.parquet")
@@ -533,27 +554,30 @@ class QualityReporter:
             details=f"{freshness_rows} source health rows retain counts, periods, and warnings.",
         )
 
-        output_fingerprints = {
-            name: _sha256(processed / name)
-            for name in (
-                "employer_metrics.parquet",
-                "institution_metrics.parquet",
-                "policy_facts.parquet",
+        output_fingerprints: dict[str, str] = {}
+        if employer_metrics is not None:
+            output_fingerprints["employer_metrics.parquet"] = _product_a_metric_fingerprint(
+                employer_metrics,
+                required_columns=REQUIRED_TABLE_COLUMNS["employer_metrics.parquet"],
+                identity_column="organization_id",
             )
-            if (processed / name).is_file()
-        }
+        if institution_metrics is not None:
+            output_fingerprints["institution_metrics.parquet"] = _product_a_metric_fingerprint(
+                institution_metrics,
+                required_columns=REQUIRED_TABLE_COLUMNS["institution_metrics.parquet"],
+                identity_column="institution_id",
+            )
         build_material = json.dumps(
             {
                 "manifest_sha256": manifest_sha256,
                 "metric_version": metric_version,
                 "score_version": score_version,
                 "source_rows": source_rows,
-                "reviewed_institutions": reviewed_institutions,
                 "output_fingerprints": output_fingerprints,
             },
             sort_keys=True,
         ).encode()
-        build_id = f"v2-{hashlib.sha256(build_material).hexdigest()[:16]}"
+        build_id = f"product-a-{hashlib.sha256(build_material).hexdigest()[:16]}"
         critical_failure_count = sum(check.critical and check.status == "FAIL" for check in checks)
         checks_path = processed / "quality_checks.parquet"
         report_path = self.output_root / "reports" / "quality" / "data_quality.json"
