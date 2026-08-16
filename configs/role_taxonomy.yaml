@@ -1,4 +1,4 @@
-classification_version: role_taxonomy_v2
+classification_version: role_taxonomy_v3
 review_confidence_threshold: 0.90
 role_families:
   - software_engineering
@@ -95,7 +95,7 @@ positive_title_rules:
   - rule_id: computer_science_research
     role_family: computer_science_research
     confidence: 0.94
-    patterns: ["\\bCOMPUTER SCIENCE (RESEARCHER|SCIENTIST|PROFESSOR|FACULTY)\\b", "\\bCOMPUTING RESEARCH (SCIENTIST|FELLOW|ASSOCIATE)\\b", "\\bCOMPUTER AND INFORMATION RESEARCH SCIENTIST\\b"]
+    patterns: ["\\bCOMPUTER SCIENCE (RESEARCHER|SCIENTIST)\\b", "\\bCOMPUTING RESEARCH (SCIENTIST|FELLOW|ASSOCIATE)\\b", "\\bCOMPUTER AND INFORMATION RESEARCH SCIENTIST\\b"]
   - rule_id: systems_infrastructure
     role_family: systems_infrastructure
     confidence: 0.94
@@ -130,9 +130,15 @@ exclusion_rules:
   - rule_id: nontechnical_management_analysis
     confidence: 0.95
     patterns: ["^(PROJECT MANAGER|PRODUCT MANAGER|BUSINESS ANALYST|MANAGER|DIRECTOR|ASSOCIATE|CONSULTANT)$"]
-  - rule_id: noncomputing_faculty
-    confidence: 0.95
-    patterns: ["^(ASSISTANT|ASSOCIATE|FULL)? ?PROFESSOR$", "\\b(FINE ARTS|HISTORY|ENGLISH|SOCIOLOGY|PSYCHOLOGY) PROFESSOR\\b"]
+  - rule_id: postdoctoral
+    confidence: 0.99
+    patterns: ["\\bPOSTDOC(TORAL)?\\b", "\\bPOST DOCTORAL\\b"]
+  - rule_id: faculty
+    confidence: 0.99
+    patterns: ["\\bPROFESSOR\\b", "\\bLECTURER\\b"]
+  - rule_id: student_workers
+    confidence: 0.98
+    patterns: ["\\bSTUDENT (WORKER|EMPLOYEE|ASSISTANT|AIDE|TRAINEE)\\b", "\\b(GRADUATE|UNDERGRADUATE) STUDENT\\b", "\\b(GRADUATE|UNDERGRADUATE) (RESEARCH |TEACHING )?ASSISTANT\\b"]
   - rule_id: internships
     confidence: 0.95
     patterns: ["\\b(INTERN|INTERNSHIP|CO OP)\\b"]
@@ -145,7 +151,7 @@ combined_rules:
     role_family: computer_science_research
     confidence: 0.91
     soc_prefixes: ["15-", "25-1021"]
-    patterns: ["\\b(RESEARCH SCIENTIST|RESEARCHER|POSTDOCTORAL|POSTDOC|RESEARCH FELLOW)\\b"]
+    patterns: ["\\b(RESEARCH SCIENTIST|RESEARCHER|RESEARCH FELLOW)\\b"]
   - rule_id: engineering_computing_title
     role_family: research_engineering
     confidence: 0.90
@@ -158,7 +164,7 @@ combined_rules:
     patterns: ["\\b(DATA|COMPUTATIONAL|STATISTICAL|QUANTITATIVE)\\b"]
 
 ambiguous_title_patterns:
-  - "^(RESEARCH SCIENTIST|RESEARCH ASSOCIATE|RESEARCH FELLOW|POSTDOCTORAL FELLOW|POSTDOC)$"
+  - "^(RESEARCH SCIENTIST|RESEARCH ASSOCIATE|RESEARCH FELLOW)$"
   - "^(ENGINEER|SYSTEMS ENGINEER|ARCHITECT|ANALYST|SCIENTIST)$"
   - "^(TECHNICAL LEAD|TECH LEAD|MANAGER JC50)$"
   - "\\bAPPLIED SCIENTIST\\b"

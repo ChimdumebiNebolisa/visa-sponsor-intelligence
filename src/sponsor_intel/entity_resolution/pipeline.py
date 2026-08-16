@@ -92,7 +92,16 @@ def _column(frame: pl.LazyFrame, *names: str) -> pl.Expr:
     return pl.lit("")
 
 
+def _is_ipeds_directory_record(record: ArtifactManifestRecord) -> bool:
+    if record.source_id != "ipeds":
+        return False
+    names = set(pl.scan_parquet(record.parquet_path).collect_schema().names())
+    return "instnm" in names or "official_name" in names
+
+
 def _source_projection(record: ArtifactManifestRecord) -> pl.LazyFrame | None:
+    if record.source_id == "ipeds" and not _is_ipeds_directory_record(record):
+        return None
     frame = pl.scan_parquet(record.parquet_path)
     if record.source_id in _EMPLOYER_SOURCES:
         if record.source_id == "dol_lca":
@@ -192,7 +201,11 @@ def _normalize_observations(
 
 
 def _latest_ipeds(records: tuple[ArtifactManifestRecord, ...]) -> pl.DataFrame:
-    candidates = [record for record in records if record.source_id == "ipeds"]
+    candidates = [
+        record
+        for record in records
+        if _is_ipeds_directory_record(record)
+    ]
     if not candidates:
         raise ValueError("A current IPEDS directory artifact is required")
     record = max(candidates, key=lambda item: (item.fiscal_year, item.retrieved_at))
@@ -268,6 +281,8 @@ def _persist_resolved_sources(
     resolved_count = 0
     for record in records:
         if record.source_id not in _EMPLOYER_SOURCES | {"ipeds"}:
+            continue
+        if record.source_id == "ipeds" and not _is_ipeds_directory_record(record):
             continue
         lazy = pl.scan_parquet(record.parquet_path)
         names = set(lazy.collect_schema().names())

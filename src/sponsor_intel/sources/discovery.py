@@ -70,19 +70,46 @@ def _record_layout_for(
         same_year = [layout for layout in same_year if "new_form" not in layout[3].casefold()]
     if not same_year:
         return None
-    return max(same_year, key=lambda item: item[1] or 4)[2]
+    same_period = [layout for layout in same_year if layout[1] == candidate.fiscal_quarter]
+    if same_period:
+        same_year = same_period
+    latest_quarter = max(layout[1] or 4 for layout in same_year)
+    latest = [layout for layout in same_year if (layout[1] or 4) == latest_quarter]
+    return min(latest, key=lambda item: (item[1] is not None, item[2].casefold()))[2]
 
 
 def _select_canonical(candidates: list[SourceArtifactCandidate]) -> tuple[str, ...]:
     selected: list[str] = []
-    by_year: dict[int, list[SourceArtifactCandidate]] = {}
+    latest_fiscal_year = max(candidate.fiscal_year for candidate in candidates)
+    by_year_variant: dict[tuple[int, str], list[SourceArtifactCandidate]] = {}
     for candidate in candidates:
-        by_year.setdefault(candidate.fiscal_year, []).append(candidate)
-    for yearly_candidates in by_year.values():
+        key = (candidate.fiscal_year, candidate.variant)
+        by_year_variant.setdefault(key, []).append(candidate)
+    for (fiscal_year, variant), yearly_candidates in by_year_variant.items():
+        if fiscal_year < latest_fiscal_year:
+            yearly_candidates = [
+                candidate
+                for candidate in yearly_candidates
+                if candidate.fiscal_quarter in {None, 4}
+            ]
+            if not yearly_candidates:
+                raise SourceDiscoveryError(
+                    f"Completed FY{fiscal_year} {variant} artifacts lack an annual/Q4 snapshot"
+                )
         latest_quarter = max(candidate.fiscal_quarter or 4 for candidate in yearly_candidates)
-        for candidate in yearly_candidates:
-            if (candidate.fiscal_quarter or 4) == latest_quarter:
-                selected.append(candidate.candidate_id)
+        latest = [
+            candidate
+            for candidate in yearly_candidates
+            if (candidate.fiscal_quarter or 4) == latest_quarter
+        ]
+        canonical = min(
+            latest,
+            key=lambda candidate: (
+                candidate.fiscal_quarter is not None,
+                candidate.download_url.casefold(),
+            ),
+        )
+        selected.append(canonical.candidate_id)
     return tuple(sorted(selected))
 
 

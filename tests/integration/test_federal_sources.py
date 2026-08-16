@@ -130,6 +130,7 @@ _IPEDS_HEADER = [
     "ACT",
     "F1SYSNAM",
 ]
+_IPEDS_IC_HEADER = ["UNITID", "CNTLAFFI", "CALSYS", "OPENADMP", "YRSCOLL"]
 _HERD_STANDARD_HEADER = [
     "inst_id",
     "year",
@@ -245,13 +246,15 @@ def _herd_fixture(*, short: bool) -> bytes:
 
 def test_ipeds_and_herd_build_exact_unitid_join_and_review_queue(tmp_path: Path) -> None:
     ipeds_landing = "https://nces.ed.gov/ipeds/files"
-    ipeds_url = "https://nces.ed.gov/ipeds/complete-data-files/HD2025.zip"
-    dictionary_url = "https://nces.ed.gov/ipeds/complete-data-files/HD2025_Dict.zip"
+    ipeds_url = "https://nces.ed.gov/ipeds/complete-data-files/HD2023.zip"
+    dictionary_url = "https://nces.ed.gov/ipeds/complete-data-files/HD2023_Dict.zip"
+    ipeds_ic_url = "https://nces.ed.gov/ipeds/complete-data-files/IC2023.zip"
+    ic_dictionary_url = "https://nces.ed.gov/ipeds/complete-data-files/IC2023_Dict.zip"
     herd_landing = "https://ncses.nsf.gov/explore-data/herd"
     herd_url = "https://ncses.nsf.gov/files/higher_education_r_and_d_2024.zip"
     herd_short_url = "https://ncses.nsf.gov/files/higher_education_r_and_d_2024_short.zip"
     ipeds_zip = _zip_bytes(
-        "hd2025.csv",
+        "hd2023.csv",
         _csv_bytes(
             _IPEDS_HEADER,
             [
@@ -272,14 +275,26 @@ def test_ipeds_and_herd_build_exact_unitid_join_and_review_queue(tmp_path: Path)
             ],
         ),
     )
+    ipeds_ic_zip = _zip_bytes(
+        "ic2023.csv",
+        _csv_bytes(_IPEDS_IC_HEADER, [["123456", "1", "1", "2", "4"]]),
+    )
     herd_zip = _herd_fixture(short=False)
     herd_short_zip = _herd_fixture(short=True)
-    ipeds_html = f'<a href="{ipeds_url}">HD2025</a><a href="{dictionary_url}">HD2025 dictionary</a>'
+    ipeds_html = (
+        "<table><tr><td>Institutional Characteristics (IC)</td>"
+        "<td>2025-26</td><td>2008-09 to 2023-24</td></tr></table>"
+        f'<a href="{ipeds_url}">HD2023</a>'
+        f'<a href="{dictionary_url}">HD2023 dictionary</a>'
+        f'<a href="{ipeds_ic_url}">IC2023</a>'
+        f'<a href="{ic_dictionary_url}">IC2023 dictionary</a>'
+    )
     herd_html = f'<a href="{herd_url}">HERD 2024</a><a href="{herd_short_url}">HERD 2024 short</a>'
 
     def handler(request: httpx.Request) -> httpx.Response:
         payloads = {
             ipeds_url: (ipeds_zip, "application/zip"),
+            ipeds_ic_url: (ipeds_ic_zip, "application/zip"),
             herd_url: (herd_zip, "application/zip"),
             herd_short_url: (herd_short_zip, "application/zip"),
         }
@@ -310,7 +325,7 @@ def test_ipeds_and_herd_build_exact_unitid_join_and_review_queue(tmp_path: Path)
         output_root=tmp_path / "outputs",
         transport=httpx.MockTransport(handler),
     )
-    pipeline.ingest("ipeds", from_fiscal_year=2025)
+    pipeline.ingest("ipeds", from_fiscal_year=2022)
     pipeline.ingest("herd", from_fiscal_year=2024)
 
     institutions = pl.read_parquet(tmp_path / "data/processed/institutions.parquet")
@@ -319,6 +334,9 @@ def test_ipeds_and_herd_build_exact_unitid_join_and_review_queue(tmp_path: Path)
         (tmp_path / "outputs/reports/institutions/herd_ipeds_join_review.json").read_text()
     )
     assert institutions["institution_id"].to_list() == ["ipeds:123456"]
+    assert institutions["release_status"].to_list() == ["FINAL"]
+    assert institutions["characteristics_year"].to_list() == [2023]
+    assert institutions["calendar_system_code"].to_list() == ["1"]
     assert observations.height == 2
     assert set(observations["institution_review_status"].to_list()) == {
         "IDENTIFIER_MATCHED",

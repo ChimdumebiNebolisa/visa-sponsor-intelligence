@@ -33,7 +33,8 @@ _DATE_COLUMNS = {
     "employment_end_date",
     "priority_date",
 }
-_FLOAT_COLUMNS = {"wage_from", "wage_to"}
+_FLOAT_COLUMNS = {"prevailing_wage", "wage_from", "wage_to"}
+_INTEGER_COLUMNS = {"experience_months", "worker_positions"}
 
 
 def normalize_column_name(value: str) -> str:
@@ -62,6 +63,13 @@ def _canonical_expression(source: str, logical: str) -> pl.Expr:
             expression.cast(pl.String, strict=False)
             .str.replace_all(r"[,$]", "")
             .cast(pl.Float64, strict=False)
+            .alias(logical)
+        )
+    if logical in _INTEGER_COLUMNS:
+        return (
+            expression.cast(pl.String, strict=False)
+            .str.replace_all(",", "")
+            .cast(pl.Int64, strict=False)
             .alias(logical)
         )
     if logical in _DATE_COLUMNS:
@@ -255,7 +263,12 @@ class DolExcelNormalizer:
             pl.lit(artifact.candidate.fiscal_year, dtype=pl.Int32).alias("fiscal_year"),
             pl.lit(artifact.candidate.fiscal_quarter, dtype=pl.Int8).alias("fiscal_quarter"),
             pl.lit(artifact.candidate.is_partial_period).alias("is_partial_period"),
+            pl.lit(artifact.candidate.variant).alias("form_version"),
+            pl.lit(self.config.schema_version).alias("schema_version"),
             pl.lit(artifact.candidate.file_name).alias("source_file_name"),
+            pl.lit(artifact.retrieved_at.isoformat()).alias("retrieved_at"),
+            pl.lit(artifact.candidate.download_url).alias("source_url"),
+            pl.lit(artifact.sha256).alias("source_sha256"),
             pl.lit(datetime.now(UTC).isoformat()).alias("ingested_at"),
         )
         validation = self.validate(

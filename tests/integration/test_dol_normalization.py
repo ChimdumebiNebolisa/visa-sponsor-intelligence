@@ -78,6 +78,122 @@ def _write_lca_formula_error_fixture(path: Path) -> None:
     workbook.close()
 
 
+def _write_product_a_lca_fixture(path: Path) -> None:
+    workbook = xlsxwriter.Workbook(path)
+    worksheet = workbook.add_worksheet("Disclosure")
+    worksheet.write_row(
+        0,
+        0,
+        [
+            "CASE_NUMBER",
+            "CASE_STATUS",
+            "EMPLOYER_NAME",
+            "JOB_TITLE",
+            "SOC_CODE",
+            "SOC_TITLE",
+            "WORKSITE_STATE",
+            "EMPLOYER_ADDRESS1",
+            "EMPLOYER_ADDRESS2",
+            "EMPLOYER_CITY",
+            "EMPLOYER_STATE",
+            "EMPLOYER_POSTAL_CODE",
+            "NAICS_CODE",
+            "TOTAL_WORKER_POSITIONS",
+            "PREVAILING_WAGE",
+            "PW_UNIT_OF_PAY",
+            "WORKSITE_CITY",
+        ],
+    )
+    worksheet.write_row(
+        1,
+        0,
+        [
+            "I-200-PRODUCT-A",
+            "Certified",
+            "Example LLC",
+            "Software Engineer",
+            "15-1252",
+            "Software Developers",
+            "TX",
+            "100 Legal Avenue",
+            "Suite 200",
+            "Austin",
+            "TX",
+            "78701",
+            "541511",
+            "3",
+            "110,000",
+            "Year",
+            "Dallas",
+        ],
+    )
+    workbook.close()
+
+
+def _write_product_a_perm_fixture(path: Path) -> None:
+    workbook = xlsxwriter.Workbook(path)
+    worksheet = workbook.add_worksheet("Disclosure")
+    worksheet.write_row(
+        0,
+        0,
+        [
+            "CASE_NUMBER",
+            "CASE_STATUS",
+            "EMPLOYER_NAME",
+            "JOB_TITLE",
+            "PW_SOC_CODE",
+            "PW_SOC_TITLE",
+            "WORKSITE_STATE",
+            "EMPLOYER_ADDRESS_1",
+            "EMPLOYER_ADDRESS_2",
+            "EMPLOYER_CITY",
+            "EMPLOYER_STATE_PROVINCE",
+            "EMPLOYER_POSTAL_CODE",
+            "NAICS_CODE",
+            "WAGE_OFFER_FROM",
+            "WAGE_OFFER_TO",
+            "WAGE_OFFER_UNIT_OF_PAY",
+            "PW_WAGE",
+            "PW_UNIT_OF_PAY",
+            "WORKSITE_CITY",
+            "MINIMUM_EDUCATION",
+            "MAJOR_FIELD_OF_STUDY",
+            "REQUIRED_EXPERIENCE",
+            "REQUIRED_EXPERIENCE_MONTHS",
+        ],
+    )
+    worksheet.write_row(
+        1,
+        0,
+        [
+            "A-200-PRODUCT-A",
+            "Certified",
+            "Example LLC",
+            "Software Engineer",
+            "15-1252",
+            "Software Developers",
+            "TX",
+            "100 Legal Avenue",
+            "Suite 200",
+            "Austin",
+            "TX",
+            "78701",
+            "541511",
+            "125,000",
+            "145,000",
+            "Year",
+            "115,000",
+            "Year",
+            "Dallas",
+            "Master's",
+            "Computer Science",
+            "Y",
+            "24",
+        ],
+    )
+    workbook.close()
+
+
 def _write_duplicate_fixture(path: Path, *, exact: bool) -> None:
     workbook = xlsxwriter.Workbook(path)
     worksheet = workbook.add_worksheet("Disclosure")
@@ -176,6 +292,70 @@ def test_lca_normalization_writes_typed_parquet_and_provenance(tmp_path: Path) -
     assert persisted.schema_diff_path.is_file()
 
 
+def test_lca_normalization_preserves_canonical_fields_and_row_provenance(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "lca-product-a.xlsx"
+    _write_product_a_lca_fixture(source_path)
+    config = SourceRegistry.from_yaml().get("dol_lca").model_copy(update={"minimum_row_count": 1})
+    artifact = _downloaded(source_path)
+    normalizer = DolExcelNormalizer(config, tmp_path / "staging", tmp_path / "outputs")
+
+    normalized = normalizer.normalize(artifact)
+    row = normalized.frame.row(0, named=True)
+
+    assert row["employer_address_1"] == "100 Legal Avenue"
+    assert row["employer_address_2"] == "Suite 200"
+    assert row["employer_city"] == "Austin"
+    assert row["employer_state"] == "TX"
+    assert row["employer_postal_code"] == "78701"
+    assert row["naics_code"] == "541511"
+    assert row["worker_positions"] == 3
+    assert row["prevailing_wage"] == 110_000.0
+    assert row["prevailing_wage_unit"] == "Year"
+    assert row["worksite_city"] == "Dallas"
+    assert row["form_version"] == "standard"
+    assert row["schema_version"] == config.schema_version
+    assert row["retrieved_at"] == artifact.retrieved_at.isoformat()
+    assert row["source_url"] == artifact.candidate.download_url
+    assert row["source_sha256"] == artifact.sha256
+
+
+def test_perm_normalization_preserves_canonical_wage_education_and_form_fields(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "perm-product-a.xlsx"
+    _write_product_a_perm_fixture(source_path)
+    config = SourceRegistry.from_yaml().get("dol_perm").model_copy(update={"minimum_row_count": 1})
+    artifact = _downloaded(source_path)
+    candidate = artifact.candidate.model_copy(
+        update={"source_id": "dol_perm", "variant": "standard"}
+    )
+    artifact = artifact.model_copy(update={"candidate": candidate})
+    normalizer = DolExcelNormalizer(config, tmp_path / "staging", tmp_path / "outputs")
+
+    normalized = normalizer.normalize(artifact)
+    row = normalized.frame.row(0, named=True)
+
+    assert row["employer_address_1"] == "100 Legal Avenue"
+    assert row["employer_city"] == "Austin"
+    assert row["employer_state"] == "TX"
+    assert row["employer_postal_code"] == "78701"
+    assert row["naics_code"] == "541511"
+    assert row["wage_from"] == 125_000.0
+    assert row["wage_to"] == 145_000.0
+    assert row["wage_unit"] == "Year"
+    assert row["prevailing_wage"] == 115_000.0
+    assert row["prevailing_wage_unit"] == "Year"
+    assert row["worksite_city"] == "Dallas"
+    assert row["minimum_education"] == "Master's"
+    assert row["major_field"] == "Computer Science"
+    assert row["experience_required"] == "Y"
+    assert row["experience_months"] == 24
+    assert row["form_version"] == "standard"
+    assert row["schema_version"] == config.schema_version
+
+
 def test_missing_required_column_fails_closed_with_schema_report(tmp_path: Path) -> None:
     source_path = tmp_path / "lca-missing-soc.xlsx"
     _write_lca_fixture(source_path, include_soc=False)
@@ -202,6 +382,7 @@ def test_configured_source_variant_absence_is_preserved_as_unknown(tmp_path: Pat
 
     assert normalized.frame["soc_code"].null_count() == normalized.frame.height
     assert normalized.frame["soc_title"].null_count() == normalized.frame.height
+    assert normalized.frame["form_version"].to_list() == ["new_form", "new_form"]
     assert normalized.validation.status is ValidationStatus.WARNING
     assert any(
         issue.category == "known_source_schema_absence" for issue in normalized.validation.issues

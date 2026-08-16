@@ -34,8 +34,8 @@ sources:
     official_domains:
       - dol.gov
     partial_year_supported: true
-    parser_version: "1.1.0"
-    schema_version: dol_lca_v2
+    parser_version: "1.2.0"
+    schema_version: dol_lca_v3
     minimum_row_count: 1000
     max_download_bytes: 536870912
     max_uncompressed_bytes: 8589934592
@@ -70,16 +70,37 @@ sources:
       employment_end_date:
         - END_DATE
         - EMPLOYMENT_END_DATE
+      employer_address_1:
+        - EMPLOYER_ADDRESS1
+        - EMPLOYER_ADDRESS_1
+      employer_address_2:
+        - EMPLOYER_ADDRESS2
+        - EMPLOYER_ADDRESS_2
+      employer_city:
+        - EMPLOYER_CITY
+      employer_state:
+        - EMPLOYER_STATE
+        - EMPLOYER_STATE_PROVINCE
+      employer_postal_code:
+        - EMPLOYER_POSTAL_CODE
+      naics_code:
+        - NAICS_CODE
       worksite_city:
         - WORKSITE_CITY
       worksite_postal_code:
         - WORKSITE_POSTAL_CODE
+      worker_positions:
+        - TOTAL_WORKER_POSITIONS
       wage_from:
         - WAGE_RATE_OF_PAY_FROM
       wage_to:
         - WAGE_RATE_OF_PAY_TO
       wage_unit:
         - WAGE_UNIT_OF_PAY
+      prevailing_wage:
+        - PREVAILING_WAGE
+      prevailing_wage_unit:
+        - PW_UNIT_OF_PAY
     expected_schema_fingerprints:
       "standard:fy2022": 84e4a849ecb8dd77467569d98b096f72f447144e7d1e8f21caa89c35a2a41cff
       "standard:fy2023": 84e4a849ecb8dd77467569d98b096f72f447144e7d1e8f21caa89c35a2a41cff
@@ -98,8 +119,8 @@ sources:
     official_domains:
       - dol.gov
     partial_year_supported: true
-    parser_version: "1.1.0"
-    schema_version: dol_perm_v2
+    parser_version: "1.2.0"
+    schema_version: dol_perm_v3
     minimum_row_count: 1000
     max_download_bytes: 536870912
     max_uncompressed_bytes: 8589934592
@@ -131,10 +152,47 @@ sources:
         - RECEIVED_DATE
       decision_date:
         - DECISION_DATE
+      employer_address_1:
+        - EMPLOYER_ADDRESS_1
+        - EMP_ADDR1
+      employer_address_2:
+        - EMPLOYER_ADDRESS_2
+        - EMP_ADDR2
+      employer_city:
+        - EMPLOYER_CITY
+        - EMP_CITY
+      employer_state:
+        - EMPLOYER_STATE_PROVINCE
+        - EMP_STATE
+      employer_postal_code:
+        - EMPLOYER_POSTAL_CODE
+        - EMP_POSTCODE
+      naics_code:
+        - NAICS_CODE
+        - EMP_NAICS
       worksite_city:
         - WORKSITE_CITY
         - JOB_INFO_WORK_CITY
         - PRIMARY_WORKSITE_CITY
+      worksite_postal_code:
+        - WORKSITE_POSTAL_CODE
+        - JOB_INFO_WORK_POSTAL_CODE
+        - PRIMARY_WORKSITE_POSTAL_CODE
+      wage_from:
+        - WAGE_OFFER_FROM
+        - JOB_OPP_WAGE_FROM
+      wage_to:
+        - WAGE_OFFER_TO
+        - JOB_OPP_WAGE_TO
+      wage_unit:
+        - WAGE_OFFER_UNIT_OF_PAY
+        - JOB_OPP_WAGE_PER
+      prevailing_wage:
+        - PW_WAGE
+        - PWD_WAGE
+      prevailing_wage_unit:
+        - PW_UNIT_OF_PAY
+        - PWD_WAGE_PER
       minimum_education:
         - JOB_INFO_EDUCATION
         - MINIMUM_EDUCATION
@@ -144,6 +202,11 @@ sources:
       experience_required:
         - JOB_INFO_EXPERIENCE
         - EXPERIENCE_REQUIRED
+        - REQUIRED_EXPERIENCE
+      experience_months:
+        - JOB_INFO_EXPERIENCE_NUM_MONTHS
+        - EXPERIENCE_REQUIRED_MONTHS
+        - REQUIRED_EXPERIENCE_MONTHS
       foreign_worker_education:
         - FOREIGN_WORKER_INFO_EDUCATION
         - FOREIGN_WORKER_EDUCATION
@@ -222,8 +285,8 @@ sources:
     official_domains:
       - ed.gov
     partial_year_supported: false
-    parser_version: "1.0.1"
-    schema_version: ipeds_directory_v1
+    parser_version: "1.1.0"
+    schema_version: ipeds_institution_v2
     minimum_row_count: 5000
     max_download_bytes: 33554432
     max_uncompressed_bytes: 268435456
@@ -247,14 +310,17 @@ sources:
       active_status:
         - CYACTIVE
     optional_columns:
+      institution_aliases:
+        - IALIAS
       system_name:
         - F1SYSNAM
+      system_code:
+        - F1SYSCOD
       zip_code:
         - ZIP
       active_status_code:
         - ACT
-    expected_schema_fingerprints:
-      "directory:fy2025": 1862b484570a72acb9759351129fbf9184dee20ba8283966cfc5e54aa8acec19
+    expected_schema_fingerprints: {}
 
   - id: herd
     adapter: herd

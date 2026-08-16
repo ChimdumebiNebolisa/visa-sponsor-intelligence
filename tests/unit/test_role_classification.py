@@ -42,6 +42,13 @@ def test_soc_mapping_applies_when_title_has_no_stronger_evidence() -> None:
     ("title", "rule"),
     [
         ("Software Engineer Intern", "internships"),
+        ("Graduate Student Research Assistant", "student_workers"),
+        ("Postdoctoral Fellow in Computer Science", "postdoctoral"),
+        ("Postdoc Research Software Engineer", "postdoctoral"),
+        ("Assistant Professor of Computer Science", "faculty"),
+        ("Associate Professor, Computer Science", "faculty"),
+        ("Full Professor of Computer Science", "faculty"),
+        ("Lecturer in Computer Science", "faculty"),
         ("Medical Resident", "medical"),
         ("Physician", "medical"),
         ("Sales Engineer", "sales_recruiting"),
@@ -87,12 +94,13 @@ def test_complete_technical_title_prevents_contextual_exclusion_overreach() -> N
     assert result.classification_method == "STRONG_TITLE_PATTERN"
 
 
-def test_specific_computing_soc_keeps_generic_faculty_in_scope() -> None:
+def test_specific_computing_soc_does_not_override_faculty_exclusion() -> None:
     result = _classifier().classify("Assistant Professor", "25-1021.00")
 
-    assert result.technical_role is True
-    assert result.role_family == "computer_science_research"
-    assert result.classification_method == "SOC_MAPPING"
+    assert result.technical_role is False
+    assert result.role_family == "not_relevant"
+    assert result.classification_method == "STRONG_EXCLUSION_PATTERN"
+    assert result.classification_rule == "faculty"
 
 
 def test_generic_research_engineer_still_requires_computing_evidence() -> None:
