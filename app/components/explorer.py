@@ -3,15 +3,27 @@
 from __future__ import annotations
 
 import streamlit as st
+from pydantic import ValidationError
 
-from sponsor_intel.services import ExplorerService, get_explorer_service
+from sponsor_intel.config import DeploymentMode, load_settings
+from sponsor_intel.deployment import ReleaseBootstrapError, bootstrap_release
+from sponsor_intel.services import DuckDBExplorerService, ExplorerService, get_explorer_service
 
 
 @st.cache_resource
 def explorer_service() -> ExplorerService:
     """Reuse one read-only DuckDB connection across Streamlit reruns."""
 
-    return get_explorer_service()
+    settings = load_settings()
+    if settings.deployment_mode is DeploymentMode.RELEASE:
+        runtime = bootstrap_release(settings)
+        return DuckDBExplorerService(
+            runtime.database_path,
+            release_tag=runtime.release_tag,
+            build_id=runtime.build_id,
+            build_date=runtime.generated_at,
+        )
+    return get_explorer_service(database_path=settings.db_path)
 
 
 def configure_page(title: str) -> ExplorerService:
@@ -23,12 +35,29 @@ def configure_page(title: str) -> ExplorerService:
         layout="wide",
         initial_sidebar_state="expanded",
     )
-    service = explorer_service()
+    try:
+        service = explorer_service()
+    except ValidationError:
+        st.title(title)
+        st.error("Unable to load a verified quality-approved data release.")
+        st.caption(
+            "Deployment configuration is incomplete or invalid. Verify the private app secrets."
+        )
+        st.stop()
+    except ReleaseBootstrapError as error:
+        st.title(title)
+        st.error("Unable to load a verified quality-approved data release.")
+        st.caption(str(error))
+        st.stop()
     status = service.get_status()
     with st.sidebar:
         st.header("Evidence build")
         st.write(status.phase)
         st.caption(f"Build: {status.build_id}")
+        if status.release_tag:
+            st.caption(f"Release: {status.release_tag}")
+        if status.build_date:
+            st.caption(f"Built: {status.build_date}")
         if status.latest_complete_fiscal_year is not None:
             st.caption(f"Latest complete FY: {status.latest_complete_fiscal_year}")
         if status.current_partial_fiscal_year is not None:

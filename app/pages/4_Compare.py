@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Literal
 
 import streamlit as st
-from app.components.explorer import configure_page, render_evidence_notice
+from components.explorer import configure_page, render_evidence_notice
 
 service = configure_page("Compare Organizations")
 
@@ -46,14 +46,17 @@ def display(value: object, kind: Literal["text", "count", "money", "score", "cov
 
     if value is None:
         return "UNKNOWN"
+    if kind == "text":
+        return str(value)
+    numeric_value = float(value) if isinstance(value, (int, float, str)) else 0.0
     if kind == "count":
-        return f"{int(value):,}"
+        return f"{int(numeric_value):,}"
     if kind == "money":
-        return f"${int(value):,}"
+        return f"${int(numeric_value):,}"
     if kind == "score":
-        return f"{float(value):.1f}"
+        return f"{numeric_value:.1f}"
     if kind == "coverage":
-        return f"{float(value):.0%}"
+        return f"{numeric_value:.0%}"
     return str(value)
 
 
@@ -109,6 +112,7 @@ st.dataframe(
     comparison_table(
         [
             ("Research institution", "research_institution", "text"),
+            ("Decision-readiness tier", "decision_readiness_tier", "text"),
             ("Total R&D", "total_rd", "money"),
             ("Computing R&D", "computing_rd", "money"),
             ("Engineering R&D", "engineering_rd", "money"),
@@ -122,6 +126,8 @@ st.dataframe(
             ("PERM policy support", "perm_support", "text"),
             ("EB-1B policy support", "eb1b_support", "text"),
             ("Policy review status", "policy_review_status", "text"),
+            ("Core-policy review coverage", "core_policy_review_coverage", "coverage"),
+            ("Core-policy evidence coverage", "core_policy_evidence_coverage", "coverage"),
         ]
     ),
     width="stretch",
@@ -132,6 +138,10 @@ st.subheader("Evidence-strength scores")
 st.dataframe(
     comparison_table(
         [
+            ("Sponsorship history score", "sponsorship_history_score", "score"),
+            ("Sponsorship history status", "sponsorship_history_status", "text"),
+            ("Sponsorship history coverage", "sponsorship_history_coverage", "coverage"),
+            ("Sponsorship history grade", "sponsorship_history_grade", "text"),
             ("STEM OPT readiness score", "stem_opt_readiness_score", "score"),
             ("STEM OPT readiness status", "stem_opt_readiness_status", "text"),
             ("STEM OPT readiness coverage", "stem_opt_readiness_coverage", "coverage"),
@@ -152,6 +162,7 @@ st.dataframe(
             ("Policy support grade", "policy_support_grade", "text"),
             ("Policy support coverage", "policy_support_coverage", "coverage"),
             ("Research pathway score", "research_pathway_score", "score"),
+            ("Research pathway status", "research_pathway_status", "text"),
             ("Research pathway grade", "research_pathway_grade", "text"),
             ("Research pathway coverage", "research_pathway_coverage", "coverage"),
             ("Score version", "score_version", "text"),
@@ -165,6 +176,8 @@ with st.expander("Score explanations"):
     st.dataframe(
         comparison_table(
             [
+                ("Decision readiness", "decision_readiness_explanation", "text"),
+                ("Sponsorship history", "sponsorship_history_explanation", "text"),
                 ("H-1B history", "h1b_history_explanation", "text"),
                 ("Green-card history", "green_card_history_explanation", "text"),
                 ("Immigration evidence", "immigration_evidence_explanation", "text"),

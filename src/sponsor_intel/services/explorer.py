@@ -14,6 +14,41 @@ from sponsor_intel.config import load_settings
 
 EvidenceStatus = Literal["UNKNOWN", "AVAILABLE"]
 ExportFormat = Literal["csv", "parquet"]
+EmployerSort = Literal[
+    "sponsorship_history",
+    "green_card_history",
+    "h1b_history",
+    "stem_opt_readiness",
+    "recent_activity",
+    "name",
+]
+InstitutionSort = Literal[
+    "research_pathway",
+    "green_card_history",
+    "h1b_history",
+    "policy_review",
+    "research_activity",
+    "recent_activity",
+    "name",
+]
+
+EMPLOYER_SORT_LABELS: dict[EmployerSort, str] = {
+    "sponsorship_history": "Strongest sponsorship history",
+    "green_card_history": "Strongest green-card history",
+    "h1b_history": "Strongest H-1B history",
+    "stem_opt_readiness": "STEM OPT readiness",
+    "recent_activity": "Most recent activity",
+    "name": "Employer name",
+}
+INSTITUTION_SORT_LABELS: dict[InstitutionSort, str] = {
+    "research_pathway": "Best research pathway",
+    "green_card_history": "Strongest green-card history",
+    "h1b_history": "Strongest H-1B history",
+    "policy_review": "Most complete reviewed policy",
+    "research_activity": "Strongest research activity",
+    "recent_activity": "Most recent immigration activity",
+    "name": "Institution name",
+}
 
 EVIDENCE_DISCLAIMER = (
     "This product reports historical and official evidence. It does not provide legal advice "
@@ -34,6 +69,8 @@ class ExplorerStatus:
     latest_complete_fiscal_year: int | None = None
     current_partial_fiscal_year: int | None = None
     current_partial_quarter: int | None = None
+    build_date: str | None = None
+    release_tag: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +83,8 @@ class OverviewMetrics:
     relevant_lca_count: int
     relevant_certified_perm_count: int
     reviewed_policy_institution_count: int
+    complete_core_policy_institution_count: int
+    tier_1_reviewed_institution_count: int
     unresolved_entity_match_count: int
     source_coverage: pl.DataFrame
 
@@ -65,8 +104,12 @@ class EmployerFilters:
     minimum_relevant_lca: int = 0
     minimum_relevant_perm: int = 0
     minimum_initial_approvals: int = 0
+    minimum_h1b_score: float | None = None
+    minimum_green_card_score: float | None = None
+    minimum_sponsorship_score: float | None = None
     minimum_last_activity_year: int | None = None
     exclude_known_staffing_consulting: bool = False
+    sort_by: EmployerSort = "sponsorship_history"
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,12 +119,25 @@ class InstitutionFilters:
     search: str = ""
     controls: tuple[str, ...] = ()
     states: tuple[str, ...] = ()
+    decision_readiness_tiers: tuple[str, ...] = ()
+    everify_statuses: tuple[str, ...] = ()
     cap_exemption_statuses: tuple[str, ...] = ()
+    score_confidences: tuple[str, ...] = ()
+    research_staff_h1b_policies: tuple[str, ...] = ()
+    research_staff_pr_policies: tuple[str, ...] = ()
+    perm_support_policies: tuple[str, ...] = ()
+    eb1b_support_policies: tuple[str, ...] = ()
     minimum_total_rd: int = 0
     minimum_computing_rd: int = 0
     minimum_engineering_rd: int = 0
     minimum_relevant_lca: int = 0
     minimum_relevant_perm: int = 0
+    minimum_core_policy_review_coverage: float | None = None
+    minimum_h1b_score: float | None = None
+    minimum_green_card_score: float | None = None
+    minimum_sponsorship_score: float | None = None
+    minimum_research_pathway_score: float | None = None
+    sort_by: InstitutionSort = "research_pathway"
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,7 +224,7 @@ class FoundationExplorerService:
 
     def get_status(self) -> ExplorerStatus:
         return ExplorerStatus(
-            phase="Phase 9",
+            phase="Phase 10",
             build_id="database-unavailable",
             data_available=False,
             evidence_status="UNKNOWN",
@@ -177,7 +233,18 @@ class FoundationExplorerService:
         )
 
     def get_overview(self) -> OverviewMetrics:
-        return OverviewMetrics(0, 0, 0, 0, 0, 0, 0, _empty())
+        return OverviewMetrics(
+            legal_entity_count=0,
+            parent_organization_count=0,
+            institution_count=0,
+            relevant_lca_count=0,
+            relevant_certified_perm_count=0,
+            reviewed_policy_institution_count=0,
+            complete_core_policy_institution_count=0,
+            tier_1_reviewed_institution_count=0,
+            unresolved_entity_match_count=0,
+            source_coverage=_empty(),
+        )
 
     def list_employers(
         self, filters: EmployerFilters | None = None, *, limit: int | None = 500
@@ -229,13 +296,124 @@ def _serialized(frame: pl.DataFrame, file_format: ExportFormat) -> bytes:
     return buffer.getvalue()
 
 
+_EMPLOYER_ORDER_BY: dict[EmployerSort, str] = {
+    "sponsorship_history": """
+        CASE sponsorship_history_status
+            WHEN 'COMPLETE' THEN 0 WHEN 'PARTIAL' THEN 1 ELSE 2 END,
+        sponsorship_history_coverage DESC,
+        sponsorship_history_score DESC NULLS LAST,
+        green_card_history_score DESC NULLS LAST,
+        h1b_history_score DESC NULLS LAST,
+        relevant_certified_perm_count DESC,
+        relevant_lca_count DESC,
+        organization_name
+    """,
+    "green_card_history": """
+        green_card_history_coverage DESC,
+        green_card_history_score DESC NULLS LAST,
+        relevant_certified_perm_count DESC,
+        h1b_history_score DESC NULLS LAST,
+        organization_name
+    """,
+    "h1b_history": """
+        h1b_history_coverage DESC,
+        h1b_history_score DESC NULLS LAST,
+        relevant_lca_count DESC,
+        initial_approvals DESC,
+        organization_name
+    """,
+    "stem_opt_readiness": """
+        stem_opt_readiness_coverage DESC,
+        stem_opt_readiness_score DESC NULLS LAST,
+        sponsorship_history_score DESC NULLS LAST,
+        organization_name
+    """,
+    "recent_activity": """
+        last_observed_activity_year DESC NULLS LAST,
+        sponsorship_history_coverage DESC,
+        sponsorship_history_score DESC NULLS LAST,
+        organization_name
+    """,
+    "name": "organization_name",
+}
+
+_READINESS_TIER_ORDER = """
+    CASE decision_readiness_tier
+        WHEN 'TIER_1_REVIEWED' THEN 1
+        WHEN 'TIER_2_STRONG_HISTORY_POLICY_INCOMPLETE' THEN 2
+        WHEN 'TIER_3_PARTIAL_HISTORY' THEN 3
+        ELSE 4
+    END
+"""
+_INSTITUTION_ORDER_BY: dict[InstitutionSort, str] = {
+    "research_pathway": f"""
+        {_READINESS_TIER_ORDER},
+        research_pathway_score DESC NULLS LAST,
+        green_card_history_score DESC NULLS LAST,
+        h1b_history_score DESC NULLS LAST,
+        relevant_certified_perm_count DESC,
+        (relevant_lca_count + initial_approvals) DESC,
+        research_strength_score DESC NULLS LAST,
+        official_name
+    """,
+    "green_card_history": f"""
+        {_READINESS_TIER_ORDER},
+        green_card_history_coverage DESC,
+        green_card_history_score DESC NULLS LAST,
+        relevant_certified_perm_count DESC,
+        h1b_history_score DESC NULLS LAST,
+        official_name
+    """,
+    "h1b_history": f"""
+        {_READINESS_TIER_ORDER},
+        h1b_history_coverage DESC,
+        h1b_history_score DESC NULLS LAST,
+        relevant_lca_count DESC,
+        initial_approvals DESC,
+        official_name
+    """,
+    "policy_review": f"""
+        {_READINESS_TIER_ORDER},
+        core_policy_review_coverage DESC,
+        core_policy_evidence_coverage DESC,
+        research_pathway_score DESC NULLS LAST,
+        official_name
+    """,
+    "research_activity": """
+        research_strength_coverage DESC,
+        research_strength_score DESC NULLS LAST,
+        total_rd DESC NULLS LAST,
+        computing_rd DESC NULLS LAST,
+        engineering_rd DESC NULLS LAST,
+        official_name
+    """,
+    "recent_activity": f"""
+        {_READINESS_TIER_ORDER},
+        last_observed_activity_year DESC NULLS LAST,
+        research_pathway_score DESC NULLS LAST,
+        official_name
+    """,
+    "name": "official_name",
+}
+
+
 class DuckDBExplorerService:
     """Parameterized read-only queries over processed presentation views."""
 
-    def __init__(self, database_path: Path) -> None:
+    def __init__(
+        self,
+        database_path: Path,
+        *,
+        release_tag: str | None = None,
+        build_id: str | None = None,
+        build_date: str | None = None,
+    ) -> None:
         if not database_path.is_file():
             raise ValueError(f"Presentation database is unavailable: {database_path}")
         self.database_path = database_path
+        self.release_tag = release_tag
+        self.runtime_build_id = build_id
+        self.runtime_build_date = build_date
         self._connection = duckdb.connect(str(self.database_path), read_only=True)
 
     def _query(self, sql: str, parameters: list[object] | None = None) -> pl.DataFrame:
@@ -263,11 +441,19 @@ class DuckDBExplorerService:
             message += (
                 f" FY{partial} is partial and must not be compared directly with complete years."
             )
-        build = self._query("SELECT max(metric_version) AS metric_version FROM employer_metrics")
-        build_id = build["metric_version"].item() or "scored_metrics_v1"
+        build = self._query(
+            """
+            SELECT
+                coalesce(
+                    (SELECT max(build_id) FROM vw_quality_checks),
+                    (SELECT max(metric_version) FROM employer_metrics)
+                ) AS build_id,
+                (SELECT max(checked_at) FROM vw_quality_checks) AS build_date
+            """
+        ).to_dicts()[0]
         return ExplorerStatus(
-            phase="Phase 9",
-            build_id=build_id,
+            phase="Phase 10",
+            build_id=self.runtime_build_id or build["build_id"] or "build-unknown",
             data_available=True,
             evidence_status="AVAILABLE",
             message=message,
@@ -275,6 +461,8 @@ class DuckDBExplorerService:
             latest_complete_fiscal_year=health["latest_complete_fiscal_year"],
             current_partial_fiscal_year=partial,
             current_partial_quarter=health["current_partial_quarter"],
+            build_date=self.runtime_build_date or build["build_date"],
+            release_tag=self.release_tag,
         )
 
     def get_overview(self) -> OverviewMetrics:
@@ -289,12 +477,18 @@ class DuckDBExplorerService:
                 (SELECT coalesce(sum(relevant_certified_perm_count), 0) FROM employer_metrics)
                     AS relevant_certified_perm_count,
                 (SELECT count(DISTINCT institution_id) FROM vw_policy_evidence
-                    WHERE human_review_status = 'REVIEWED_ACCEPTED'
+                    WHERE human_review_status IN ('REVIEWED_ACCEPTED', 'REVIEWED_NOT_STATED')
                         AND exact_excerpt_verified IS TRUE
                         AND fact_is_current IS TRUE
                         AND valid_to IS NULL
                         AND starts_with(source_url, 'https://'))
                     AS reviewed_policy_institution_count,
+                (SELECT count(*) FROM vw_institution_explorer
+                    WHERE core_policy_review_coverage = 1)
+                    AS complete_core_policy_institution_count,
+                (SELECT count(*) FROM vw_institution_explorer
+                    WHERE decision_readiness_tier = 'TIER_1_REVIEWED')
+                    AS tier_1_reviewed_institution_count,
                 (SELECT count(*) FROM vw_entity_review_queue) AS unresolved_entity_match_count
             """
         ).to_dicts()[0]
@@ -346,6 +540,14 @@ class DuckDBExplorerService:
         if filters.minimum_last_activity_year is not None:
             clauses.append("last_observed_activity_year >= ?")
             parameters.append(filters.minimum_last_activity_year)
+        for column, minimum in (
+            ("h1b_history_score", filters.minimum_h1b_score),
+            ("green_card_history_score", filters.minimum_green_card_score),
+            ("sponsorship_history_score", filters.minimum_sponsorship_score),
+        ):
+            if minimum is not None:
+                clauses.append(f"{column} >= ?")
+                parameters.append(minimum)
         if filters.exclude_known_staffing_consulting:
             clauses.append("coalesce(is_staffing_or_consulting, false) IS FALSE")
         return " AND ".join(clauses), parameters
@@ -358,6 +560,7 @@ class DuckDBExplorerService:
         limit_sql = "" if limit is None else " LIMIT ?"
         if limit is not None:
             parameters.append(max(1, min(limit, 10_000)))
+        order_by = _EMPLOYER_ORDER_BY[selected.sort_by]
         return self._query(
             f"""
             SELECT
@@ -383,6 +586,13 @@ class DuckDBExplorerService:
                 cap_exemption_status,
                 source_coverage_ratio,
                 evidence_confidence,
+                sponsorship_history_score,
+                sponsorship_history_coverage,
+                sponsorship_history_confidence,
+                sponsorship_history_confidence_band,
+                sponsorship_history_status,
+                sponsorship_history_grade,
+                sponsorship_history_explanation,
                 stem_opt_readiness_score,
                 stem_opt_readiness_status,
                 stem_opt_readiness_coverage,
@@ -411,7 +621,7 @@ class DuckDBExplorerService:
                 evidence_classes
             FROM vw_employer_explorer
             WHERE {where}
-            ORDER BY relevant_lca_count DESC, initial_approvals DESC, organization_name
+            ORDER BY {order_by}
             {limit_sql}
             """,
             parameters,
@@ -420,19 +630,21 @@ class DuckDBExplorerService:
     @staticmethod
     def _institution_where(filters: InstitutionFilters) -> tuple[str, list[object]]:
         clauses = [
-            "total_rd >= ?",
-            "computing_rd >= ?",
-            "engineering_rd >= ?",
             "relevant_lca_count >= ?",
             "relevant_certified_perm_count >= ?",
         ]
         parameters: list[object] = [
-            filters.minimum_total_rd,
-            filters.minimum_computing_rd,
-            filters.minimum_engineering_rd,
             filters.minimum_relevant_lca,
             filters.minimum_relevant_perm,
         ]
+        for column, minimum in (
+            ("total_rd", filters.minimum_total_rd),
+            ("computing_rd", filters.minimum_computing_rd),
+            ("engineering_rd", filters.minimum_engineering_rd),
+        ):
+            if minimum > 0:
+                clauses.append(f"{column} >= ?")
+                parameters.append(minimum)
         if filters.search.strip():
             clauses.append("(official_name ILIKE ? OR parent_system ILIKE ?)")
             term = f"%{filters.search.strip()}%"
@@ -440,11 +652,31 @@ class DuckDBExplorerService:
         for column, values in (
             ("control", filters.controls),
             ("state", filters.states),
+            ("decision_readiness_tier", filters.decision_readiness_tiers),
+            ("everify_status", filters.everify_statuses),
             ("cap_exemption_status", filters.cap_exemption_statuses),
+            ("sponsorship_history_confidence_band", filters.score_confidences),
+            ("research_staff_h1b_policy", filters.research_staff_h1b_policies),
+            (
+                "research_staff_permanent_residence_policy",
+                filters.research_staff_pr_policies,
+            ),
+            ("perm_support", filters.perm_support_policies),
+            ("eb1b_support", filters.eb1b_support_policies),
         ):
             if values:
                 clauses.append(f"{column} IN ({_placeholders(values)})")
                 parameters.extend(values)
+        for column, minimum in (
+            ("core_policy_review_coverage", filters.minimum_core_policy_review_coverage),
+            ("h1b_history_score", filters.minimum_h1b_score),
+            ("green_card_history_score", filters.minimum_green_card_score),
+            ("sponsorship_history_score", filters.minimum_sponsorship_score),
+            ("research_pathway_score", filters.minimum_research_pathway_score),
+        ):
+            if minimum is not None:
+                clauses.append(f"{column} >= ?")
+                parameters.append(minimum)
         return " AND ".join(clauses), parameters
 
     def list_institutions(
@@ -455,12 +687,57 @@ class DuckDBExplorerService:
         limit_sql = "" if limit is None else " LIMIT ?"
         if limit is not None:
             parameters.append(max(1, min(limit, 10_000)))
+        order_by = _INSTITUTION_ORDER_BY[selected.sort_by]
         return self._query(
             f"""
             SELECT
                 institution_id,
                 organization_id,
                 official_name,
+                decision_readiness_tier,
+                decision_readiness_explanation,
+                research_pathway_score,
+                research_pathway_coverage AS score_coverage,
+                research_pathway_coverage,
+                research_pathway_confidence,
+                research_pathway_status,
+                research_pathway_grade,
+                research_pathway_explanation,
+                sponsorship_history_score,
+                sponsorship_history_coverage,
+                sponsorship_history_confidence,
+                sponsorship_history_confidence_band,
+                sponsorship_history_status,
+                sponsorship_history_grade,
+                sponsorship_history_explanation,
+                green_card_history_score,
+                green_card_history_coverage,
+                green_card_history_grade,
+                green_card_history_explanation,
+                h1b_history_score,
+                h1b_history_coverage,
+                h1b_history_grade,
+                h1b_history_explanation,
+                research_staff_h1b_policy,
+                research_staff_permanent_residence_policy,
+                perm_support,
+                eb1b_support,
+                core_policy_review_coverage,
+                core_policy_evidence_coverage,
+                policy_review_status,
+                everify_status,
+                everify_lookup_status,
+                everify_retrieved_at,
+                cap_exemption_status,
+                relevant_certified_perm_count,
+                relevant_lca_count,
+                initial_approvals,
+                last_observed_activity_year,
+                research_strength_score,
+                research_strength_coverage,
+                research_strength_confidence,
+                research_strength_grade,
+                research_strength_explanation,
                 parent_system,
                 control,
                 ipeds_unitid,
@@ -470,53 +747,31 @@ class DuckDBExplorerService:
                 computing_rd,
                 engineering_rd,
                 federal_rd,
-                relevant_lca_count,
-                relevant_certified_perm_count,
-                initial_approvals,
-                everify_status,
-                everify_lookup_status,
-                everify_retrieved_at,
+                has_total_rd_data,
+                has_computing_rd_data,
+                has_engineering_rd_data,
+                has_federal_rd_data,
                 known_opt_observation,
                 opt_report_year,
                 opt_reported_count,
-                cap_exemption_status,
-                research_staff_h1b_policy,
-                research_staff_permanent_residence_policy,
                 general_staff_permanent_residence_policy,
-                perm_support,
-                eb1b_support,
-                policy_review_status,
                 stem_opt_readiness_score,
                 stem_opt_readiness_status,
                 stem_opt_readiness_coverage,
-                h1b_history_score,
-                h1b_history_coverage,
-                h1b_history_grade,
-                green_card_history_score,
-                green_card_history_coverage,
-                green_card_history_grade,
                 immigration_evidence_score,
                 immigration_evidence_coverage,
                 immigration_evidence_confidence,
                 immigration_evidence_grade,
-                research_strength_score,
-                research_strength_coverage,
-                research_strength_confidence,
-                research_strength_grade,
                 policy_support_score,
                 policy_support_coverage,
                 policy_support_confidence,
                 policy_support_grade,
-                research_pathway_score,
-                research_pathway_coverage,
-                research_pathway_confidence,
-                research_pathway_grade,
                 score_version,
                 metric_version,
                 evidence_classes
             FROM vw_institution_explorer
             WHERE {where}
-            ORDER BY total_rd DESC, relevant_lca_count DESC, official_name
+            ORDER BY {order_by}
             {limit_sql}
             """,
             parameters,
@@ -551,7 +806,17 @@ class DuckDBExplorerService:
         for name, column in (
             ("controls", "control"),
             ("states", "state"),
+            ("decision_readiness_tiers", "decision_readiness_tier"),
+            ("everify_statuses", "everify_status"),
             ("cap_exemption_statuses", "cap_exemption_status"),
+            ("score_confidences", "sponsorship_history_confidence_band"),
+            ("research_staff_h1b_policies", "research_staff_h1b_policy"),
+            (
+                "research_staff_pr_policies",
+                "research_staff_permanent_residence_policy",
+            ),
+            ("perm_support_policies", "perm_support"),
+            ("eb1b_support_policies", "eb1b_support"),
         ):
             result[name] = self._query(
                 f"SELECT DISTINCT {column} AS value FROM vw_institution_explorer "
@@ -570,7 +835,11 @@ class DuckDBExplorerService:
                 FROM entity_aliases
                 WHERE alias_raw ILIKE ?
             )
-            ORDER BY relevant_lca_count DESC, organization_name
+            ORDER BY
+                CASE sponsorship_history_status
+                    WHEN 'COMPLETE' THEN 0 WHEN 'PARTIAL' THEN 1 ELSE 2 END,
+                sponsorship_history_score DESC NULLS LAST,
+                organization_name
             LIMIT ?
             """,
             [term, term, max(1, min(limit, 100))],
@@ -621,6 +890,13 @@ class DuckDBExplorerService:
                 e.green_card_history_coverage,
                 e.green_card_history_grade,
                 e.green_card_history_explanation,
+                e.sponsorship_history_score,
+                e.sponsorship_history_coverage,
+                e.sponsorship_history_confidence,
+                e.sponsorship_history_confidence_band,
+                e.sponsorship_history_status,
+                e.sponsorship_history_grade,
+                e.sponsorship_history_explanation,
                 e.immigration_evidence_score,
                 e.immigration_evidence_coverage,
                 e.immigration_evidence_confidence,
@@ -629,6 +905,8 @@ class DuckDBExplorerService:
                 e.evidence_confidence,
                 e.score_version,
                 i.official_name AS research_institution,
+                i.decision_readiness_tier,
+                i.decision_readiness_explanation,
                 i.total_rd,
                 i.computing_rd,
                 i.engineering_rd,
@@ -638,6 +916,8 @@ class DuckDBExplorerService:
                 i.perm_support,
                 i.eb1b_support,
                 i.policy_review_status,
+                i.core_policy_review_coverage,
+                i.core_policy_evidence_coverage,
                 i.research_strength_score,
                 i.research_strength_coverage,
                 i.research_strength_grade,
@@ -649,6 +929,7 @@ class DuckDBExplorerService:
                 i.research_pathway_score,
                 i.research_pathway_coverage,
                 i.research_pathway_confidence,
+                i.research_pathway_status,
                 i.research_pathway_grade,
                 i.research_pathway_explanation
             FROM vw_employer_explorer AS e
@@ -656,7 +937,10 @@ class DuckDBExplorerService:
                 SELECT *
                 FROM vw_institution_explorer AS candidate
                 WHERE candidate.organization_id = e.organization_id
-                ORDER BY candidate.total_rd DESC NULLS LAST, candidate.official_name
+                ORDER BY
+                    {_READINESS_TIER_ORDER},
+                    candidate.research_pathway_score DESC NULLS LAST,
+                    candidate.official_name
                 LIMIT 1
             ) AS i ON TRUE
             WHERE e.organization_id IN ({_placeholders(selected)})
@@ -802,7 +1086,15 @@ class DuckDBExplorerService:
                 """
                 SELECT * FROM vw_institution_explorer
                 WHERE organization_id = ?
-                ORDER BY total_rd DESC, official_name
+                ORDER BY
+                    CASE decision_readiness_tier
+                        WHEN 'TIER_1_REVIEWED' THEN 1
+                        WHEN 'TIER_2_STRONG_HISTORY_POLICY_INCOMPLETE' THEN 2
+                        WHEN 'TIER_3_PARTIAL_HISTORY' THEN 3
+                        ELSE 4
+                    END,
+                    research_pathway_score DESC NULLS LAST,
+                    official_name
                 """,
                 [organization_id],
             ),
@@ -839,7 +1131,9 @@ class DuckDBExplorerService:
                     evidence_class
                 FROM vw_policy_evidence
                 WHERE organization_id = ?
-                    AND human_review_status = 'REVIEWED_ACCEPTED'
+                    AND human_review_status IN (
+                        'REVIEWED_ACCEPTED', 'REVIEWED_NOT_STATED'
+                    )
                     AND exact_excerpt_verified IS TRUE
                     AND fact_is_current IS TRUE
                     AND valid_to IS NULL

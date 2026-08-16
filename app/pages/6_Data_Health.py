@@ -2,7 +2,7 @@
 
 import polars as pl
 import streamlit as st
-from app.components.explorer import configure_page, render_evidence_notice
+from components.explorer import configure_page, render_evidence_notice
 
 service = configure_page("Data Health")
 status = service.get_status()
