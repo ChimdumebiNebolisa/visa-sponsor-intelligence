@@ -15,6 +15,12 @@ from sponsor_intel.sources.models import DiscoveryReport, SourceArtifactCandidat
 
 _FISCAL_YEAR = re.compile(r"FY[ _-]?(20\d{2})", re.IGNORECASE)
 _QUARTER = re.compile(r"(?:_|\b)Q([1-4])(?:\b|\.)", re.IGNORECASE)
+REVIEWED_LCA_COMPLETED_SEGMENTS: dict[int, tuple[tuple[int, int], ...]] = {
+    2022: ((1, 1), (2, 2), (3, 3), (4, 4)),
+    2023: ((1, 2), (3, 3), (4, 4)),
+    2024: ((1, 1), (2, 2), (3, 3), (4, 4)),
+    2025: ((1, 1), (2, 2), (3, 3), (4, 4)),
+}
 
 
 def _artifact_metadata(text: str, url: str) -> tuple[int, int | None] | None:
@@ -70,20 +76,126 @@ def _record_layout_for(
         same_year = [layout for layout in same_year if "new_form" not in layout[3].casefold()]
     if not same_year:
         return None
-    return max(same_year, key=lambda item: item[1] or 4)[2]
+    same_period = [layout for layout in same_year if layout[1] == candidate.fiscal_quarter]
+    if same_period:
+        same_year = same_period
+    latest_quarter = max(layout[1] or 4 for layout in same_year)
+    latest = [layout for layout in same_year if (layout[1] or 4) == latest_quarter]
+    return min(latest, key=lambda item: (item[1] is not None, item[2].casefold()))[2]
 
 
-def _select_canonical(candidates: list[SourceArtifactCandidate]) -> tuple[str, ...]:
+def _select_one(candidates: list[SourceArtifactCandidate]) -> SourceArtifactCandidate:
+    return min(
+        candidates,
+        key=lambda candidate: (
+            candidate.fiscal_quarter is not None,
+            candidate.download_url.casefold(),
+        ),
+    )
+
+
+def _select_canonical(
+    source_id: str, candidates: list[SourceArtifactCandidate]
+) -> tuple[tuple[str, ...], dict[str, dict[str, object]]]:
     selected: list[str] = []
-    by_year: dict[int, list[SourceArtifactCandidate]] = {}
+    selected_updates: dict[str, dict[str, object]] = {}
+    latest_fiscal_year = max(candidate.fiscal_year for candidate in candidates)
+    by_year_variant: dict[tuple[int, str], list[SourceArtifactCandidate]] = {}
     for candidate in candidates:
-        by_year.setdefault(candidate.fiscal_year, []).append(candidate)
-    for yearly_candidates in by_year.values():
+        key = (candidate.fiscal_year, candidate.variant)
+        by_year_variant.setdefault(key, []).append(candidate)
+    for (fiscal_year, variant), yearly_candidates in sorted(by_year_variant.items()):
+        complete_year = fiscal_year < latest_fiscal_year or any(
+            candidate.fiscal_quarter in {None, 4} for candidate in yearly_candidates
+        )
+        if source_id == "dol_lca":
+            annual_candidates = [
+                candidate for candidate in yearly_candidates if candidate.fiscal_quarter is None
+            ]
+            if complete_year and annual_candidates:
+                canonical = _select_one(annual_candidates)
+                selected.append(canonical.candidate_id)
+                selected_updates[canonical.candidate_id] = {
+                    "is_partial_period": False,
+                    "is_quarter_partition": False,
+                    "coverage_start_quarter": 1,
+                }
+                continue
+            if complete_year:
+                segments = REVIEWED_LCA_COMPLETED_SEGMENTS.get(fiscal_year)
+                if segments is None:
+                    raise SourceDiscoveryError(
+                        f"Completed FY{fiscal_year} {variant} LCA artifacts lack a reviewed "
+                        "coverage-segment contract"
+                    )
+                covered_quarters = [
+                    quarter
+                    for start_quarter, end_quarter in segments
+                    for quarter in range(start_quarter, end_quarter + 1)
+                ]
+                if sorted(covered_quarters) != [1, 2, 3, 4] or len(covered_quarters) != 4:
+                    raise SourceDiscoveryError(
+                        f"Reviewed FY{fiscal_year} LCA coverage segments do not cover Q1-Q4 "
+                        "exactly once"
+                    )
+                for start_quarter, end_quarter in segments:
+                    matching = [
+                        candidate
+                        for candidate in yearly_candidates
+                        if candidate.fiscal_quarter == end_quarter
+                    ]
+                    if not matching:
+                        raise SourceDiscoveryError(
+                            f"Completed FY{fiscal_year} {variant} LCA coverage is missing "
+                            f"reviewed segment Q{start_quarter}-Q{end_quarter}"
+                        )
+                    canonical = _select_one(matching)
+                    selected.append(canonical.candidate_id)
+                    selected_updates[canonical.candidate_id] = {
+                        "is_partial_period": False,
+                        "is_quarter_partition": True,
+                        "coverage_start_quarter": start_quarter,
+                    }
+                continue
+            latest_quarter = max(candidate.fiscal_quarter or 4 for candidate in yearly_candidates)
+            latest = [
+                candidate
+                for candidate in yearly_candidates
+                if (candidate.fiscal_quarter or 4) == latest_quarter
+            ]
+            canonical = _select_one(latest)
+            selected.append(canonical.candidate_id)
+            selected_updates[canonical.candidate_id] = {
+                "is_partial_period": True,
+                "is_quarter_partition": False,
+                "coverage_start_quarter": 1,
+            }
+            continue
+        if complete_year:
+            final_candidates = [
+                candidate
+                for candidate in yearly_candidates
+                if candidate.fiscal_quarter in {None, 4}
+            ]
+            if not final_candidates:
+                raise SourceDiscoveryError(
+                    f"Completed FY{fiscal_year} {variant} artifacts lack an annual/Q4 snapshot"
+                )
+            annual_candidates = [
+                candidate for candidate in final_candidates if candidate.fiscal_quarter is None
+            ]
+            if annual_candidates:
+                selected.append(_select_one(annual_candidates).candidate_id)
+                continue
+            yearly_candidates = final_candidates
         latest_quarter = max(candidate.fiscal_quarter or 4 for candidate in yearly_candidates)
-        for candidate in yearly_candidates:
-            if (candidate.fiscal_quarter or 4) == latest_quarter:
-                selected.append(candidate.candidate_id)
-    return tuple(sorted(selected))
+        latest = [
+            candidate
+            for candidate in yearly_candidates
+            if (candidate.fiscal_quarter or 4) == latest_quarter
+        ]
+        selected.append(_select_one(latest).candidate_id)
+    return tuple(sorted(selected)), selected_updates
 
 
 def discover_dol_artifacts(
@@ -140,20 +252,26 @@ def discover_dol_artifacts(
         )
         deduplicated[url] = candidate
 
-    candidates = sorted(
-        deduplicated.values(),
+    if not deduplicated:
+        raise SourceDiscoveryError(
+            f"No {config.id} disclosure artifacts found from FY{from_fiscal_year} onward"
+        )
+    candidates = list(deduplicated.values())
+    candidates.sort(
         key=lambda item: (
             item.fiscal_year,
             item.fiscal_quarter or 4,
             item.variant,
             item.download_url,
-        ),
-    )
-    if not candidates:
-        raise SourceDiscoveryError(
-            f"No {config.id} disclosure artifacts found from FY{from_fiscal_year} onward"
         )
-    selected_ids = _select_canonical(candidates)
+    )
+    selected_ids, selected_updates = _select_canonical(config.id, candidates)
+    candidates = [
+        candidate.model_copy(update=selected_updates[candidate.candidate_id])
+        if candidate.candidate_id in selected_updates
+        else candidate
+        for candidate in candidates
+    ]
     selected_candidates = [
         candidate for candidate in candidates if candidate.candidate_id in set(selected_ids)
     ]

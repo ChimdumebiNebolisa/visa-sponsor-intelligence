@@ -68,6 +68,7 @@ class UscisH1bAdapter(TabularSourceAdapter):
 
     def normalize(self, artifact: DownloadedArtifact) -> NormalizedDataset:
         raw = read_csv_artifact(artifact)
+        raw_row_count = raw.height
         original_columns = tuple(raw.columns)
         schema = inspect_schema(self.config, artifact, original_columns, self.report_root)
         raw = raw.rename(dict(zip(original_columns, schema.normalized_columns, strict=True)))
@@ -193,6 +194,7 @@ class UscisH1bAdapter(TabularSourceAdapter):
         return NormalizedDataset(
             artifact=artifact,
             frame=frame,
+            raw_row_count=raw_row_count,
             original_columns=original_columns,
             normalized_columns=tuple(frame.columns),
             column_mapping=schema.column_mapping,

@@ -1,3 +1,8 @@
+> **Superseded for active product behavior.** `PRODUCT_A_SPEC.md` is the authoritative current
+> specification for Historical Sponsorship Intelligence (Product A). This file is retained as the
+> original historical Product B/V1 specification and must not control active ratings, rankings,
+> quality gates, releases, or required credentials.
+
 # Sponsorship Intelligence Explorer
 
 ## Product and Engineering Specification
@@ -1339,7 +1344,8 @@ Use:
 
 Thresholds must be configurable and calibrated. Initial defaults:
 
-- Deterministic exact match: accept
+- Deterministic exact match with no conflicting known legal-employer location: accept
+- Exact normalized name with a conflicting known legal-employer location: review required and remain unmerged
 - Candidate score at least 0.97, unique candidate, location agreement, and margin of at least 0.05: high-confidence auto-match
 - Score from 0.80 to below 0.97: review required
 - Score below 0.80: unresolved
@@ -1422,11 +1428,12 @@ Use:
 ### 17.3 Classification order
 
 1. Exact reviewed title override
-2. SOC-code family mapping
-3. Strong positive title patterns
-4. Strong exclusion patterns
-5. Combined SOC plus title rules
-6. Ambiguous review queue
+2. Evaluate strong positive and strong exclusion title evidence
+3. Strong exclusion before broad SOC-only inclusion unless the complete title independently establishes technical work
+4. SOC-code family mapping
+5. Strong positive title patterns when SOC evidence did not decide the role
+6. Combined SOC plus title rules
+7. Ambiguous review queue
 
 Do not use an LLM for bulk classification in V1.
 

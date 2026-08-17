@@ -8,6 +8,8 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 DEFAULT_SCORING_CONFIG_PATH = Path("configs/scoring.yaml")
+DEFAULT_SCORING_V2_CONFIG_PATH = Path("configs/scoring_v2.yaml")
+DEFAULT_PRODUCT_A_SCORING_CONFIG_PATH = Path("configs/scoring_product_a.yaml")
 
 
 class Band(BaseModel):
@@ -86,6 +88,216 @@ class CompositeSet(BaseModel):
 
     immigration_evidence: CompositeConfig
     research_pathway: CompositeConfig
+
+
+class GradeAwareWeightedConfig(WeightedConfig):
+    """Weighted formula with an explicit minimum coverage for a grade."""
+
+    grade_minimum_coverage: float = Field(ge=0, le=1)
+
+
+class GradeAwareH1BHistoryConfig(H1BHistoryConfig):
+    """V2 H-1B history formula and grade gate."""
+
+    grade_minimum_coverage: float = Field(ge=0, le=1)
+
+
+class GradeAwareGreenCardHistoryConfig(GreenCardHistoryConfig):
+    """V2 green-card history formula and grade gate."""
+
+    grade_minimum_coverage: float = Field(ge=0, le=1)
+
+
+class GradeAwarePolicySupportConfig(PolicySupportConfig):
+    """V2 reviewed-policy formula and grade gate."""
+
+    grade_minimum_coverage: float = Field(ge=0, le=1)
+
+
+class GradeAwareCompositeConfig(CompositeConfig):
+    """V2 composite formula with explicit grade coverage."""
+
+    grade_minimum_coverage: float = Field(ge=0, le=1)
+
+
+class CorePolicyConfig(BaseModel):
+    """Policy questions required for a decision-ready research profile."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    required_fact_types: tuple[str, ...]
+    substantive_values: tuple[str, ...]
+    accepted_review_status: str
+    not_stated_review_status: str
+
+    @model_validator(mode="after")
+    def validate_core_profile(self) -> CorePolicyConfig:
+        if len(self.required_fact_types) != 4 or len(set(self.required_fact_types)) != 4:
+            raise ValueError("core_policy.required_fact_types must contain four unique fields")
+        if not self.substantive_values or len(set(self.substantive_values)) != len(
+            self.substantive_values
+        ):
+            raise ValueError("core_policy.substantive_values must be unique and non-empty")
+        return self
+
+
+class ScoringV2Config(BaseModel):
+    """Complete reproducible Phase 10 evidence-readiness formula configuration."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    version: str
+    reference_year: int = Field(ge=2022)
+    stem_opt_readiness: StemOptConfig
+    h1b_history: GradeAwareH1BHistoryConfig
+    green_card_history: GradeAwareGreenCardHistoryConfig
+    sponsorship_history: GradeAwareCompositeConfig
+    research_strength: GradeAwareWeightedConfig
+    policy_support: GradeAwarePolicySupportConfig
+    research_pathway: GradeAwareCompositeConfig
+    core_policy: CorePolicyConfig
+    confidence_bands: list[Band]
+    grade_bands: list[Band]
+
+    @model_validator(mode="after")
+    def validate_formula_weights(self) -> ScoringV2Config:
+        weighted = {
+            "stem_opt_readiness.evidence_weights": self.stem_opt_readiness.evidence_weights,
+            "h1b_history.weights": self.h1b_history.weights,
+            "green_card_history.weights": self.green_card_history.weights,
+            "sponsorship_history.weights": self.sponsorship_history.weights,
+            "research_strength.weights": self.research_strength.weights,
+            "policy_support.fact_weights": self.policy_support.fact_weights,
+            "research_pathway.weights": self.research_pathway.weights,
+        }
+        for name, weights in weighted.items():
+            if not weights or any(weight <= 0 for weight in weights.values()):
+                raise ValueError(f"{name} must contain only positive weights")
+            if abs(sum(weights.values()) - 1.0) > 1e-9:
+                raise ValueError(f"{name} weights must sum to 1.0")
+        if set(self.policy_support.fact_weights) != set(self.policy_support.value_scores):
+            raise ValueError("Every scored policy fact needs an explicit value mapping")
+        expected_sponsorship = {"h1b_history", "green_card_history"}
+        if set(self.sponsorship_history.weights) != expected_sponsorship:
+            raise ValueError(
+                "sponsorship_history.weights must contain h1b_history and green_card_history"
+            )
+        expected_pathway = {"sponsorship_history", "policy_support", "research_strength"}
+        if set(self.research_pathway.weights) != expected_pathway:
+            raise ValueError(
+                "research_pathway.weights must contain sponsorship_history, policy_support, "
+                "and research_strength"
+            )
+        for bands_name, bands in (
+            ("confidence_bands", self.confidence_bands),
+            ("grade_bands", self.grade_bands),
+            ("stem_opt_readiness.status_bands", self.stem_opt_readiness.status_bands),
+        ):
+            if not bands or bands != sorted(bands, key=lambda band: band.minimum, reverse=True):
+                raise ValueError(f"{bands_name} must be ordered by descending minimum")
+        return self
+
+    @classmethod
+    def from_yaml(cls, path: Path = DEFAULT_SCORING_V2_CONFIG_PATH) -> ScoringV2Config:
+        """Load and validate the V2 formula without reinterpreting V1."""
+
+        if not path.is_file():
+            raise ValueError(f"V2 scoring configuration is unavailable: {path}")
+        values = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if not isinstance(values, dict):
+            raise ValueError("V2 scoring configuration must be a YAML mapping")
+        return cls.model_validate(values)
+
+
+class ProductAHistoryConfig(BaseModel):
+    """One Product A historical-evidence score formula."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    weights: dict[str, float]
+    positive_status_weights: dict[str, float]
+
+
+class ProductAOverallConfig(BaseModel):
+    """Product A overall sponsorship score formula."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    weights: dict[str, float]
+    require_all_components: bool = True
+
+
+class ProductAStarBand(BaseModel):
+    """One whole-star threshold for a positive Product A score."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    stars: int = Field(ge=1, le=5)
+    minimum: float = Field(gt=0, le=100)
+
+
+class ProductAScoringConfig(BaseModel):
+    """Authoritative deterministic Product A scoring configuration."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    version: str
+    metrics_version: str
+    minimum_fiscal_year: int = Field(ge=2022)
+    count_percentile_cap: float = Field(gt=0, le=1)
+    breadth_family_cap: int = Field(gt=0)
+    h1b_history: ProductAHistoryConfig
+    green_card_history: ProductAHistoryConfig
+    overall_sponsorship: ProductAOverallConfig
+    star_bands: list[ProductAStarBand]
+
+    @model_validator(mode="after")
+    def validate_product_a_formula(self) -> ProductAScoringConfig:
+        weighted = {
+            "h1b_history.weights": self.h1b_history.weights,
+            "green_card_history.weights": self.green_card_history.weights,
+            "overall_sponsorship.weights": self.overall_sponsorship.weights,
+        }
+        for name, weights in weighted.items():
+            if not weights or any(weight <= 0 for weight in weights.values()):
+                raise ValueError(f"{name} must contain only positive weights")
+            if abs(sum(weights.values()) - 1.0) > 1e-9:
+                raise ValueError(f"{name} weights must sum to 1.0")
+        if set(self.h1b_history.weights) != {
+            "volume",
+            "consistency",
+            "recency",
+            "breadth",
+            "uscis_initial_approvals",
+        }:
+            raise ValueError("h1b_history weights do not match the Product A formula")
+        if set(self.green_card_history.weights) != {
+            "volume",
+            "consistency",
+            "recency",
+            "breadth",
+        }:
+            raise ValueError("green_card_history weights do not match the Product A formula")
+        if set(self.overall_sponsorship.weights) != {"h1b_history", "green_card_history"}:
+            raise ValueError("overall_sponsorship weights must contain both history components")
+        if not self.star_bands or self.star_bands != sorted(
+            self.star_bands, key=lambda band: band.minimum, reverse=True
+        ):
+            raise ValueError("star_bands must be ordered by descending minimum")
+        if len({band.stars for band in self.star_bands}) != len(self.star_bands):
+            raise ValueError("star_bands must contain unique whole-star values")
+        return self
+
+    @classmethod
+    def from_yaml(cls, path: Path = DEFAULT_PRODUCT_A_SCORING_CONFIG_PATH) -> ProductAScoringConfig:
+        """Load the authoritative Product A score formula."""
+
+        if not path.is_file():
+            raise ValueError(f"Product A scoring configuration is unavailable: {path}")
+        values = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if not isinstance(values, dict):
+            raise ValueError("Product A scoring configuration must be a YAML mapping")
+        return cls.model_validate(values)
 
 
 class ScoringConfig(BaseModel):

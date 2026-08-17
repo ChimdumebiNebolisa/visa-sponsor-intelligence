@@ -14,6 +14,9 @@ from sponsor_intel.role_classification.models import (
 
 _PUNCTUATION = re.compile(r"[^A-Z0-9]+")
 _WHITESPACE = re.compile(r"\s+")
+_DEFAULT_STRONG_EXCLUSIONS = frozenset(
+    {"faculty", "internships", "postdoctoral", "student_workers"}
+)
 
 
 def normalize_title(value: str | None) -> str:
@@ -85,6 +88,45 @@ class RoleClassifier:
                 f"reviewed:{title}",
             )
 
+        positive_rule = next(
+            (
+                rule
+                for rule in self.config.positive_title_rules
+                if rule.role_family is not None and _matches(rule, title)
+            ),
+            None,
+        )
+        exclusion_rule = next(
+            (rule for rule in self.config.exclusion_rules if _matches(rule, title)), None
+        )
+
+        # A clearly non-target title must not become technical solely because a
+        # disclosure row carries a broad computing SOC code. When a complete
+        # title independently supplies strong technical evidence, keep it in the
+        # target universe rather than letting a contextual exclusion overreach.
+        # Product A's default trainee and faculty exclusions remain exclusions
+        # even when the title also contains technical keywords.
+        if exclusion_rule is not None:
+            if (
+                positive_rule is not None
+                and exclusion_rule.rule_id not in _DEFAULT_STRONG_EXCLUSIONS
+            ):
+                assert positive_rule.role_family is not None
+                return self._result(
+                    True,
+                    positive_rule.role_family,
+                    positive_rule.confidence,
+                    "STRONG_TITLE_PATTERN",
+                    positive_rule.rule_id,
+                )
+            return self._result(
+                False,
+                "not_relevant",
+                exclusion_rule.confidence,
+                "STRONG_EXCLUSION_PATTERN",
+                exclusion_rule.rule_id,
+            )
+
         for index, mapping in enumerate(self.config.soc_mappings):
             if any(soc_code.startswith(prefix) for prefix in mapping.prefixes):
                 return self._result(
@@ -95,25 +137,15 @@ class RoleClassifier:
                     f"soc_mapping:{index}",
                 )
 
-        for rule in self.config.positive_title_rules:
-            if _matches(rule, title) and rule.role_family is not None:
-                return self._result(
-                    True,
-                    rule.role_family,
-                    rule.confidence,
-                    "STRONG_TITLE_PATTERN",
-                    rule.rule_id,
-                )
-
-        for rule in self.config.exclusion_rules:
-            if _matches(rule, title):
-                return self._result(
-                    False,
-                    "not_relevant",
-                    rule.confidence,
-                    "STRONG_EXCLUSION_PATTERN",
-                    rule.rule_id,
-                )
+        if positive_rule is not None:
+            assert positive_rule.role_family is not None
+            return self._result(
+                True,
+                positive_rule.role_family,
+                positive_rule.confidence,
+                "STRONG_TITLE_PATTERN",
+                positive_rule.rule_id,
+            )
 
         for rule in self.config.combined_rules:
             if any(soc_code.startswith(prefix) for prefix in rule.soc_prefixes) and _matches(

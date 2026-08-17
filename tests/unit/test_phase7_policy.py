@@ -42,6 +42,7 @@ from sponsor_intel.policy.pipeline import (
     _merge_fact_history,
     apply_review_decisions,
     create_exact_fact_review_decisions,
+    create_not_stated_review_decisions,
 )
 from sponsor_intel.policy.ranking import rank_policy_candidates
 
@@ -345,7 +346,9 @@ def test_exact_excerpt_controls_persisted_fact_evidence(tmp_path: Path) -> None:
     assert research_fact.human_review_status is ReviewStatus.NEEDS_REVIEW
 
 
-def test_review_command_accepts_only_exact_affirmative_facts(tmp_path: Path) -> None:
+def test_review_commands_accept_exact_substantive_and_reviewed_not_stated_facts(
+    tmp_path: Path,
+) -> None:
     document = _document(tmp_path, "https://example.edu/policy")
     cached = CachedExtraction(
         cache_key="cache",
@@ -360,7 +363,9 @@ def test_review_command_accepts_only_exact_affirmative_facts(tmp_path: Path) -> 
     processed = tmp_path / "processed"
     processed.mkdir()
     facts_frame = pl.DataFrame([fact.model_dump(mode="json") for fact in facts]).with_columns(
-        pl.when(pl.col("fact_type") == FactType.CAP_EXEMPTION_EXPLICITLY_STATED.value)
+        pl.when(pl.col("fact_type") == FactType.H1B_RESEARCH_STAFF_ELIGIBLE.value)
+        .then(pl.lit(FactValue.LIMITED.value))
+        .when(pl.col("fact_type") == FactType.CAP_EXEMPTION_EXPLICITLY_STATED.value)
         .then(pl.lit(FactValue.YES.value))
         .otherwise(pl.col("fact_value"))
         .alias("fact_value"),
@@ -399,6 +404,34 @@ def test_review_command_accepts_only_exact_affirmative_facts(tmp_path: Path) -> 
             ),
         )
 
+    with pytest.raises(ValueError, match="reviewer provenance"):
+        apply_review_decisions(
+            facts_frame,
+            pl.DataFrame(
+                {
+                    "policy_fact_id": [reviewed_fact_id],
+                    "human_review_status": [ReviewStatus.REVIEWED_ACCEPTED.value],
+                    "reviewer_note": ["Reviewer identity intentionally omitted."],
+                    "reviewed_at": [datetime.now(UTC).isoformat()],
+                    "current_confirmed": [True],
+                }
+            ),
+        )
+
+    with pytest.raises(ValueError, match="reviewer provenance"):
+        apply_review_decisions(
+            facts_frame,
+            pl.DataFrame(
+                {
+                    "policy_fact_id": [unsupported_fact_id],
+                    "human_review_status": [ReviewStatus.REVIEWED_NOT_STATED.value],
+                    "reviewer_note": ["Reviewer identity intentionally omitted."],
+                    "reviewed_at": [datetime.now(UTC).isoformat()],
+                    "current_confirmed": [True],
+                }
+            ),
+        )
+
     decisions = create_exact_fact_review_decisions(
         data_root=tmp_path,
         reviewer_id="reviewer:test",
@@ -409,6 +442,10 @@ def test_review_command_accepts_only_exact_affirmative_facts(tmp_path: Path) -> 
 
     assert decisions.height == 1
     assert decisions["current_confirmed"].item() is True
+    assert (
+        updated.filter(pl.col("policy_fact_id") == reviewed_fact_id)["fact_value"].item()
+        == FactValue.LIMITED.value
+    )
     assert (
         updated.filter(pl.col("human_review_status") == ReviewStatus.REVIEWED_ACCEPTED.value).height
         == 1
@@ -429,6 +466,27 @@ def test_review_command_accepts_only_exact_affirmative_facts(tmp_path: Path) -> 
             "human_review_status"
         ].item()
         == ReviewStatus.NEEDS_REVIEW.value
+    )
+
+    not_stated_decisions = create_not_stated_review_decisions(
+        data_root=tmp_path,
+        reviewer_id="reviewer:test",
+        reviewer_note="Reviewed the complete official document; this question is not stated.",
+        fact_ids={unsupported_fact_id},
+    )
+    updated = pl.read_parquet(processed / "policy_facts.parquet")
+    assert not_stated_decisions.height == 2
+    assert (
+        updated.filter(pl.col("policy_fact_id") == unsupported_fact_id)[
+            "human_review_status"
+        ].item()
+        == ReviewStatus.REVIEWED_NOT_STATED.value
+    )
+    assert (
+        updated.filter(pl.col("policy_fact_id") == unsupported_fact_id)[
+            "exact_excerpt_verified"
+        ].item()
+        is False
     )
 
 

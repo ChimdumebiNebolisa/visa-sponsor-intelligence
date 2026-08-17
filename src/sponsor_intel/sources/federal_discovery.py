@@ -16,6 +16,9 @@ from sponsor_intel.sources.models import DiscoveryReport, SourceArtifactCandidat
 _USCIS_PERIOD = re.compile(r"fiscal year\s+(20\d{2})(?:\s*\(quarter\s*([1-4])\))?", re.IGNORECASE)
 _IPEDS_DIRECTORY = re.compile(r"^HD(20\d{2})\.zip$", re.IGNORECASE)
 _IPEDS_DICTIONARY = re.compile(r"^HD(20\d{2})_Dict\.zip$", re.IGNORECASE)
+_IPEDS_CHARACTERISTICS = re.compile(r"^IC(20\d{2})\.zip$", re.IGNORECASE)
+_IPEDS_CHARACTERISTICS_DICTIONARY = re.compile(r"^IC(20\d{2})_Dict\.zip$", re.IGNORECASE)
+_IPEDS_COLLECTION_YEAR = re.compile(r"(20\d{2})-\d{2}")
 _HERD_ARCHIVE = re.compile(r"^higher_education_r_and_d_(20\d{2})(_short)?\.zip$", re.IGNORECASE)
 
 
@@ -131,64 +134,163 @@ def discover_ipeds(
     *,
     from_fiscal_year: int,
 ) -> DiscoveryReport:
-    """Select the latest official IPEDS institutional directory and dictionary."""
+    """Select finalized HD and IC files while retaining provisional discovery context."""
 
-    data_links: dict[int, tuple[str, str]] = {}
-    dictionary_links: dict[int, str] = {}
-    for url, _text in _official_links(config, client):
-        file_name = PurePosixPath(urlparse(url).path).name
-        data_match = _IPEDS_DIRECTORY.fullmatch(file_name)
-        dictionary_match = _IPEDS_DICTIONARY.fullmatch(file_name)
-        if data_match:
-            data_links[int(data_match.group(1))] = (url, file_name)
-        elif dictionary_match:
-            dictionary_links[int(dictionary_match.group(1))] = url
-    eligible_years = [
-        year
-        for year in data_links
-        if year >= max(from_fiscal_year, config.minimum_fiscal_year) and year in dictionary_links
-    ]
-    if not eligible_years:
-        raise SourceDiscoveryError("No IPEDS directory with a matching dictionary was found")
-    year = max(eligible_years)
-    download_url, file_name = data_links[year]
-    candidate = SourceArtifactCandidate(
-        source_id=config.id,
-        authority=config.authority,
-        landing_page_url=config.landing_page,
-        download_url=download_url,
-        fiscal_year=year,
-        fiscal_quarter=None,
-        is_partial_period=False,
-        file_name=file_name,
-        expected_format="zip",
-        variant="directory",
-        record_layout_url=dictionary_links[year],
-    )
-    candidates = tuple(
-        SourceArtifactCandidate(
-            source_id=config.id,
-            authority=config.authority,
-            landing_page_url=config.landing_page,
-            download_url=data_links[candidate_year][0],
-            fiscal_year=candidate_year,
-            fiscal_quarter=None,
-            is_partial_period=False,
-            file_name=data_links[candidate_year][1],
-            expected_format="zip",
-            variant="directory",
-            record_layout_url=dictionary_links.get(candidate_year),
+    html = client.get_text(config.landing_page)
+    document = HTMLParser(html)
+
+    def artifact_links(
+        page: HTMLParser,
+    ) -> tuple[
+        dict[int, tuple[str, str]],
+        dict[int, str],
+        dict[int, tuple[str, str]],
+        dict[int, str],
+    ]:
+        directories: dict[int, tuple[str, str]] = {}
+        directory_dictionaries: dict[int, str] = {}
+        characteristics: dict[int, tuple[str, str]] = {}
+        characteristics_dictionaries: dict[int, str] = {}
+        for anchor in page.css("a[href]"):
+            href = anchor.attributes.get("href")
+            if not href:
+                continue
+            url = urljoin(config.landing_page, href)
+            try:
+                url = validate_official_url(url, config.official_domains)
+            except UnsafeSourceUrlError:
+                continue
+            file_name = PurePosixPath(urlparse(url).path).name
+            if match := _IPEDS_DIRECTORY.fullmatch(file_name):
+                directories[int(match.group(1))] = (url, file_name)
+            elif match := _IPEDS_DICTIONARY.fullmatch(file_name):
+                directory_dictionaries[int(match.group(1))] = url
+            elif match := _IPEDS_CHARACTERISTICS.fullmatch(file_name):
+                characteristics[int(match.group(1))] = (url, file_name)
+            elif match := _IPEDS_CHARACTERISTICS_DICTIONARY.fullmatch(file_name):
+                characteristics_dictionaries[int(match.group(1))] = url
+        return (
+            directories,
+            directory_dictionaries,
+            characteristics,
+            characteristics_dictionaries,
         )
-        for candidate_year in sorted(data_links)
-        if candidate_year >= max(from_fiscal_year, config.minimum_fiscal_year)
+
+    (
+        directories,
+        directory_dictionaries,
+        characteristics,
+        characteristics_dictionaries,
+    ) = artifact_links(document)
+
+    final_years: list[int] = []
+    provisional_years: list[int] = []
+    for row in document.css("tr"):
+        cells = [" ".join(cell.text(separator=" ", strip=True).split()) for cell in row.css("td")]
+        if not cells or cells[0].casefold() != "institutional characteristics (ic)":
+            continue
+        if len(cells) >= 2:
+            provisional_years.extend(
+                int(match.group(1)) for match in _IPEDS_COLLECTION_YEAR.finditer(cells[1])
+            )
+        if len(cells) >= 3:
+            final_years.extend(
+                int(match.group(1)) for match in _IPEDS_COLLECTION_YEAR.finditer(cells[2])
+            )
+    if not final_years:
+        raise SourceDiscoveryError(
+            "IPEDS page did not expose the finalized Institutional Characteristics year"
+        )
+    latest_final_year = max(final_years)
+
+    if latest_final_year not in directories or latest_final_year not in characteristics:
+        separator = "&" if "?" in config.landing_page else "?"
+        all_years_url = f"{config.landing_page}{separator}year=-1&surveyNumber=-1"
+        all_years_document = HTMLParser(client.get_text(all_years_url))
+        (
+            directories,
+            directory_dictionaries,
+            characteristics,
+            characteristics_dictionaries,
+        ) = artifact_links(all_years_document)
+
+    eligible = [
+        year
+        for year in directories.keys() & characteristics.keys()
+        if year <= latest_final_year
+        and year >= max(from_fiscal_year, config.minimum_fiscal_year)
+        and year in directory_dictionaries
+        and year in characteristics_dictionaries
+    ]
+    if not eligible:
+        raise SourceDiscoveryError(
+            "No finalized IPEDS HD/IC pair with matching dictionaries was found"
+        )
+    selected_year = max(eligible)
+    all_years = sorted(
+        year
+        for year in directories.keys() | characteristics.keys()
+        if year >= max(from_fiscal_year, config.minimum_fiscal_year)
     )
+    candidates_list: list[SourceArtifactCandidate] = []
+    for year in all_years:
+        release_status = "final" if year <= latest_final_year else "provisional"
+        if year in directories:
+            candidates_list.append(
+                SourceArtifactCandidate(
+                    source_id=config.id,
+                    authority=config.authority,
+                    landing_page_url=config.landing_page,
+                    download_url=directories[year][0],
+                    fiscal_year=year,
+                    fiscal_quarter=None,
+                    is_partial_period=False,
+                    file_name=directories[year][1],
+                    expected_format="zip",
+                    variant=f"directory_{release_status}",
+                    record_layout_url=directory_dictionaries.get(year),
+                )
+            )
+        if year in characteristics:
+            candidates_list.append(
+                SourceArtifactCandidate(
+                    source_id=config.id,
+                    authority=config.authority,
+                    landing_page_url=config.landing_page,
+                    download_url=characteristics[year][0],
+                    fiscal_year=year,
+                    fiscal_quarter=None,
+                    is_partial_period=False,
+                    file_name=characteristics[year][1],
+                    expected_format="zip",
+                    variant=f"characteristics_{release_status}",
+                    record_layout_url=characteristics_dictionaries.get(year),
+                )
+            )
+    candidates = tuple(candidates_list)
+    selected_ids = tuple(
+        candidate.candidate_id
+        for candidate in candidates
+        if candidate.fiscal_year == selected_year
+        and candidate.variant in {"directory_final", "characteristics_final"}
+    )
+    if len(selected_ids) != 2:
+        raise SourceDiscoveryError("Finalized IPEDS selection must contain exactly one HD/IC pair")
+    warnings = ()
+    latest_provisional = max(provisional_years) if provisional_years else None
+    if latest_provisional is not None and latest_provisional > selected_year:
+        warnings = (
+            f"IPEDS FY{latest_provisional} is provisional and was not allowed to replace "
+            f"finalized FY{selected_year} identity data",
+        )
     return DiscoveryReport(
         source_id=config.id,
         discovered_at=datetime.now(UTC),
         from_fiscal_year=from_fiscal_year,
         landing_page_url=config.landing_page,
         candidates=candidates,
-        selected_candidate_ids=(candidate.candidate_id,),
+        selected_candidate_ids=selected_ids,
+        warnings=warnings,
     )
 
 

@@ -1,8 +1,6 @@
-name: Four-month policy refresh
+name: Manual supplemental policy refresh
 
 on:
-  schedule:
-    - cron: "37 9 1 1,5,9 *"
   workflow_dispatch:
 
 permissions:
@@ -49,30 +47,24 @@ jobs:
           unzip -o /tmp/sponsor-intel-release/build-state.zip -d .
           unzip -o /tmp/sponsor-intel-release/source-manifests.zip -d .
 
-      - name: Refresh official policies and rebuild
+      - name: Refresh supplemental policies and review outputs
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_POLICY_MODEL: gpt-5.6-luna
           SPONSOR_INTEL_LOG_LEVEL: INFO
         run: uv run sponsor-intel refresh policies
 
-      - name: Confirm publication quality gates
-        run: uv run sponsor-intel quality report
-
-      - name: Build private release assets
-        run: uv run sponsor-intel release bundle
-
-      - name: Upload quality-approved release input
+      - name: Upload supplemental manual policy review artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: private-data-release
-          path: outputs/release/*
-          if-no-files-found: error
-          retention-days: 14
-
-  publish:
-    needs: refresh
-    permissions:
-      actions: read
-      contents: write
-    uses: ./.github/workflows/publish_data_release.yml
+          name: supplemental-manual-policy-review
+          path: |
+            data/processed/policy_documents.parquet
+            data/processed/policy_facts.parquet
+            data/processed/policy_review_queue.parquet
+            data/review/policy_review_decisions.parquet
+            outputs/reports/policy/summary.json
+            outputs/reports/policy/errors.json
+            outputs/reports/policy/evaluation.json
+          if-no-files-found: warn
+          retention-days: 7

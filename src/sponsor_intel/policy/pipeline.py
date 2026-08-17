@@ -183,7 +183,13 @@ def _load_review_decisions(path: Path) -> pl.DataFrame | None:
     if not path.is_file():
         return None
     decisions = pl.read_parquet(path)
-    required = {"policy_fact_id", "human_review_status", "reviewer_note", "reviewed_at"}
+    required = {
+        "policy_fact_id",
+        "human_review_status",
+        "reviewer_note",
+        "reviewed_at",
+        "reviewer_id",
+    }
     if missing := required - set(decisions.columns):
         raise ValueError(f"Policy review decisions are missing columns: {sorted(missing)}")
     if decisions["policy_fact_id"].n_unique() != decisions.height:
@@ -223,6 +229,11 @@ def apply_review_decisions(facts: pl.DataFrame, decisions: pl.DataFrame | None) 
         )
         .drop("_review_status", "_review_note", "_current_confirmed")
     )
+    missing_reviewer_provenance = pl.col("reviewer_id").cast(pl.String, strict=False).fill_null(
+        ""
+    ).str.strip_chars().eq("") | pl.col("reviewed_at").cast(pl.String, strict=False).fill_null(
+        ""
+    ).str.strip_chars().eq("")
     invalid_accepted = updated.filter(
         (pl.col("human_review_status") == ReviewStatus.REVIEWED_ACCEPTED.value)
         & pl.col("valid_to").is_null()
@@ -231,14 +242,59 @@ def apply_review_decisions(facts: pl.DataFrame, decisions: pl.DataFrame | None) 
             | ~pl.col("source_url").str.starts_with("https://")
             | pl.col("supporting_excerpt").str.strip_chars().eq("")
             | ~pl.col("is_current")
+            | missing_reviewer_provenance
         )
     )
     if not invalid_accepted.is_empty():
         raise ValueError(
-            "Accepted policy decisions require current HTTPS evidence and an exact excerpt: "
+            "Accepted policy decisions require current HTTPS evidence, an exact excerpt, and "
+            "reviewer provenance: "
             f"{invalid_accepted['policy_fact_id'].head(10).to_list()}"
         )
+    invalid_not_stated = updated.filter(
+        (pl.col("human_review_status") == ReviewStatus.REVIEWED_NOT_STATED.value)
+        & (
+            (pl.col("fact_value") != FactValue.NOT_STATED.value)
+            | ~pl.col("source_url").str.starts_with("https://")
+            | ~pl.col("is_current")
+            | pl.col("valid_to").is_not_null()
+            | missing_reviewer_provenance
+        )
+    )
+    if not invalid_not_stated.is_empty():
+        raise ValueError(
+            "Reviewed-not-stated decisions require a current NOT_STATED fact from an HTTPS "
+            "source and reviewer provenance: "
+            f"{invalid_not_stated['policy_fact_id'].head(10).to_list()}"
+        )
     return updated
+
+
+def _persist_review_decisions(
+    *,
+    data_root: Path,
+    facts: pl.DataFrame,
+    decisions: pl.DataFrame,
+) -> pl.DataFrame:
+    path = data_root / "review" / "policy_review_decisions.parquet"
+    existing = _load_review_decisions(path)
+    if existing is not None:
+        decisions = (
+            pl.concat([existing, decisions], how="diagonal_relaxed")
+            .sort("reviewed_at")
+            .unique(subset=["policy_fact_id"], keep="last", maintain_order=True)
+        )
+    updated = apply_review_decisions(facts, decisions)
+    write_parquet_atomic(decisions, path)
+    write_parquet_atomic(updated, data_root / "processed" / "policy_facts.parquet")
+    write_parquet_atomic(
+        updated.filter(
+            (pl.col("human_review_status") == ReviewStatus.NEEDS_REVIEW.value)
+            & pl.col("valid_to").is_null()
+        ),
+        data_root / "processed" / "policy_review_queue.parquet",
+    )
+    return decisions
 
 
 def create_exact_fact_review_decisions(
@@ -248,7 +304,7 @@ def create_exact_fact_review_decisions(
     reviewer_note: str,
     fact_ids: set[str],
 ) -> pl.DataFrame:
-    """Record an explicit operator review of exact, affirmative, non-contradictory facts."""
+    """Record an explicit review of exact, substantive, non-contradictory facts."""
 
     if not fact_ids:
         raise ValueError("At least one explicitly reviewed policy fact ID is required")
@@ -258,7 +314,9 @@ def create_exact_fact_review_decisions(
     facts = pl.read_parquet(facts_path)
     eligible = facts.filter(
         pl.col("exact_excerpt_verified")
-        & (pl.col("fact_value") == FactValue.YES.value)
+        & pl.col("fact_value").is_in(
+            [FactValue.YES.value, FactValue.NO.value, FactValue.LIMITED.value]
+        )
         & pl.col("contradiction_group_id").is_null()
         & pl.col("valid_to").is_null()
         & pl.col("supporting_excerpt").str.strip_chars().ne("")
@@ -277,7 +335,7 @@ def create_exact_fact_review_decisions(
         )
     eligible = eligible.filter(pl.col("policy_fact_id").is_in(sorted(fact_ids)))
     if eligible.is_empty():
-        raise ValueError("No exact affirmative facts are available for operator review")
+        raise ValueError("No exact substantive facts are available for operator review")
     reviewed_at = datetime.now(UTC).isoformat()
     decisions = eligible.select("policy_fact_id").with_columns(
         pl.lit(ReviewStatus.REVIEWED_ACCEPTED.value).alias("human_review_status"),
@@ -286,25 +344,49 @@ def create_exact_fact_review_decisions(
         pl.lit(reviewer_id).alias("reviewer_id"),
         pl.lit(True).alias("current_confirmed"),
     )
-    path = data_root / "review" / "policy_review_decisions.parquet"
-    existing = _load_review_decisions(path)
-    if existing is not None:
-        decisions = (
-            pl.concat([existing, decisions], how="diagonal_relaxed")
-            .sort("reviewed_at")
-            .unique(subset=["policy_fact_id"], keep="last", maintain_order=True)
-        )
-    write_parquet_atomic(decisions, path)
-    updated = apply_review_decisions(facts, decisions)
-    write_parquet_atomic(updated, facts_path)
-    write_parquet_atomic(
-        updated.filter(
-            (pl.col("human_review_status") == ReviewStatus.NEEDS_REVIEW.value)
-            & pl.col("valid_to").is_null()
-        ),
-        data_root / "processed" / "policy_review_queue.parquet",
+    return _persist_review_decisions(data_root=data_root, facts=facts, decisions=decisions)
+
+
+def create_not_stated_review_decisions(
+    *,
+    data_root: Path = Path("data"),
+    reviewer_id: str,
+    reviewer_note: str,
+    fact_ids: set[str],
+) -> pl.DataFrame:
+    """Record explicit review completion where an official document does not state a fact."""
+
+    if not fact_ids:
+        raise ValueError("At least one explicitly reviewed NOT_STATED fact ID is required")
+    facts_path = data_root / "processed" / "policy_facts.parquet"
+    if not facts_path.is_file():
+        raise ValueError(f"Policy facts are unavailable: {facts_path}")
+    facts = pl.read_parquet(facts_path)
+    eligible = facts.filter(
+        (pl.col("fact_value") == FactValue.NOT_STATED.value)
+        & pl.col("contradiction_group_id").is_null()
+        & pl.col("valid_to").is_null()
+        & pl.col("source_url").str.starts_with("https://")
     )
-    return decisions
+    available_ids = set(eligible["policy_fact_id"].to_list())
+    if unavailable_ids := fact_ids - available_ids:
+        raise ValueError(
+            "Reviewed NOT_STATED fact IDs are unavailable or ineligible: "
+            f"{sorted(unavailable_ids)[:10]}"
+        )
+    reviewed_at = datetime.now(UTC).isoformat()
+    decisions = (
+        eligible.filter(pl.col("policy_fact_id").is_in(sorted(fact_ids)))
+        .select("policy_fact_id")
+        .with_columns(
+            pl.lit(ReviewStatus.REVIEWED_NOT_STATED.value).alias("human_review_status"),
+            pl.lit(reviewer_note).alias("reviewer_note"),
+            pl.lit(reviewed_at).alias("reviewed_at"),
+            pl.lit(reviewer_id).alias("reviewer_id"),
+            pl.lit(True).alias("current_confirmed"),
+        )
+    )
+    return _persist_review_decisions(data_root=data_root, facts=facts, decisions=decisions)
 
 
 class PolicyPipeline:

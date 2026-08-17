@@ -48,12 +48,85 @@ jobs:
           sha256sum --check checksums.sha256
           python - <<'PY'
           import json
+          import re
+          from datetime import datetime
           from pathlib import Path
 
+          required_assets = {
+              "immigration.duckdb",
+              "data-quality.json",
+              "build-metadata.json",
+              "checksums.sha256",
+          }
+          missing_assets = sorted(name for name in required_assets if not Path(name).is_file())
+          if missing_assets:
+              raise SystemExit(f"Required runtime release assets are missing: {missing_assets}")
+
+          checksum_names = {
+              line.split("  ", maxsplit=1)[1]
+              for line in Path("checksums.sha256").read_text(encoding="utf-8").splitlines()
+              if "  " in line
+          }
+          missing_checksums = sorted(
+              (required_assets - {"checksums.sha256"}) - checksum_names
+          )
+          if missing_checksums:
+              raise SystemExit(f"Required runtime checksums are missing: {missing_checksums}")
+
           report = json.loads(Path("data-quality.json").read_text(encoding="utf-8"))
+          metadata = json.loads(Path("build-metadata.json").read_text(encoding="utf-8"))
           if report.get("passed") is not True or report.get("critical_failure_count") != 0:
               raise SystemExit("Critical quality gates failed; publication is blocked")
+          expected_versions = {
+              "metric_version": "product_a_metrics_v1",
+              "score_version": "product_a_scores_v1",
+          }
+          if any(
+              report.get(field) != expected or metadata.get(field) != expected
+              for field, expected in expected_versions.items()
+          ):
+              raise SystemExit(
+                  "Exact Product A metric and score versions are required for publication"
+              )
+          for field in ("build_id", "generated_at", "manifest_sha256"):
+              if report.get(field) != metadata.get(field):
+                  raise SystemExit(f"Quality and build metadata disagree on {field}")
+          build_id = report.get("build_id")
+          manifest_sha256 = report.get("manifest_sha256")
+          generated_at = report.get("generated_at")
+          if (
+              not isinstance(build_id, str)
+              or re.fullmatch(r"product-a-[0-9a-f]{16}", build_id) is None
+          ):
+              raise SystemExit("Product A build ID is invalid")
+          if (
+              not isinstance(manifest_sha256, str)
+              or re.fullmatch(r"[0-9a-f]{64}", manifest_sha256) is None
+          ):
+              raise SystemExit("Source manifest fingerprint is invalid")
+          if not isinstance(generated_at, str):
+              raise SystemExit("Build timestamp is invalid")
+          try:
+              build_timestamp = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+          except ValueError as error:
+              raise SystemExit("Build timestamp is invalid") from error
+          if build_timestamp.utcoffset() is None:
+              raise SystemExit("Build timestamp must include a time zone")
+          for count_name in ("employer_count", "institution_count"):
+              count = metadata.get(count_name)
+              if not isinstance(count, int) or isinstance(count, bool) or count <= 0:
+                  raise SystemExit(f"Positive {count_name} is required for publication")
           PY
+
+      - name: Refuse publication from a public repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VISIBILITY="$(gh repo view "$GITHUB_REPOSITORY" --json visibility --jq .visibility)"
+          if [ "$VISIBILITY" != "PRIVATE" ]; then
+            echo "Data release publication requires a private GitHub repository."
+            exit 1
+          fi
 
       - name: Publish private repository release assets
         env:
@@ -67,5 +140,5 @@ jobs:
             gh release create "$TAG" outputs/release/* \
               --repo "$GITHUB_REPOSITORY" \
               --title "Private sponsorship data ${BUILD_DATE}" \
-              --notes "Quality-approved private V1 data artifacts. See data-quality.json and checksums.sha256."
+              --notes "Quality-approved private Product A data artifacts. See data-quality.json and checksums.sha256."
           fi

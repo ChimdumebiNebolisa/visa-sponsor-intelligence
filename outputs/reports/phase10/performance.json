@@ -1,0 +1,113 @@
+{
+  "captured_at": "2026-08-16T00:49:59.685179+00:00",
+  "clean_dependency_install": {
+    "duration_seconds": null,
+    "installed_size_approx_mib": 566.23,
+    "installed_size_bytes": 593736400,
+    "measurement_note": "Isolated Windows 11 Python 3.12 venv; runtime imports and pip check passed; ingestion-only packages were absent; install duration was not reliably recorded.",
+    "status": "PARTIALLY_MEASURED"
+  },
+  "database": {
+    "path": "db\\immigration.duckdb",
+    "sha256": "104a218fe680c47ad1e2b9cb617ce47042f51c91f171bcbc07721701480121fa",
+    "size_bytes": 276312064
+  },
+  "deployed_cold_start": "NOT_MEASURED_OWNER_DEPLOYMENT_REQUIRED",
+  "deployed_runtime_memory": {
+    "bytes": null,
+    "status": "NOT_MEASURED_OWNER_DEPLOYMENT_REQUIRED"
+  },
+  "deployment_reliability": "NOT_MEASURED_OWNER_DEPLOYMENT_REQUIRED",
+  "local_process_memory": {
+    "method": "Windows Get-Process",
+    "peak_working_set_bytes": 834842624,
+    "working_set_bytes": 245858304
+  },
+  "mobile_usability": "NOT_MEASURED_HUMAN_BROWSER_REVIEW_REQUIRED",
+  "query_latency_ms": {
+    "comparison": {
+      "median_ms": 57.1,
+      "result_rows_or_bytes": 3,
+      "runs_ms": [
+        57.1,
+        55.86,
+        60.34
+      ]
+    },
+    "employer_search": {
+      "median_ms": 370.56,
+      "result_rows_or_bytes": 500,
+      "runs_ms": [
+        377.22,
+        357.38,
+        370.56
+      ]
+    },
+    "filtered_employer_csv_export": {
+      "median_ms": 101.02,
+      "result_rows_or_bytes": 3851703,
+      "runs_ms": [
+        101.02
+      ]
+    },
+    "filtered_institution_csv_export": {
+      "median_ms": 182.37,
+      "result_rows_or_bytes": 163667,
+      "runs_ms": [
+        182.37
+      ]
+    },
+    "institution_ranking": {
+      "median_ms": 192.91,
+      "result_rows_or_bytes": 500,
+      "runs_ms": [
+        199.83,
+        192.91,
+        177.57
+      ]
+    },
+    "organization_detail": {
+      "median_ms": 705.42,
+      "result_rows_or_bytes": null,
+      "runs_ms": [
+        761.43,
+        705.42,
+        696.01
+      ]
+    }
+  },
+  "runtime_release_assets": {
+    "build_metadata": {
+      "build_id": "v2-dcdfeabb8229bb92",
+      "employer_count": 225996,
+      "generated_at": "2026-08-16T00:36:36.683587Z",
+      "institution_count": 5985,
+      "manifest_sha256": "48a752801f4813f2d5650e7c4fde20914f716fae399b3834951af5eef2af5901",
+      "metric_version": "scored_metrics_v2",
+      "output_fingerprints": {
+        "employer_metrics.parquet": "ee87d1557ca0dcc1e216572dc01ac8c0de71af06ad06aed4af76779a523ed59e",
+        "institution_metrics.parquet": "c136692402737bd3f397d1edb3ca25ac4fa0e02971ca765681550972821e9e5c",
+        "policy_facts.parquet": "7750194e0364dec625f1f99150b23f2bbf4a1df50156ecab5711037aeafadc2e"
+      },
+      "quality_passed": true,
+      "score_version": "evidence_scores_v2_2026_08"
+    },
+    "compression": "The local V2 runtime database asset is uncompressed; prospective hosted transfer is the four verified bundle assets.",
+    "minimum_transfer_bytes": 276319023,
+    "sizes_bytes": {
+      "build-metadata.json": 681,
+      "checksums.sha256": 518,
+      "data-quality.json": 5760,
+      "immigration.duckdb": 276312064
+    }
+  },
+  "scope": "local Windows predeployment measurement unless explicitly labeled deployed",
+  "streamlit": {
+    "cold_errors": [],
+    "cold_start_ms": 3127.87,
+    "method": "streamlit.testing.v1.AppTest Home.py execution",
+    "status": "PASS",
+    "warm_errors": [],
+    "warm_rerun_ms": 640.76
+  }
+}

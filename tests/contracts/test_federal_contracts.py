@@ -23,13 +23,18 @@ pytestmark = [
 ]
 
 
-def test_current_ipeds_directory_and_dictionary_are_discoverable() -> None:
+def test_current_finalized_ipeds_hd_ic_pair_and_dictionaries_are_discoverable() -> None:
     config = SourceRegistry.from_yaml().get("ipeds")
     with OfficialHttpClient(config.official_domains) as client:
         report = discover_ipeds(config, client, from_fiscal_year=2022)
 
-    assert report.selected[0].fiscal_year >= 2025
-    assert report.selected[0].record_layout_url is not None
+    assert len(report.selected) == 2
+    assert {candidate.variant for candidate in report.selected} == {
+        "directory_final",
+        "characteristics_final",
+    }
+    assert len({candidate.fiscal_year for candidate in report.selected}) == 1
+    assert all(candidate.record_layout_url is not None for candidate in report.selected)
 
 
 def test_herd_standard_and_short_archives_are_discoverable() -> None:

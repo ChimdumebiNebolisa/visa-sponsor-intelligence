@@ -12,7 +12,9 @@ from sponsor_intel.entity_resolution.models import (
 from sponsor_intel.entity_resolution.normalization import (
     core_name,
     legal_suffix,
+    normalize_city,
     normalize_name,
+    normalize_state,
 )
 from sponsor_intel.entity_resolution.resolver import score_pair
 from sponsor_intel.sources.manifests import write_json_atomic
@@ -76,15 +78,30 @@ def validate_gold_dataset(
         parent_legal_pair = _truth(row["parent_legal_pair"])
         left = normalize_name(row["left_name"], config)
         right = normalize_name(row["right_name"], config)
+        left_city = normalize_city(row["left_city"])
+        right_city = normalize_city(row["right_city"])
+        left_state = normalize_state(row["left_state"])
+        right_state = normalize_state(row["right_state"])
         exact = bool(left and left == right)
         features = score_pair(
             core_name(left, config),
             core_name(right, config),
-            left_city=row["left_city"].strip().upper(),
-            right_city=row["right_city"].strip().upper(),
-            left_state=row["left_state"].strip().upper(),
-            right_state=row["right_state"].strip().upper(),
+            left_city=left_city,
+            right_city=right_city,
+            left_state=left_state,
+            right_state=right_state,
         )
+        state_conflict = bool(left_state and right_state and left_state != right_state)
+        city_conflict = bool(
+            not state_conflict
+            and left_state
+            and right_state
+            and left_state == right_state
+            and left_city
+            and right_city
+            and left_city != right_city
+        )
+        exact_with_compatible_location = exact and not (state_conflict or city_conflict)
         fuzzy_auto = (
             features.score >= config.high_confidence_threshold
             and features.location_agreement
@@ -94,7 +111,7 @@ def validate_gold_dataset(
                 and legal_suffix(left, config) != legal_suffix(right, config)
             )
         )
-        accepted = exact or fuzzy_auto
+        accepted = exact_with_compatible_location or fuzzy_auto
         if accepted:
             auto_accepted += 1
             if expected_match:

@@ -1,105 +1,123 @@
-# Evidence-strength scoring
+# Product A sponsorship ratings
 
-Phase 8 implements deterministic, nullable evidence-strength indicators. The sole formula source
-is `configs/scoring.yaml`; the current version is `evidence_scores_v1_2026_08`. A score summarizes
-historical evidence. It is not legal advice, an eligibility decision, or a probability of future
-sponsorship.
+`configs/scoring_product_a.yaml` and score version `product_a_scores_v1` define the active rating
+contract. Historical V1/V2 sidecars may remain for reproducibility, but letter grades, policy
+support, STEM OPT readiness, and research-pathway scores are not Product A ratings.
 
-## Shared rules
+Ratings summarize observed official evidence. They are not legal advice, petition approvals,
+eligibility decisions, probabilities, or promises that an employer will sponsor a particular job.
 
-- Missing evidence stays null. It is not converted to zero and is not silently reweighted.
-- A zero is permitted only for an authoritative negative, currently confirmed inactive E-Verify.
-- Case volumes use `100 * log(1 + observed) / log(1 + cap)`, clipped to 0-100.
-- Recency starts at 100 in the 2026 reference year and loses the configured amount per elapsed
-  year, never falling below zero.
-- Every component exposes its raw inputs, score, coverage, confidence, grade or status, and a
-  plain-language explanation in the processed metrics and explorer.
-- Component coverage is the sum of configured weights for available inputs. Composite coverage is
-  the configured weighted sum of the component coverage values, with missing components retained
-  as zero coverage. Composite scores require every configured component and never reweight merely
-  missing evidence.
-- Scores and score labels reproduce from the checked-in YAML and carry `score_version`.
+## Evidence admitted to ratings
 
-## STEM OPT readiness
+| Rating | Admitted evidence | Excluded from the rating |
+|---|---|---|
+| H-1B History | Technical DOL LCA rows where visa class is exactly `H-1B`; employer-level USCIS H-1B initial approvals as limited corroboration | H-1B1, E-3, unsuccessful LCA statuses, E-Verify, OPT, institution type, HERD, cap-exemption context, policy |
+| Green Card Sponsorship History | Technical DOL PERM rows | Unsuccessful PERM statuses, E-Verify, OPT, institution type, HERD, cap-exemption context, policy |
+| Overall Sponsorship | Resolved H-1B History and Green Card Sponsorship History | Any supplemental evidence and any unresolved component |
 
-Confirmed active E-Verify contributes 85 points. A positive recent OPT/STEM OPT observation adds
-15, capped at 100. A positive OPT observation without a confirmed E-Verify result receives 55.
-Confirmed inactive E-Verify is the explicit current-readiness blocker and receives zero. No-match,
-ambiguous, unchecked, and failed E-Verify lookups remain unknown. E-Verify and positive-only OPT
-coverage weights are 70% and 30%.
+Immigration evidence remains attached to the petitioning legal entity. A parent-organization rating
+is a separately identified rollup of reviewed constituent legal entities; it never replaces a
+legal-entity rating.
 
-Statuses are `STRONG` at 80+, `MODERATE` at 60+, `LIMITED` below 60, `UNKNOWN` without qualifying
-evidence, and `EXPLICIT_BLOCKER` for confirmed inactive E-Verify.
+## Shared component rules
 
-## H-1B history
+- Hidden component and composite scores range from 0 to 100. They exist for deterministic sorting,
+  testing, versioning, and audit. Primary product tables display whole stars and accessible labels.
+- Count components use `log1p` and a deterministic 95th-percentile cap calculated over eligible
+  resolved employers in that build. Each calculated cap is persisted in score metadata.
+- Complete-year consistency is the number of complete fiscal years with positive qualifying
+  activity divided by the number of complete covered fiscal years since FY2022.
+- The current partial fiscal year can affect recency. It does not enter complete-year consistency,
+  is not annualized, and is never compared as if complete.
+- Recency is 1.00 for activity in the current partial year or latest complete year, 0.75 one
+  complete year earlier, 0.50 two complete years earlier, 0.25 three complete years earlier, and
+  0 thereafter.
+- Breadth is the number of distinct normalized qualifying job families, capped at five.
+- Reviewed role overrides have priority. Ambiguous classifications do not silently become
+  qualifying evidence.
 
-The H-1B history score uses only observed DOL/USCIS history:
+## H-1B History
 
-| Component | Weight | Rule |
-|---|---:|---|
-| Relevant LCA volume | 30% | Log-scaled to a 1,000-record cap |
-| USCIS initial approvals | 25% | Log-scaled to a 500-approval cap |
-| Active fiscal years | 15% | Linear to five years |
-| Recency | 15% | 25 points removed per year since last LCA/USCIS activity |
-| Relevant technical share | 10% | Relevant LCA divided by all LCA records |
-| Approval ratio | 5% | Initial approvals divided by initial decisions only when at least 10 decisions exist |
-
-The approval-ratio denominator safeguard prevents a tiny sample from dominating. Potential cap
-exemption remains a separate field and is never mixed into this score.
-
-## Green-card history
+Only technical `H-1B` LCA rows qualify. H-1B1 and E-3 rows remain queryable for audit, but cannot
+alter this score.
 
 | Component | Weight | Rule |
 |---|---:|---|
-| Relevant certified PERM volume | 35% | Log-scaled to a 500-record cap |
-| Active fiscal years | 20% | Linear to five years |
-| Recency | 15% | 25 points removed per year since last PERM activity |
-| Relevant technical share | 15% | Relevant certified PERM divided by all PERM records |
-| Exact-title repetition | 15% | Most repeated exact technical title divided by relevant certified PERM |
+| Weighted relevant LCA volume | 45% | `CERTIFIED` = 1.0; `CERTIFIED-WITHDRAWN` = 0.5; all unsuccessful statuses = 0; `log1p` normalized to the build's 95th-percentile cap |
+| Complete-year consistency | 25% | Positive complete years divided by complete covered years since FY2022 |
+| Recency | 15% | Shared recency schedule above |
+| Relevant family breadth | 10% | Distinct normalized qualifying families divided by five, capped at 1 |
+| USCIS initial approvals | 5% | Employer-level H-1B initial approvals, `log1p` normalized to the build's 95th-percentile cap |
 
-No observed PERM history produces an unknown score, not a refusal label. Reviewed institution
-policy is displayed and scored separately.
+USCIS data is employer-level and is not title-specific. Its exact product label is
+`Employer-level H-1B initial approvals`. It corroborates role-level DOL evidence; it does not turn
+an employer with no qualifying technical LCA history into observed technical H-1B history.
 
-## Research strength
+## Green Card Sponsorship History
 
-Institutions with linked HERD observations are ranked within the current build. The score combines
-total R&D percentile (35%), computing R&D percentile (25%), engineering R&D percentile (20%), and
-federal R&D percentile (20%). Missing short-form fields stay null and reduce coverage. No linked
-HERD observation produces an unknown score.
+The user-facing name deliberately says history, not approvals. A certified labor certification is
+not a green-card approval and does not promise future sponsorship.
 
-## Reviewed policy support
+| Component | Weight | Rule |
+|---|---:|---|
+| Weighted relevant PERM volume | 45% | `CERTIFIED` = 1.0; `CERTIFIED-EXPIRED` = 0.5; denied, withdrawn, and other unsuccessful statuses = 0; `log1p` normalized to the build's 95th-percentile cap |
+| Complete-year consistency | 25% | Positive complete years divided by complete covered years since FY2022 |
+| Recency | 15% | Shared recency schedule above |
+| Relevant family breadth | 15% | Distinct normalized qualifying families divided by five, capped at 1 |
 
-Only current `REVIEWED_ACCEPTED` facts with an exact verified excerpt, current validity, and an
-official HTTPS source may contribute. Unreviewed, rejected, expired, unknown, and not-stated facts
-do not contribute and reduce coverage. The YAML maps each supported fact type and enum value to a
-0-100 evidence value. Positive eligibility/support facts score upward; explicit exclusions,
-waiting periods, minimum-duration requirements, and discretionary language score downward. The
-result is normalized only across observed reviewed facts and must always be read with its coverage.
+## Overall Sponsorship
 
-Fact weights are: research-staff H-1B 18%, research-staff permanent residence 18%, general-staff
-H-1B 6%, general-staff permanent residence 6%, PERM 16%, EB-1B 14%, temporary-position exclusion
-6%, grant-funded exclusion 4%, waiting period 4%, minimum appointment duration 4%, and policy
-discretion 4%.
+Overall Sponsorship uses:
 
-## Composites and grades
+- 40% H-1B History
+- 60% Green Card Sponsorship History
 
-Immigration evidence requires all three components and uses STEM OPT readiness 20%, H-1B history
-35%, and green-card history 45%. Research pathway requires all three components and uses
-immigration evidence 45%, research strength 25%, and reviewed policy support 30%.
+Both component histories must be resolved. The implementation does not silently reweight a single
+available component into a partial Overall rating.
 
-Grades are A+ at 90+, A at 80+, B at 70+, C at 60+, D at 40+, and F below 40. An unavailable
-composite is `UNKNOWN`. Confidence labels are `HIGH` at 85%+ coverage, `MODERATE` at 60%+,
-`LIMITED` above zero, and `UNKNOWN` at zero.
+## Star mapping and missingness
 
-## Reproduction
+| Hidden score/evidence state | Primary display |
+|---:|---|
+| 80–100 | 5 stars (`5 out of 5 stars`) |
+| 65–<80 | 4 stars (`4 out of 5 stars`) |
+| 45–<65 | 3 stars (`3 out of 5 stars`) |
+| 25–<45 | 2 stars (`2 out of 5 stars`) |
+| >0–<25 | 1 star (`1 out of 5 stars`) |
+| 0 with valid required source coverage and resolved identity | `No observed technical … history` |
+| Missing/invalid required coverage or unresolved identity | `Unrated` |
+
+A validated zero is evidence that the covered official records contained no qualifying observation
+under the Product A rules. It is not missing data and is never displayed as one star. `Unrated`
+means the product cannot make the calculation; it is not a negative conclusion.
+
+`COMPLETE_ENTITY_COVERAGE` and `PARTIAL_ENTITY_COVERAGE` are both scoreable when confirmed evidence
+exists. Partial coverage excludes ambiguous records and displays: `Rating is based on confirmed
+records. Additional ambiguous records were excluded.` Only `UNRESOLVED_IDENTITY` normally causes
+identity-based `Unrated`.
+
+Every rating exposes an explanation, coverage/source state, score version, and the raw ingredients
+needed to reproduce it. The UI pairs `Why this rating` with `What this does not prove`.
+
+## Research Scale
+
+Research Scale is a separate 1–5-star institution context rating among matched institutions with
+latest-year HERD evidence. It prioritizes computer and information sciences R&D, then engineering
+R&D, with total R&D as secondary context or fallback. Missing HERD evidence stays `Unrated`.
+
+Research Scale never changes H-1B History, Green Card Sponsorship History, or Overall Sponsorship,
+and must not be called Sponsorship Potential.
+
+## Reproduce and inspect
 
 ```bash
-uv run sponsor-intel scores build
+uv run sponsor-intel metrics build
+uv run sponsor-intel quality report
 uv run sponsor-intel db build
-uv run pytest tests/unit/test_scoring.py tests/integration/test_metrics_explorer.py
+uv run python scripts/run_product_a_acceptance.py
 ```
 
-The score build writes `data/processed/employer_scores.parquet` and embeds the same score columns
-beside raw evidence in `employer_metrics.parquet` and `institution_metrics.parquet`. The Compare
-page shows up to five organizations with raw values, coverage, confidence, version, and
-explanations.
+Inspect `outputs/reports/product-a/score-distribution.{md,json}` for build-level score/star
+distributions and persisted count caps, and `validation.{md,csv}` for named legal/parent scope
+checks. Re-running unchanged evidence, reviewed mappings, and configuration must produce identical
+ratings.

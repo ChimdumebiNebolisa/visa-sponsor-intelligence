@@ -250,6 +250,7 @@ class TabularSourceAdapter:
         return PersistedDataset(
             artifact=dataset.artifact,
             parquet_path=target_path,
+            raw_row_count=dataset.raw_row_count,
             row_count=dataset.frame.height,
             column_count=dataset.frame.width,
             schema_version=self.config.schema_version,

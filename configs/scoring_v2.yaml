@@ -1,0 +1,116 @@
+version: evidence_scores_v2_2026_08
+reference_year: 2026
+
+stem_opt_readiness:
+  everify_active_score: 85
+  everify_inactive_score: 0
+  opt_only_score: 55
+  opt_bonus: 15
+  evidence_weights:
+    everify: 0.70
+    opt: 0.30
+  status_bands:
+    - {label: STRONG, minimum: 80}
+    - {label: MODERATE, minimum: 60}
+    - {label: LIMITED, minimum: 0}
+
+h1b_history:
+  weights:
+    relevant_lca_volume: 0.30
+    initial_approvals: 0.25
+    active_years: 0.15
+    recency: 0.15
+    technical_share: 0.10
+    approval_ratio: 0.05
+  relevant_lca_volume_cap: 1000
+  initial_approval_volume_cap: 500
+  active_year_cap: 5
+  recency_penalty_per_year: 25
+  approval_ratio_minimum_denominator: 10
+  grade_minimum_coverage: 1.0
+
+green_card_history:
+  weights:
+    relevant_perm_volume: 0.35
+    active_years: 0.20
+    recency: 0.15
+    technical_share: 0.15
+    exact_title_repetition: 0.15
+  relevant_perm_volume_cap: 500
+  active_year_cap: 5
+  recency_penalty_per_year: 25
+  grade_minimum_coverage: 1.0
+
+sponsorship_history:
+  weights:
+    h1b_history: 0.40
+    green_card_history: 0.60
+  require_all_components: false
+  grade_minimum_coverage: 1.0
+
+research_strength:
+  weights:
+    total_rd_percentile: 0.35
+    computing_rd_percentile: 0.25
+    engineering_rd_percentile: 0.20
+    federal_rd_percentile: 0.20
+  grade_minimum_coverage: 0.55
+
+policy_support:
+  fact_weights:
+    h1b_research_staff_eligible: 0.18
+    pr_research_staff_eligible: 0.18
+    h1b_general_staff_eligible: 0.06
+    pr_general_staff_eligible: 0.06
+    perm_supported: 0.16
+    eb1b_supported: 0.14
+    temporary_positions_excluded: 0.06
+    grant_funded_positions_excluded: 0.04
+    waiting_period: 0.04
+    minimum_appointment_duration: 0.04
+    policy_discretionary: 0.04
+  value_scores:
+    h1b_research_staff_eligible: {"YES": 100, "LIMITED": 50, "NO": 0}
+    pr_research_staff_eligible: {"YES": 100, "LIMITED": 50, "NO": 0}
+    h1b_general_staff_eligible: {"YES": 100, "LIMITED": 50, "NO": 0}
+    pr_general_staff_eligible: {"YES": 100, "LIMITED": 50, "NO": 0}
+    perm_supported: {"YES": 100, "LIMITED": 50, "NO": 0}
+    eb1b_supported: {"YES": 100, "LIMITED": 50, "NO": 0}
+    temporary_positions_excluded: {"YES": 0, "LIMITED": 40, "NO": 100}
+    grant_funded_positions_excluded: {"YES": 0, "LIMITED": 40, "NO": 100}
+    waiting_period: {"YES": 25, "LIMITED": 50, "NO": 100}
+    minimum_appointment_duration: {"YES": 40, "LIMITED": 60, "NO": 100}
+    policy_discretionary: {"YES": 30, "LIMITED": 60, "NO": 100}
+  grade_minimum_coverage: 0.60
+
+research_pathway:
+  weights:
+    sponsorship_history: 0.50
+    policy_support: 0.30
+    research_strength: 0.20
+  require_all_components: false
+  grade_minimum_coverage: 0.80
+
+core_policy:
+  required_fact_types:
+    - h1b_research_staff_eligible
+    - pr_research_staff_eligible
+    - perm_supported
+    - eb1b_supported
+  substantive_values: ["YES", "LIMITED", "NO"]
+  accepted_review_status: REVIEWED_ACCEPTED
+  not_stated_review_status: REVIEWED_NOT_STATED
+
+confidence_bands:
+  - {label: HIGH, minimum: 0.85}
+  - {label: MODERATE, minimum: 0.60}
+  - {label: LIMITED, minimum: 0.01}
+  - {label: UNKNOWN, minimum: 0.00}
+
+grade_bands:
+  - {label: A+, minimum: 90}
+  - {label: A, minimum: 80}
+  - {label: B, minimum: 70}
+  - {label: C, minimum: 60}
+  - {label: D, minimum: 40}
+  - {label: F, minimum: 0}

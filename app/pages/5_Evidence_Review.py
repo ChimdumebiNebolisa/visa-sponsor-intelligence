@@ -1,16 +1,16 @@
 """Evidence review queues for decisions that must not be guessed."""
 
 import streamlit as st
-from app.components.explorer import configure_page, render_evidence_notice
+from components.explorer import configure_page, render_evidence_notice
 
 service = configure_page("Evidence Review")
 queues = service.get_evidence_review(limit=500)
 
 st.title("Evidence Review")
-st.caption("Ambiguous or unresolved evidence stays out of confirmed product signals.")
+st.caption("Ambiguous or unresolved evidence stays out of Product A ratings.")
 
 entity_tab, everify_tab, opt_tab, policy_tab = st.tabs(
-    ["Entity matches", "E-Verify", "OPT employer names", "Policy facts"]
+    ["Entity matches", "E-Verify", "OPT employer names", "Supplemental policy facts"]
 )
 for tab, frame, empty_message in (
     (entity_tab, queues.entity, "No entity-review rows are available."),
@@ -26,6 +26,7 @@ for tab, frame, empty_message in (
 
 st.info(
     "E-Verify NO_MATCH is not a negative finding, and absence from a positive-only OPT report "
-    "is not evidence of zero participation. Both remain UNKNOWN in explorer filters."
+    "is not evidence of zero participation. Both remain UNKNOWN. Policy evidence is "
+    "Supplemental, Incomplete, and Not used in sponsorship ratings."
 )
 render_evidence_notice()

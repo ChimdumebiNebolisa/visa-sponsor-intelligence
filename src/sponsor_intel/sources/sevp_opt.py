@@ -272,6 +272,7 @@ class SevpOptAdapter(TabularSourceAdapter):
                         f"Expected one table on each OPT report page, found {len(tables)}"
                     )
                 rows.extend(tables[0])
+        raw_row_count = len(rows)
         frame = parse_opt_table_rows(
             rows,
             report_year=artifact.candidate.fiscal_year,
@@ -342,6 +343,7 @@ class SevpOptAdapter(TabularSourceAdapter):
         return NormalizedDataset(
             artifact=artifact,
             frame=frame,
+            raw_row_count=raw_row_count,
             original_columns=(
                 "Top 200 Employer Names",
                 "OPT or STEM-OPT total",

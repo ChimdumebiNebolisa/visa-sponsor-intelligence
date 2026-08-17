@@ -1,0 +1,200 @@
+{
+  "captured_at": "2026-08-15T23:02:00Z",
+  "counts": {
+    "ambiguous_role_classifications": 13040,
+    "employers": 201000,
+    "entity_review_queue": 0,
+    "institutions": 5985,
+    "legal_entities": 202867,
+    "parent_organizations": 431,
+    "relevant_certified_perm_records": 240666,
+    "relevant_lca_records": 451158
+  },
+  "default_ordering": {
+    "all_employers": "relevant_lca_count DESC, initial_approvals DESC, organization_name",
+    "baseline_top_employers": [
+      "Amazon",
+      "COGNIZANT TECHNOLOGY SOLUTIONS US CORP",
+      "Microsoft Corporation",
+      "INFOSYS LIMITED",
+      "TATA CONSULTANCY SERVICES LIMITED"
+    ],
+    "baseline_top_institutions": [
+      "University of Pennsylvania",
+      "University of California-San Francisco",
+      "University of Michigan-Ann Arbor",
+      "University of Wisconsin-Madison",
+      "University of California-Los Angeles"
+    ],
+    "organization_search": "relevant_lca_count DESC, organization_name",
+    "research_institutions": "total_rd DESC, relevant_lca_count DESC, official_name"
+  },
+  "evidence_coverage": {
+    "everify_confirmed": {
+      "count": 7,
+      "percentage": 0.0035,
+      "total": 201000
+    },
+    "everify_lookup": {
+      "count": 10,
+      "percentage": 0.005,
+      "total": 201000
+    },
+    "positive_opt": {
+      "count": 92,
+      "percentage": 0.0458,
+      "total": 201000
+    }
+  },
+  "git_commit_sha": "b28148c3cfd5e04277e60c057b73714e45792b61",
+  "latency_ms": {
+    "comparison": {
+      "median_ms": 39.04,
+      "result_rows_or_bytes": 3,
+      "runs_ms": [
+        39.04,
+        35.17,
+        41.16
+      ]
+    },
+    "employer_search": {
+      "median_ms": 332.62,
+      "result_rows_or_bytes": 500,
+      "runs_ms": [
+        351.96,
+        332.62,
+        319.04
+      ]
+    },
+    "full_filtered_employer_csv_export": {
+      "median_ms": 2316.52,
+      "result_rows_or_bytes": 147938133,
+      "runs_ms": [
+        2316.52
+      ]
+    },
+    "full_filtered_institution_csv_export": {
+      "median_ms": 122.88,
+      "result_rows_or_bytes": 2600285,
+      "runs_ms": [
+        122.88
+      ]
+    },
+    "institution_search": {
+      "median_ms": 40.06,
+      "result_rows_or_bytes": 500,
+      "runs_ms": [
+        40.06,
+        34.75,
+        40.33
+      ]
+    },
+    "organization_detail": {
+      "median_ms": 490.87,
+      "result_rows_or_bytes": null,
+      "runs_ms": [
+        567.11,
+        490.87,
+        473.45
+      ]
+    }
+  },
+  "policy_coverage": {
+    "institutions_attempted": 200,
+    "institutions_with_any_accepted_fact": 100,
+    "institutions_with_complete_core_profile": 0
+  },
+  "quality": {
+    "critical_failure_count": 0,
+    "passed": true,
+    "warning_count": 1,
+    "warnings": [
+      {
+        "category": "schema",
+        "check_id": "manifest_warnings",
+        "critical": false,
+        "details": "8 source artifacts retain validation warnings.",
+        "status": "WARN",
+        "threshold": "review every warning",
+        "value": 8.0
+      }
+    ]
+  },
+  "release": {
+    "actual_checksums": {
+      "build-metadata.json": "99ec2ba5a19f573fe2cba7fa18c18751e4ff5d01d44e3e907ad04dece93bb922",
+      "build-state.zip": "1c8736e56b31eb8eac835ce851a5343debc1954226303cb8b9acf54e8d3d1392",
+      "data-quality.json": "4a5c90f6e2ca8105ffd66c0793b743a9feda3bbf72f02fcfc3c2c790ee5dc2ac",
+      "immigration.duckdb": "04c12f0aaff77c35744bde54bdb76eac61ea8e1a11c1f7bfa1fbac2fd061d457",
+      "processed-parquet.zip": "dbd9cfb86541aef7d99ee7dc2b5f2fbdc1f79debda87cef232c20a077ed30627",
+      "source-manifests.zip": "a9c83e208349f560c2c3457e5ebbff163cba6e59440c74bf0749f25d320062fc"
+    },
+    "asset_sizes_bytes": {
+      "build-metadata.json": 686,
+      "build-state.zip": 471577880,
+      "checksums.sha256": 518,
+      "data-quality.json": 4610,
+      "immigration.duckdb": 264253440,
+      "processed-parquet.zip": 81329630,
+      "source-manifests.zip": 56509
+    },
+    "build_id": "v1-df123235990f8fbc",
+    "checksums_valid": true,
+    "expected_checksums": {
+      "build-metadata.json": "99ec2ba5a19f573fe2cba7fa18c18751e4ff5d01d44e3e907ad04dece93bb922",
+      "build-state.zip": "1c8736e56b31eb8eac835ce851a5343debc1954226303cb8b9acf54e8d3d1392",
+      "data-quality.json": "4a5c90f6e2ca8105ffd66c0793b743a9feda3bbf72f02fcfc3c2c790ee5dc2ac",
+      "immigration.duckdb": "04c12f0aaff77c35744bde54bdb76eac61ea8e1a11c1f7bfa1fbac2fd061d457",
+      "processed-parquet.zip": "dbd9cfb86541aef7d99ee7dc2b5f2fbdc1f79debda87cef232c20a077ed30627",
+      "source-manifests.zip": "a9c83e208349f560c2c3457e5ebbff163cba6e59440c74bf0749f25d320062fc"
+    },
+    "generated_at": "2026-08-15T17:23:55.742576+00:00",
+    "metric_version": "scored_metrics_v1",
+    "score_version": "evidence_scores_v1_2026_08",
+    "tag": "data-2026-08-15"
+  },
+  "score_coverage": {
+    "employer.green_card_history_score": {
+      "count": 88619,
+      "percentage": 44.0891,
+      "total": 201000
+    },
+    "employer.h1b_history_score": {
+      "count": 146326,
+      "percentage": 72.799,
+      "total": 201000
+    },
+    "employer.immigration_evidence_score": {
+      "count": 70,
+      "percentage": 0.0348,
+      "total": 201000
+    },
+    "employer.stem_opt_readiness_score": {
+      "count": 98,
+      "percentage": 0.0488,
+      "total": 201000
+    },
+    "institution.policy_support_score": {
+      "count": 23,
+      "percentage": 0.3843,
+      "total": 5985
+    },
+    "institution.research_pathway_score": {
+      "count": 6,
+      "percentage": 0.1003,
+      "total": 5985
+    },
+    "institution.research_strength_score": {
+      "count": 911,
+      "percentage": 15.2214,
+      "total": 5985
+    }
+  },
+  "streamlit_measurement": {
+    "cold_errors": [],
+    "cold_start_ms": 1792.03,
+    "method": "streamlit.testing.v1.AppTest Home.py execution",
+    "warm_errors": [],
+    "warm_rerun_ms": 85.51
+  }
+}

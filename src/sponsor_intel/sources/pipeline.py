@@ -20,6 +20,7 @@ from sponsor_intel.sources.ipeds import IpedsAdapter
 from sponsor_intel.sources.manifests import (
     ArtifactManifestStore,
     RawArtifactManifestStore,
+    validate_lca_coverage_segments,
     write_json_atomic,
 )
 from sponsor_intel.sources.models import (
@@ -151,6 +152,10 @@ class IngestionPipeline:
                 if (
                     existing is not None
                     and not force_download
+                    and existing.raw_row_count is not None
+                    and existing.is_partial_period == candidate.is_partial_period
+                    and existing.is_quarter_partition == candidate.is_quarter_partition
+                    and existing.coverage_start_quarter == candidate.coverage_start_quarter
                     and existing.parquet_path.is_file()
                     and existing.parser_version == config.parser_version
                     and existing.schema_version == config.schema_version
@@ -180,7 +185,13 @@ class IngestionPipeline:
                     else None
                 )
                 downloaded = cached_download or adapter.download(candidate)
-                if cached_download is None:
+                if (
+                    cached_download is None
+                    or raw_record is None
+                    or raw_record.is_partial_period != candidate.is_partial_period
+                    or raw_record.is_quarter_partition != candidate.is_quarter_partition
+                    or raw_record.coverage_start_quarter != candidate.coverage_start_quarter
+                ):
                     self.raw_manifest_store.upsert(
                         RawArtifactManifestRecord(
                             source_artifact_id=downloaded.source_artifact_id,
@@ -192,6 +203,8 @@ class IngestionPipeline:
                             fiscal_year=candidate.fiscal_year,
                             fiscal_quarter=candidate.fiscal_quarter,
                             is_partial_period=candidate.is_partial_period,
+                            is_quarter_partition=candidate.is_quarter_partition,
+                            coverage_start_quarter=candidate.coverage_start_quarter,
                             file_name=candidate.file_name,
                             mime_type=downloaded.mime_type,
                             byte_size=downloaded.byte_size,
@@ -236,6 +249,8 @@ class IngestionPipeline:
                     fiscal_year=candidate.fiscal_year,
                     fiscal_quarter=candidate.fiscal_quarter,
                     is_partial_period=candidate.is_partial_period,
+                    is_quarter_partition=candidate.is_quarter_partition,
+                    coverage_start_quarter=candidate.coverage_start_quarter,
                     file_name=candidate.file_name,
                     mime_type=downloaded.mime_type,
                     byte_size=downloaded.byte_size,
@@ -243,6 +258,7 @@ class IngestionPipeline:
                     record_layout_url=candidate.record_layout_url,
                     parser_version=config.parser_version,
                     schema_version=config.schema_version,
+                    raw_row_count=persisted.raw_row_count,
                     row_count=persisted.row_count,
                     column_count=persisted.column_count,
                     validation_status=persisted.validation.status,
@@ -269,6 +285,15 @@ class IngestionPipeline:
                         "record_count": record.row_count,
                     },
                 )
+
+        records_by_url = {record.download_url: record for record in records}
+        validate_lca_coverage_segments(
+            tuple(
+                (candidate, records_by_url[candidate.download_url])
+                for candidate in candidates
+                if candidate.download_url in records_by_url
+            )
+        )
 
         if source_id in {"ipeds", "herd"}:
             build_institution_tables(

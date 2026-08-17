@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import tempfile
 from pathlib import Path
 
 import duckdb
 
+from sponsor_intel.case_status import canonical_case_status_sql
 from sponsor_intel.database.models import DatabaseBuildSummary
 
 REQUIRED_VIEWS = (
@@ -24,12 +26,79 @@ REQUIRED_VIEWS = (
     "vw_everify_review_queue",
     "vw_policy_review_queue",
     "vw_data_health",
+    "vw_source_artifacts",
     "vw_quality_checks",
 )
+
+LOGGER = logging.getLogger(__name__)
+
+_POLICY_TABLES = frozenset(
+    {
+        "policy_candidates",
+        "policy_documents",
+        "policy_facts",
+        "policy_review_queue",
+    }
+)
+_POLICY_REQUIRED_COLUMNS = {
+    "policy_documents": frozenset(
+        {
+            "policy_document_id",
+            "institution_id",
+            "document_type",
+            "title",
+            "published_or_updated_date",
+            "is_current",
+        }
+    ),
+    "policy_facts": frozenset(
+        {
+            "policy_fact_id",
+            "institution_id",
+            "policy_document_id",
+            "fact_type",
+            "fact_value",
+            "qualifier",
+            "supporting_excerpt",
+            "section_or_page",
+            "source_url",
+            "retrieved_at",
+            "is_current",
+            "confidence",
+            "exact_excerpt_verified",
+            "human_review_status",
+            "reviewer_note",
+            "contradiction_group_id",
+            "valid_from",
+            "valid_to",
+        }
+    ),
+}
 
 
 def _sql_path(path: Path) -> str:
     return path.resolve().as_posix().replace("'", "''")
+
+
+def _table_names(connection: duckdb.DuckDBPyConnection) -> set[str]:
+    return {str(row[0]) for row in connection.execute("SHOW TABLES").fetchall()}
+
+
+def _discard_incompatible_policy_tables(connection: duckdb.DuckDBPyConnection) -> None:
+    available = _table_names(connection)
+    for table, required_columns in _POLICY_REQUIRED_COLUMNS.items():
+        if table not in available:
+            continue
+        columns = {str(row[0]) for row in connection.execute(f"DESCRIBE {table}").fetchall()}
+        missing = required_columns.difference(columns)
+        if not missing:
+            continue
+        connection.execute(f"DROP TABLE {table}")
+        LOGGER.warning(
+            "Ignoring optional policy table %s with incompatible schema; missing %s",
+            table,
+            ", ".join(sorted(missing)),
+        )
 
 
 class DuckDBBuilder:
@@ -71,6 +140,7 @@ class DuckDBBuilder:
             "employer_metrics",
             "institution_metrics",
             "data_health",
+            "source_artifacts",
         )
         optional_tables = (
             "everify_lookup_priorities",
@@ -87,6 +157,7 @@ class DuckDBBuilder:
             raise ValueError(f"Required resolved table is unavailable: {aliases_path}")
         connection = duckdb.connect(str(temporary_path))
         try:
+            case_status = canonical_case_status_sql()
             for table in tables:
                 connection.execute(
                     f"CREATE TABLE {table} AS SELECT * FROM read_parquet(?)",
@@ -95,10 +166,20 @@ class DuckDBBuilder:
             for table in optional_tables:
                 path = self.data_root / "processed" / f"{table}.parquet"
                 if path.is_file():
-                    connection.execute(
-                        f"CREATE TABLE {table} AS SELECT * FROM read_parquet(?)",
-                        [_sql_path(path)],
-                    )
+                    try:
+                        connection.execute(
+                            f"CREATE TABLE {table} AS SELECT * FROM read_parquet(?)",
+                            [_sql_path(path)],
+                        )
+                    except duckdb.Error as error:
+                        if table not in _POLICY_TABLES:
+                            raise
+                        LOGGER.warning(
+                            "Ignoring unreadable optional policy table %s (%s)",
+                            path.name,
+                            type(error).__name__,
+                        )
+            _discard_incompatible_policy_tables(connection)
             if "everify_observations" not in {
                 row[0] for row in connection.execute("SHOW TABLES").fetchall()
             }:
@@ -269,36 +350,74 @@ class DuckDBBuilder:
                 "CREATE VIEW vw_organization_detail AS SELECT * FROM employer_metrics"
             )
             connection.execute(
-                """
+                f"""
                 CREATE VIEW vw_h1b_trends AS
-                WITH lca AS (
-                    SELECT
-                        organization_id,
-                        fiscal_year,
-                        count(*) AS lca_count,
-                        count_if(technical_role IS TRUE) AS relevant_lca_count,
-                        bool_or(is_partial_period) AS is_partial_period
+                WITH lca_scoped AS (
+                    SELECT organization_id, 'LEGAL_ENTITY' AS identity_scope, * EXCLUDE (
+                        organization_id
+                    )
                     FROM lca_cases_resolved
                     WHERE organization_id IS NOT NULL
-                    GROUP BY organization_id, fiscal_year
+                    UNION ALL
+                    SELECT parent_organization_id AS organization_id,
+                        'PARENT_ROLLUP' AS identity_scope, * EXCLUDE (organization_id)
+                    FROM lca_cases_resolved
+                    WHERE parent_organization_id IS NOT NULL
+                ), petition_scoped AS (
+                    SELECT organization_id, 'LEGAL_ENTITY' AS identity_scope, * EXCLUDE (
+                        organization_id
+                    )
+                    FROM h1b_petitions_resolved
+                    WHERE organization_id IS NOT NULL
+                    UNION ALL
+                    SELECT parent_organization_id AS organization_id,
+                        'PARENT_ROLLUP' AS identity_scope, * EXCLUDE (organization_id)
+                    FROM h1b_petitions_resolved
+                    WHERE parent_organization_id IS NOT NULL
+                ), lca AS (
+                    SELECT
+                        organization_id,
+                        identity_scope,
+                        fiscal_year,
+                        count(*) AS lca_count,
+                        count_if(
+                            technical_role IS TRUE
+                            AND upper(trim(coalesce(visa_class, ''))) = 'H-1B'
+                            AND {case_status} = 'CERTIFIED'
+                        ) AS relevant_certified_lca_count,
+                        count_if(
+                            technical_role IS TRUE
+                            AND upper(trim(coalesce(visa_class, ''))) = 'H-1B'
+                            AND {case_status} = 'CERTIFIED-WITHDRAWN'
+                        ) AS relevant_certified_withdrawn_lca_count,
+                        bool_or(is_partial_period) AS is_partial_period
+                    FROM lca_scoped
+                    GROUP BY organization_id, identity_scope, fiscal_year
                 ), petitions AS (
                     SELECT
                         organization_id,
+                        identity_scope,
                         fiscal_year,
                         sum(initial_approvals) AS initial_approvals,
                         sum(initial_denials) AS initial_denials,
                         sum(continuing_approvals) AS continuing_approvals,
                         sum(continuing_denials) AS continuing_denials,
                         bool_or(is_partial_period) AS is_partial_period
-                    FROM h1b_petitions_resolved
-                    WHERE organization_id IS NOT NULL
-                    GROUP BY organization_id, fiscal_year
+                    FROM petition_scoped
+                    GROUP BY organization_id, identity_scope, fiscal_year
                 )
                 SELECT
                     coalesce(l.organization_id, p.organization_id) AS organization_id,
+                    coalesce(l.identity_scope, p.identity_scope) AS identity_scope,
                     coalesce(l.fiscal_year, p.fiscal_year) AS fiscal_year,
                     coalesce(l.lca_count, 0) AS lca_count,
-                    coalesce(l.relevant_lca_count, 0) AS relevant_lca_count,
+                    coalesce(l.relevant_certified_lca_count, 0)
+                        AS relevant_certified_lca_count,
+                    coalesce(l.relevant_certified_withdrawn_lca_count, 0)
+                        AS relevant_certified_withdrawn_lca_count,
+                    coalesce(l.relevant_certified_lca_count, 0)
+                        + 0.5 * coalesce(l.relevant_certified_withdrawn_lca_count, 0)
+                        AS weighted_relevant_lca_count,
                     coalesce(p.initial_approvals, 0) AS initial_approvals,
                     coalesce(p.initial_denials, 0) AS initial_denials,
                     coalesce(p.continuing_approvals, 0) AS continuing_approvals,
@@ -308,36 +427,81 @@ class DuckDBBuilder:
                     'DERIVED_METRIC' AS evidence_class
                 FROM lca AS l
                 FULL OUTER JOIN petitions AS p
-                    ON l.organization_id = p.organization_id AND l.fiscal_year = p.fiscal_year
+                    ON l.organization_id = p.organization_id
+                    AND l.identity_scope = p.identity_scope
+                    AND l.fiscal_year = p.fiscal_year
                 """
             )
             connection.execute(
-                """
+                f"""
                 CREATE VIEW vw_perm_trends AS
+                WITH scoped AS (
+                    SELECT organization_id, 'LEGAL_ENTITY' AS identity_scope, * EXCLUDE (
+                        organization_id
+                    )
+                    FROM perm_cases_resolved
+                    WHERE organization_id IS NOT NULL
+                    UNION ALL
+                    SELECT parent_organization_id AS organization_id,
+                        'PARENT_ROLLUP' AS identity_scope, * EXCLUDE (organization_id)
+                    FROM perm_cases_resolved
+                    WHERE parent_organization_id IS NOT NULL
+                )
                 SELECT
                     organization_id,
+                    identity_scope,
                     fiscal_year,
                     count(*) AS perm_count,
                     count_if(
                         technical_role IS TRUE
-                        AND upper(coalesce(case_status, '')) LIKE 'CERTIFIED%'
-                    )
-                        AS relevant_certified_perm_count,
-                    count_if(upper(coalesce(case_status, '')) LIKE 'CERTIFIED%') AS certified_count,
+                        AND {case_status} = 'CERTIFIED'
+                    ) AS relevant_certified_perm_count,
+                    count_if(
+                        technical_role IS TRUE
+                        AND {case_status} = 'CERTIFIED-EXPIRED'
+                    ) AS relevant_certified_expired_perm_count,
+                    count_if(
+                        technical_role IS TRUE
+                        AND {case_status} = 'CERTIFIED'
+                    ) + 0.5 * count_if(
+                        technical_role IS TRUE
+                        AND {case_status} = 'CERTIFIED-EXPIRED'
+                    ) AS weighted_relevant_perm_count,
+                    count_if({case_status} = 'CERTIFIED')
+                        AS certified_count,
+                    count_if({case_status} = 'CERTIFIED-EXPIRED')
+                        AS certified_expired_count,
                     count_if(upper(coalesce(case_status, '')) LIKE 'DENIED%') AS denied_count,
                     count_if(upper(coalesce(case_status, '')) LIKE 'WITHDRAWN%') AS withdrawn_count,
                     bool_or(is_partial_period) AS is_partial_period,
                     'DERIVED_METRIC' AS evidence_class
-                FROM perm_cases_resolved
-                WHERE organization_id IS NOT NULL
-                GROUP BY organization_id, fiscal_year
+                FROM scoped
+                GROUP BY organization_id, identity_scope, fiscal_year
                 """
             )
             connection.execute(
-                """
+                f"""
                 CREATE VIEW vw_relevant_titles AS
+                WITH lca_scoped AS (
+                    SELECT organization_id, 'LEGAL_ENTITY' AS identity_scope, * EXCLUDE (
+                        organization_id
+                    ) FROM lca_cases_resolved WHERE organization_id IS NOT NULL
+                    UNION ALL
+                    SELECT parent_organization_id AS organization_id,
+                        'PARENT_ROLLUP' AS identity_scope, * EXCLUDE (organization_id)
+                    FROM lca_cases_resolved WHERE parent_organization_id IS NOT NULL
+                ), perm_scoped AS (
+                    SELECT organization_id, 'LEGAL_ENTITY' AS identity_scope, * EXCLUDE (
+                        organization_id
+                    ) FROM perm_cases_resolved WHERE organization_id IS NOT NULL
+                    UNION ALL
+                    SELECT parent_organization_id AS organization_id,
+                        'PARENT_ROLLUP' AS identity_scope, * EXCLUDE (organization_id)
+                    FROM perm_cases_resolved WHERE parent_organization_id IS NOT NULL
+                )
                 SELECT
                     organization_id,
+                    identity_scope,
                     'dol_lca' AS source_id,
                     job_title_raw,
                     soc_code,
@@ -347,12 +511,17 @@ class DuckDBBuilder:
                     count(*) AS record_count,
                     max(fiscal_year) AS last_activity_year,
                     'DERIVED_METRIC' AS evidence_class
-                FROM lca_cases_resolved
-                WHERE organization_id IS NOT NULL AND technical_role IS TRUE
+                FROM lca_scoped
+                WHERE technical_role IS TRUE
+                    AND upper(trim(coalesce(visa_class, ''))) = 'H-1B'
+                    AND {case_status} IN (
+                        'CERTIFIED', 'CERTIFIED-WITHDRAWN'
+                    )
                 GROUP BY ALL
                 UNION ALL
                 SELECT
                     organization_id,
+                    identity_scope,
                     'dol_perm' AS source_id,
                     job_title_raw,
                     soc_code,
@@ -362,8 +531,11 @@ class DuckDBBuilder:
                     count(*) AS record_count,
                     max(fiscal_year) AS last_activity_year,
                     'DERIVED_METRIC' AS evidence_class
-                FROM perm_cases_resolved
-                WHERE organization_id IS NOT NULL AND technical_role IS TRUE
+                FROM perm_scoped
+                WHERE technical_role IS TRUE
+                    AND {case_status} IN (
+                        'CERTIFIED', 'CERTIFIED-EXPIRED'
+                    )
                 GROUP BY ALL
                 """
             )
@@ -398,6 +570,12 @@ class DuckDBBuilder:
                     f.valid_from,
                     f.valid_to,
                     CASE
+                        WHEN f.human_review_status = 'REVIEWED_NOT_STATED'
+                            AND f.exact_excerpt_verified IS TRUE
+                            AND f.is_current IS TRUE
+                            AND f.valid_to IS NULL
+                            AND starts_with(f.source_url, 'https://')
+                            THEN 'REVIEWED_OFFICIAL_POLICY_NOT_STATED'
                         WHEN f.human_review_status = 'REVIEWED_ACCEPTED'
                             AND f.exact_excerpt_verified IS TRUE
                             AND f.is_current IS TRUE
@@ -427,7 +605,8 @@ class DuckDBBuilder:
                 CREATE VIEW vw_entity_review_queue AS
                 SELECT *
                 FROM entity_aliases
-                WHERE match_status = 'REVIEW' OR review_status IN ('REVIEW', 'NEEDS_REVIEW')
+                WHERE match_status IN ('REVIEW_REQUIRED', 'REJECTED', 'UNRESOLVED')
+                   OR review_status IN ('REVIEW_REQUIRED', 'REJECTED', 'UNRESOLVED')
                 """
             )
             connection.execute(
@@ -445,6 +624,7 @@ class DuckDBBuilder:
                 """
             )
             connection.execute("CREATE VIEW vw_data_health AS SELECT * FROM data_health")
+            connection.execute("CREATE VIEW vw_source_artifacts AS SELECT * FROM source_artifacts")
             connection.execute("CREATE VIEW vw_quality_checks AS SELECT * FROM quality_checks")
             connection.execute("CHECKPOINT")
             employer_row = connection.execute(

@@ -68,6 +68,8 @@ _STATE_CODES = {
     "WISCONSIN": "WI",
     "WYOMING": "WY",
 }
+_VALID_STATE_CODES = frozenset(_STATE_CODES.values())
+_STATE_NAMES_BY_LENGTH = tuple(sorted(_STATE_CODES, key=len, reverse=True))
 
 
 def _fold_unicode(value: str) -> str:
@@ -125,7 +127,18 @@ def normalize_state(value: str | None) -> str:
     if value is None:
         return ""
     compact = _PUNCTUATION.sub("", _fold_unicode(value).upper())
-    return _STATE_CODES.get(compact, compact[:3])
+    if compact in _VALID_STATE_CODES:
+        return compact
+    if compact in _STATE_CODES:
+        return _STATE_CODES[compact]
+    # Older PERM disclosures contain polluted values such as
+    # ``MASSACHUSETTS MASSACHUSETTS`` and ``NORTH CAROLINA WATAUGA COUNTY``.
+    # They still identify the legal-employer state, but must not become the
+    # misleading pseudo-codes MAS/NOR and trigger false location conflicts.
+    for state_name in _STATE_NAMES_BY_LENGTH:
+        if compact.startswith(state_name):
+            return _STATE_CODES[state_name]
+    return ""
 
 
 def normalize_postal_code(value: str | None) -> str:

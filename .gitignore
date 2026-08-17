@@ -9,10 +9,13 @@ __pycache__/
 .coverage
 htmlcov/
 .pyright/
-.streamlit/
+.streamlit/*
+!.streamlit/config.toml
+!.streamlit/secrets.example.toml
 .playwright-cli/
 
 # Generated data and application outputs
+.ci/
 data/raw/
 data/staging/
 data/resolved/
@@ -21,7 +24,15 @@ data/processed/
 data/cache/
 db/*.duckdb
 db/*.duckdb.*
-outputs/
+outputs/*
+!outputs/reports/
+outputs/reports/*
+!outputs/reports/phase10/
+!outputs/reports/phase10/**
+!outputs/review/
+outputs/review/*
+!outputs/review/core_policy_top50.csv
+!outputs/review/core_policy_top50.md
 
 # Local editor and operating-system files
 .idea/

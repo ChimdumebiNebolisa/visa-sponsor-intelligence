@@ -12,6 +12,10 @@ permissions:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    env:
+      SPONSOR_INTEL_CI_FIXTURE_ROOT: .ci/product-a-fixture
+      SPONSOR_INTEL_DEPLOYMENT_MODE: local
+      SPONSOR_INTEL_REQUIRE_DATA: "true"
     steps:
       - name: Check out repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -31,14 +35,74 @@ jobs:
       - name: Install locked dependencies
         run: uv sync --frozen
 
+      - name: Build sanitized Product A metrics and DuckDB fixture
+        run: >-
+          uv run python scripts/build_phase10_ci_fixture.py
+          --output-root "$SPONSOR_INTEL_CI_FIXTURE_ROOT"
+
       - name: Check formatting and lint
         run: make lint
 
       - name: Type-check
         run: make typecheck
 
+      - name: Exercise Product A quality contracts without network or secrets
+        run: uv run pytest --no-cov tests/unit/test_quality_release.py
+
       - name: Test
         run: make test
 
-      - name: Smoke-test Streamlit startup
+      - name: Smoke-test Streamlit against the nonempty Product A fixture
         run: make smoke
+
+      - name: Exercise the Product A acceptance runner on an offline fixture
+        run: make acceptance-ci
+
+  deployment-install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Install read-only application dependencies
+        run: |
+          python -m venv .deployment-venv
+          .deployment-venv/bin/python -m pip install --upgrade pip
+          .deployment-venv/bin/python -m pip install -r app/requirements.txt
+
+      - name: Verify lean deployment boundary
+        run: |
+          .deployment-venv/bin/python -m pip check
+          .deployment-venv/bin/python - <<'PY'
+          import importlib.util
+          import sys
+          import duckdb
+          import httpx
+          import polars
+          import sponsor_intel
+          import streamlit
+          from sponsor_intel.deployment import ReleaseBootstrap
+
+          sys.path.insert(0, "app")
+          from components.explorer import explorer_service
+
+          excluded = (
+              "fastexcel",
+              "openai",
+              "pdfplumber",
+              "playwright",
+              "selectolax",
+              "xlsx2csv",
+          )
+          present = [name for name in excluded if importlib.util.find_spec(name) is not None]
+          if present:
+              raise SystemExit(f"Heavy ingestion dependencies leaked into deployment: {present}")
+          PY
+          du -sh .deployment-venv

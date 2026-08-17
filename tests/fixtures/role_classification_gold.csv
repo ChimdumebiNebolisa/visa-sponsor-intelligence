@@ -409,16 +409,16 @@ role-041-7,dol_lca,2023,staffing_consulting,Computer and Information Research Sc
 role-041-8,dol_perm,2024,other_industry,Computer and Information Research Scientist,,true,computer_science_research,false
 role-041-9,dol_lca,2025,technology,Computer and Information Research Scientist,,true,computer_science_research,false
 role-041-10,dol_perm,2026,university,Computer and Information Research Scientist,,true,computer_science_research,false
-role-042-1,dol_lca,2022,other_industry,Computer Science Professor,,true,computer_science_research,false
-role-042-2,dol_perm,2023,technology,Computer Science Professor,,true,computer_science_research,false
-role-042-3,dol_lca,2024,university,Computer Science Professor,,true,computer_science_research,false
-role-042-4,dol_perm,2025,hospital_medical,Computer Science Professor,,true,computer_science_research,false
-role-042-5,dol_lca,2026,research_institute,Computer Science Professor,,true,computer_science_research,false
-role-042-6,dol_perm,2022,staffing_consulting,Computer Science Professor,,true,computer_science_research,false
-role-042-7,dol_lca,2023,other_industry,Computer Science Professor,,true,computer_science_research,false
-role-042-8,dol_perm,2024,technology,Computer Science Professor,,true,computer_science_research,false
-role-042-9,dol_lca,2025,university,Computer Science Professor,,true,computer_science_research,false
-role-042-10,dol_perm,2026,hospital_medical,Computer Science Professor,,true,computer_science_research,false
+role-042-1,dol_lca,2022,other_industry,Computer Science Professor,,false,not_relevant,false
+role-042-2,dol_perm,2023,technology,Computer Science Professor,,false,not_relevant,false
+role-042-3,dol_lca,2024,university,Computer Science Professor,,false,not_relevant,false
+role-042-4,dol_perm,2025,hospital_medical,Computer Science Professor,,false,not_relevant,false
+role-042-5,dol_lca,2026,research_institute,Computer Science Professor,,false,not_relevant,false
+role-042-6,dol_perm,2022,staffing_consulting,Computer Science Professor,,false,not_relevant,false
+role-042-7,dol_lca,2023,other_industry,Computer Science Professor,,false,not_relevant,false
+role-042-8,dol_perm,2024,technology,Computer Science Professor,,false,not_relevant,false
+role-042-9,dol_lca,2025,university,Computer Science Professor,,false,not_relevant,false
+role-042-10,dol_perm,2026,hospital_medical,Computer Science Professor,,false,not_relevant,false
 role-043-1,dol_lca,2022,technology,Software Engineering Manager,,true,technical_management_related,false
 role-043-2,dol_perm,2023,university,Software Engineering Manager,,true,technical_management_related,false
 role-043-3,dol_lca,2024,hospital_medical,Software Engineering Manager,,true,technical_management_related,false
@@ -709,16 +709,16 @@ role-071-7,dol_lca,2023,staffing_consulting,Research Engineer,,,ambiguous,true
 role-071-8,dol_perm,2024,other_industry,Research Engineer,,,ambiguous,true
 role-071-9,dol_lca,2025,technology,Research Engineer,,,ambiguous,true
 role-071-10,dol_perm,2026,university,Research Engineer,,,ambiguous,true
-role-072-1,dol_lca,2022,other_industry,Postdoctoral Fellow,,,ambiguous,true
-role-072-2,dol_perm,2023,technology,Postdoctoral Fellow,,,ambiguous,true
-role-072-3,dol_lca,2024,university,Postdoctoral Fellow,,,ambiguous,true
-role-072-4,dol_perm,2025,hospital_medical,Postdoctoral Fellow,,,ambiguous,true
-role-072-5,dol_lca,2026,research_institute,Postdoctoral Fellow,,,ambiguous,true
-role-072-6,dol_perm,2022,staffing_consulting,Postdoctoral Fellow,,,ambiguous,true
-role-072-7,dol_lca,2023,other_industry,Postdoctoral Fellow,,,ambiguous,true
-role-072-8,dol_perm,2024,technology,Postdoctoral Fellow,,,ambiguous,true
-role-072-9,dol_lca,2025,university,Postdoctoral Fellow,,,ambiguous,true
-role-072-10,dol_perm,2026,hospital_medical,Postdoctoral Fellow,,,ambiguous,true
+role-072-1,dol_lca,2022,other_industry,Postdoctoral Fellow,,false,not_relevant,false
+role-072-2,dol_perm,2023,technology,Postdoctoral Fellow,,false,not_relevant,false
+role-072-3,dol_lca,2024,university,Postdoctoral Fellow,,false,not_relevant,false
+role-072-4,dol_perm,2025,hospital_medical,Postdoctoral Fellow,,false,not_relevant,false
+role-072-5,dol_lca,2026,research_institute,Postdoctoral Fellow,,false,not_relevant,false
+role-072-6,dol_perm,2022,staffing_consulting,Postdoctoral Fellow,,false,not_relevant,false
+role-072-7,dol_lca,2023,other_industry,Postdoctoral Fellow,,false,not_relevant,false
+role-072-8,dol_perm,2024,technology,Postdoctoral Fellow,,false,not_relevant,false
+role-072-9,dol_lca,2025,university,Postdoctoral Fellow,,false,not_relevant,false
+role-072-10,dol_perm,2026,hospital_medical,Postdoctoral Fellow,,false,not_relevant,false
 role-073-1,dol_lca,2022,technology,Research Associate,,,ambiguous,true
 role-073-2,dol_perm,2023,university,Research Associate,,,ambiguous,true
 role-073-3,dol_lca,2024,hospital_medical,Research Associate,,,ambiguous,true

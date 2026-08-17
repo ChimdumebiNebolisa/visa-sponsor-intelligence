@@ -55,12 +55,46 @@ def build_institution_tables(
     ipeds_records = _latest_records(records, "ipeds")
     if not ipeds_records:
         return
-    latest_ipeds = max(ipeds_records, key=lambda item: (item.fiscal_year, item.retrieved_at))
+    latest_schema_record = max(ipeds_records, key=lambda item: item.retrieved_at)
+    current_ipeds_records = [
+        record
+        for record in ipeds_records
+        if record.schema_version == latest_schema_record.schema_version
+        and record.parser_version == latest_schema_record.parser_version
+    ]
+    directories = [
+        record for record in current_ipeds_records if record.file_name.upper().startswith("HD")
+    ]
+    characteristics = [
+        record for record in current_ipeds_records if record.file_name.upper().startswith("IC")
+    ]
+    if not directories or not characteristics:
+        raise DataQualityError("Finalized IPEDS requires both HD and IC artifacts")
+    latest_ipeds = max(directories, key=lambda item: (item.fiscal_year, item.retrieved_at))
+    matching_characteristics = [
+        record for record in characteristics if record.fiscal_year == latest_ipeds.fiscal_year
+    ]
+    if not matching_characteristics:
+        raise DataQualityError("Finalized IPEDS HD and IC artifacts must use the same year")
+    latest_characteristics = max(matching_characteristics, key=lambda item: item.retrieved_at)
     ipeds = pl.read_parquet(latest_ipeds.parquet_path)
+    ic = pl.read_parquet(latest_characteristics.parquet_path).select(
+        "institution_id",
+        "characteristics_source_artifact_id",
+        "characteristics_year",
+        "institution_affiliation_code",
+        "calendar_system_code",
+        "open_admissions_code",
+        "years_of_college_code",
+    )
+    ipeds = ipeds.join(ic, on="institution_id", how="left", validate="1:1").with_columns(
+        pl.col("sector").alias("institution_category")
+    )
     institution_columns = [
         "institution_id",
         "ipeds_unitid",
         "official_name",
+        "institution_aliases",
         "system_name",
         "control",
         "sector",
@@ -69,12 +103,24 @@ def build_institution_tables(
         "official_domain",
         "highest_degree",
         "active_status",
+        "institution_category",
+        "release_status",
+        "is_finalized",
+        "characteristics_source_artifact_id",
+        "characteristics_year",
+        "institution_affiliation_code",
+        "calendar_system_code",
+        "open_admissions_code",
+        "years_of_college_code",
         "legal_entity_id",
         "parent_organization_id",
         "match_confidence",
         "review_status",
         "source_artifact_id",
         "directory_year",
+        "source_url",
+        "source_sha256",
+        "schema_version",
     ]
     institutions = ipeds.select(institution_columns).rename({"stabbr": "state"})
     _write_parquet_atomic(institutions, data_root / "processed" / "institutions.parquet")
@@ -150,6 +196,8 @@ def build_institution_tables(
         {
             "join_policy": "Exact six-digit IPEDS UNITID only; no name-based fallback",
             "institution_directory_year": latest_ipeds.fiscal_year,
+            "institution_characteristics_year": latest_characteristics.fiscal_year,
+            "ipeds_release_status": "FINAL",
             "herd_observation_count": total,
             "identifier_matched_count": matched,
             "needs_review_count": total - matched,
