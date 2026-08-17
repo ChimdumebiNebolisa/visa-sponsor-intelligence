@@ -393,6 +393,15 @@ _EMPLOYER_FIELDS: dict[str, tuple[tuple[str, ...], str]] = {
     "cap_exemption_status": (("cap_exemption_status",), "'UNKNOWN'::VARCHAR"),
     "source_coverage_ratio": (("source_coverage_ratio",), "NULL::DOUBLE"),
     "source_coverage_count": (("source_coverage_count",), "NULL::BIGINT"),
+    "entity_coverage_state": (("entity_coverage_state",), "'UNRESOLVED_IDENTITY'::VARCHAR"),
+    "h1b_entity_coverage_state": (
+        ("h1b_entity_coverage_state",),
+        "'UNRESOLVED_IDENTITY'::VARCHAR",
+    ),
+    "perm_entity_coverage_state": (
+        ("perm_entity_coverage_state",),
+        "'UNRESOLVED_IDENTITY'::VARCHAR",
+    ),
     "has_partial_period": (("has_partial_period",), "false"),
     "current_partial_fiscal_year": (("current_partial_fiscal_year",), "NULL::INTEGER"),
     "current_partial_quarter": (("current_partial_quarter",), "NULL::INTEGER"),

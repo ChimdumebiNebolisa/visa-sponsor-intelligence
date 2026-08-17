@@ -63,12 +63,18 @@ An unresolved identity makes the affected rating `Unrated`; it is not converted 
 resolved legal entity with valid source coverage and no qualifying technical history is a valid
 `No observed … history` result.
 
+Additional unresolved candidates do not invalidate confirmed records: scoreable confirmed evidence
+is `PARTIAL_ENTITY_COVERAGE`, while insufficient confirmed identity evidence is
+`UNRESOLVED_IDENTITY`. Partial coverage displays: `Rating is based on confirmed records. Additional
+ambiguous records were excluded.`
+
 ## Product scopes
 
 - `LEGAL_ENTITY`: the primary evidence scope. Case rows and employer-level source observations keep
   `legal_entity_id` as their organization identity.
 - `PARENT_ROLLUP`: a separately materialized aggregation across reviewed child legal entities. It
-  carries its own organization ID and scope label.
+  carries its own organization ID and scope label. Unreviewed candidate subsidiaries are excluded
+  and disclosed; they never enter the rollup counts.
 
 Detail and comparison views expose the legal ID, optional parent ID, scope, raw aliases, and
 relationship evidence. A user must be able to compare a legal petitioner with its parent without

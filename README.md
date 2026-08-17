@@ -26,6 +26,8 @@ context and do not define current behavior.
   approvals or a promise to sponsor.
 - Distinguishes a validated resolved zero (`No observed technical … history`) from missing or
   invalid evidence (`Unrated`). Zero never becomes one star.
+- Rates confirmed records under `PARTIAL_ENTITY_COVERAGE` when additional ambiguous candidates are
+  excluded, and reserves identity-based `Unrated` for `UNRESOLVED_IDENTITY`.
 - Shows E-Verify, positive-only OPT, institution type, possible cap-exemption context, HERD, and
   retained policy evidence only as supplemental context. None can change sponsorship stars.
 

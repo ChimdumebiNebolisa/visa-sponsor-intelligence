@@ -254,6 +254,65 @@ def test_parent_company_and_petitioning_subsidiaries_remain_separate() -> None:
     assert services["parent_organization_id"] == web_services["parent_organization_id"]
 
 
+def test_reviewed_major_employer_mappings_preserve_legal_scope_and_evidence() -> None:
+    config = _config()
+    observations = pl.concat(
+        [
+            _observations("Microsoft Corporation", city="REDMOND", state="WA", postal_code="98052"),
+            _observations(
+                "Google LLC", city="MOUNTAIN VIEW", state="CA", postal_code="94043"
+            ).with_columns(pl.lit("observation-google").alias("observation_id")),
+            _observations(
+                "IBM Corporation", city="DURHAM", state="NC", postal_code="27709"
+            ).with_columns(
+                pl.lit("dol_perm").alias("source_id"),
+                pl.lit("observation-ibm").alias("observation_id"),
+            ),
+            _observations(
+                "IBM Corporation", city="ARODA", state="VA", postal_code="22709"
+            ).with_columns(
+                pl.lit("uscis_h1b").alias("source_id"),
+                pl.lit("observation-ibm-ambiguous").alias("observation_id"),
+            ),
+            _observations(
+                "Amazon.com Services LLC", city="SEATTLE", state="WA", postal_code="98121"
+            ).with_columns(pl.lit("observation-amazon").alias("observation_id")),
+            _observations(
+                "Meta Platforms, Inc.", city="MENLO PARK", state="CA", postal_code="94025"
+            ).with_columns(pl.lit("observation-meta").alias("observation_id")),
+        ],
+        how="vertical_relaxed",
+    )
+
+    result = resolve_observations(
+        observations,
+        pl.DataFrame(),
+        config,
+        EntityOverrides.from_yaml(),
+    )
+    aliases = {row["observation_id"]: row for row in result.aliases.iter_rows(named=True)}
+
+    assert aliases["observation-0"]["legal_entity_id"] == "legal_microsoft_corporation"
+    assert aliases["observation-google"]["legal_entity_id"] == "legal_google_llc"
+    assert aliases["observation-ibm"]["legal_entity_id"] == "legal_ibm_corporation"
+    assert aliases["observation-amazon"]["parent_organization_id"] == "parent_amazon"
+    assert aliases["observation-meta"]["parent_organization_id"] == "parent_meta"
+    assert aliases["observation-ibm-ambiguous"]["legal_entity_id"] != "legal_ibm_corporation"
+    assert aliases["observation-ibm-ambiguous"]["candidate_legal_entity_id"] == (
+        "legal_ibm_corporation"
+    )
+    assert aliases["observation-ibm"]["evidence_url"].startswith("https://www.ibm.com/")
+    assert aliases["observation-ibm"]["decision_confidence"] == 0.99
+
+    reviewed_children = result.legal_entities.filter(
+        pl.col("parent_organization_id").is_in(
+            ["parent_microsoft", "parent_alphabet", "parent_amazon", "parent_meta", "parent_ibm"]
+        )
+    )
+    assert reviewed_children.filter(pl.col("created_by") != "MANUAL_OVERRIDE").is_empty()
+    assert reviewed_children["evidence_url"].drop_nulls().len() == reviewed_children.height
+
+
 def test_reviewed_alias_and_rejection_regressions() -> None:
     overrides = EntityOverrides.from_yaml()
     alias = resolve_observations(

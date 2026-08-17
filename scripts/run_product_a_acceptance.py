@@ -127,6 +127,9 @@ VALIDATION_FIELDS = (
     "raw_title_examples",
     "case_statuses",
     "source_artifact_ids",
+    "entity_coverage_state",
+    "h1b_entity_coverage_state",
+    "perm_entity_coverage_state",
     "h1b_history_stars",
     "h1b_history_star_label",
     "green_card_history_stars",
@@ -170,11 +173,13 @@ EMPLOYER_TARGETS = (
     EmployerTarget("Amazon legal entity", ("Amazon.com Services LLC",), "LEGAL_ENTITY"),
     EmployerTarget("Amazon parent rollup", ("Amazon",), "PARENT_ROLLUP"),
     EmployerTarget("Meta", ("Meta Platforms, Inc.",), "LEGAL_ENTITY"),
+    EmployerTarget("Meta parent rollup", ("Meta Platforms",), "PARENT_ROLLUP"),
     EmployerTarget(
         "IBM",
         ("IBM Corporation", "International Business Machines Corporation"),
         "LEGAL_ENTITY",
     ),
+    EmployerTarget("IBM parent rollup", ("IBM",), "PARENT_ROLLUP"),
     EmployerTarget(
         "Smart Data Solutions",
         ("Smart Data Solutions LLC",),
@@ -958,8 +963,11 @@ def _expected_star(score: pl.Expr) -> pl.Expr:
 def _formula_contract(frame: pl.DataFrame) -> tuple[dict[str, int], dict[str, float]]:
     required = {
         "entity_resolution_valid",
+        "entity_coverage_state",
         "h1b_entity_resolution_valid",
+        "h1b_entity_coverage_state",
         "perm_entity_resolution_valid",
+        "perm_entity_coverage_state",
         "green_card_history_score",
         "green_card_history_star_label",
         "green_card_history_star_rating",
@@ -1014,16 +1022,12 @@ def _formula_contract(frame: pl.DataFrame) -> tuple[dict[str, int], dict[str, fl
         )
 
     legal_entity_scope = pl.col("identity_scope") == "LEGAL_ENTITY"
-    lca_valid = (
-        pl.col("lca_source_valid").fill_null(False)
-        & pl.col("h1b_entity_resolution_valid").fill_null(False)
-        & ~pl.col("has_unresolved_h1b_candidate_evidence").fill_null(False)
-    )
-    perm_valid = (
-        pl.col("perm_source_valid").fill_null(False)
-        & pl.col("perm_entity_resolution_valid").fill_null(False)
-        & ~pl.col("has_unresolved_perm_candidate_evidence").fill_null(False)
-    )
+    lca_valid = pl.col("lca_source_valid").fill_null(False) & pl.col(
+        "h1b_entity_resolution_valid"
+    ).fill_null(False)
+    perm_valid = pl.col("perm_source_valid").fill_null(False) & pl.col(
+        "perm_entity_resolution_valid"
+    ).fill_null(False)
     uscis_valid = pl.col("uscis_source_valid").fill_null(False)
     entity_valid = pl.col("entity_resolution_valid").fill_null(False)
     recomputed_caps = {
@@ -1541,6 +1545,13 @@ def _representative_validation(
             """
         ).fetchall()
     }
+    reviewed_legal_ids = {
+        str(row[0])
+        for row in connection.execute(
+            "SELECT legal_entity_id FROM legal_entities "
+            "WHERE created_by = 'MANUAL_OVERRIDE' AND review_status = 'MANUAL_OVERRIDE'"
+        ).fetchall()
+    }
     for target in EMPLOYER_TARGETS:
         candidates = _candidate_rows(
             employers,
@@ -1552,7 +1563,52 @@ def _representative_validation(
             candidates = [
                 row for row in candidates if str(row.get("legal_entity_id")) in trusted_legal_ids
             ]
-        if len(candidates) == 1:
+        reviewed_candidates = [
+            row for row in candidates if str(row.get("legal_entity_id")) in reviewed_legal_ids
+        ]
+        if len(reviewed_candidates) == 1:
+            primary = reviewed_candidates[0]
+            excluded = [row for row in candidates if row is not primary]
+            note = ""
+            if excluded:
+                excluded_ids = [str(row.get("organization_id")) for row in excluded]
+                note = (
+                    "Reviewed legal entity selected; additional exact-name candidates were "
+                    f"excluded from its rating: {excluded_ids}"
+                )
+            rows.append(
+                _validation_row(
+                    connection,
+                    primary,
+                    target=target.label,
+                    category="company",
+                    status="VALIDATED",
+                    ambiguity_note=note,
+                )
+            )
+            for candidate in excluded:
+                rows.append(
+                    _validation_row(
+                        connection,
+                        candidate,
+                        target=target.label,
+                        category="company",
+                        status="AMBIGUOUS_CANDIDATE",
+                        ambiguity_note=note,
+                    )
+                )
+            if excluded:
+                unresolved_targets.append(
+                    {
+                        "record_type": "REPRESENTATIVE_VALIDATION",
+                        "target": target.label,
+                        "raw_name": " | ".join(target.aliases),
+                        "match_status": "REVIEW_REQUIRED",
+                        "review_status": "REVIEW_REQUIRED",
+                        "resolution_reason": note,
+                    }
+                )
+        elif len(candidates) == 1:
             rows.append(
                 _validation_row(
                     connection,
@@ -2305,7 +2361,16 @@ def run_acceptance(
                 connection,
                 "SELECT count(*) FROM employer_metrics "
                 "WHERE has_unresolved_h1b_candidate_evidence IS TRUE "
-                "AND h1b_history_status <> 'UNRATED'",
+                "AND ((entity_resolution_valid IS TRUE "
+                "AND weighted_relevant_lca_count > 0 AND ("
+                "h1b_entity_coverage_state <> 'PARTIAL_ENTITY_COVERAGE' "
+                "OR h1b_history_status <> 'RATED' OR position("
+                "'Rating is based on confirmed records. Additional "
+                "ambiguous records were excluded.' "
+                "IN h1b_history_explanation) = 0)) OR (("
+                "entity_resolution_valid IS NOT TRUE OR weighted_relevant_lca_count = 0) AND ("
+                "h1b_entity_coverage_state <> 'UNRESOLVED_IDENTITY' "
+                "OR h1b_history_status <> 'UNRATED')))",
             )
             or 0
         )
@@ -2314,23 +2379,71 @@ def run_acceptance(
                 connection,
                 "SELECT count(*) FROM employer_metrics "
                 "WHERE has_unresolved_perm_candidate_evidence IS TRUE "
-                "AND green_card_history_status <> 'UNRATED'",
+                "AND ((entity_resolution_valid IS TRUE "
+                "AND weighted_relevant_perm_count > 0 AND ("
+                "perm_entity_coverage_state <> 'PARTIAL_ENTITY_COVERAGE' "
+                "OR green_card_history_status <> 'RATED' OR position("
+                "'Rating is based on confirmed records. Additional "
+                "ambiguous records were excluded.' "
+                "IN green_card_history_explanation) = 0)) OR (("
+                "entity_resolution_valid IS NOT TRUE OR weighted_relevant_perm_count = 0) AND ("
+                "perm_entity_coverage_state <> 'UNRESOLVED_IDENTITY' "
+                "OR green_card_history_status <> 'UNRATED')))",
+            )
+            or 0
+        )
+        coverage_state_errors = int(
+            _scalar(
+                connection,
+                """
+                SELECT count(*) FROM employer_metrics
+                WHERE h1b_entity_coverage_state <> CASE
+                        WHEN entity_resolution_valid IS NOT TRUE THEN 'UNRESOLVED_IDENTITY'
+                        WHEN has_unresolved_h1b_candidate_evidence IS TRUE
+                            AND weighted_relevant_lca_count > 0
+                            THEN 'PARTIAL_ENTITY_COVERAGE'
+                        WHEN has_unresolved_h1b_candidate_evidence IS TRUE
+                            THEN 'UNRESOLVED_IDENTITY'
+                        ELSE 'COMPLETE_ENTITY_COVERAGE' END
+                   OR perm_entity_coverage_state <> CASE
+                        WHEN entity_resolution_valid IS NOT TRUE THEN 'UNRESOLVED_IDENTITY'
+                        WHEN has_unresolved_perm_candidate_evidence IS TRUE
+                            AND weighted_relevant_perm_count > 0
+                            THEN 'PARTIAL_ENTITY_COVERAGE'
+                        WHEN has_unresolved_perm_candidate_evidence IS TRUE
+                            THEN 'UNRESOLVED_IDENTITY'
+                        ELSE 'COMPLETE_ENTITY_COVERAGE' END
+                   OR h1b_entity_resolution_valid <>
+                        (h1b_entity_coverage_state <> 'UNRESOLVED_IDENTITY')
+                   OR perm_entity_resolution_valid <>
+                        (perm_entity_coverage_state <> 'UNRESOLVED_IDENTITY')
+                   OR entity_coverage_state <> CASE
+                        WHEN h1b_entity_coverage_state = 'UNRESOLVED_IDENTITY'
+                          OR perm_entity_coverage_state = 'UNRESOLVED_IDENTITY'
+                            THEN 'UNRESOLVED_IDENTITY'
+                        WHEN h1b_entity_coverage_state = 'PARTIAL_ENTITY_COVERAGE'
+                          OR perm_entity_coverage_state = 'PARTIAL_ENTITY_COVERAGE'
+                            THEN 'PARTIAL_ENTITY_COVERAGE'
+                        ELSE 'COMPLETE_ENTITY_COVERAGE' END
+                """,
             )
             or 0
         )
         checks.append(
             AcceptanceCheck(
-                "unresolved_candidate_zero_gating",
-                "Qualifying unresolved candidate evidence produces program-specific Unrated, "
-                "never a false zero",
+                "entity_coverage_semantics",
+                "Confirmed evidence remains scoreable with partial disclosure while unresolved "
+                "identity remains Unrated and never becomes a false zero",
                 expected_h1b_conflicts == actual_h1b_conflicts
                 and expected_perm_conflicts == actual_perm_conflicts
                 and h1b_conflict_status_errors == 0
-                and perm_conflict_status_errors == 0,
+                and perm_conflict_status_errors == 0
+                and coverage_state_errors == 0,
                 f"H-1B expected/actual={len(expected_h1b_conflicts)}/"
                 f"{len(actual_h1b_conflicts)}; PERM expected/actual="
                 f"{len(expected_perm_conflicts)}/{len(actual_perm_conflicts)}; "
-                f"status errors={h1b_conflict_status_errors}/{perm_conflict_status_errors}.",
+                f"status errors={h1b_conflict_status_errors}/{perm_conflict_status_errors}; "
+                f"coverage-state errors={coverage_state_errors}.",
             )
         )
 

@@ -59,6 +59,11 @@ if summary["identity_scope"] == "PARENT_ROLLUP":
         "This is a separate parent rollup. Immigration records remain attached to the "
         "petitioning legal entities listed on the Identity tab."
     )
+coverage_state = summary.get("entity_coverage_state", "UNRESOLVED_IDENTITY")
+if coverage_state == "PARTIAL_ENTITY_COVERAGE":
+    st.warning("Rating is based on confirmed records. Additional ambiguous records were excluded.")
+elif coverage_state == "UNRESOLVED_IDENTITY":
+    st.warning("Employer identity is unresolved; confirmed evidence is insufficient to score.")
 if summary["has_partial_period"]:
     period = f"FY{summary['current_partial_fiscal_year']}"
     if summary.get("current_partial_quarter") is not None:

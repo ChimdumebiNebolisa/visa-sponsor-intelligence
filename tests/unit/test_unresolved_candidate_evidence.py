@@ -178,3 +178,91 @@ def test_program_flags_make_only_the_affected_component_unrated() -> None:
         assert rows[organization_id]["h1b_history_status"] == "NO_OBSERVED_HISTORY"
         assert rows[organization_id]["green_card_history_status"] == "NO_OBSERVED_HISTORY"
         assert rows[organization_id]["overall_sponsorship_status"] == "NO_OBSERVED_HISTORY"
+
+
+def test_major_employers_with_confirmed_records_remain_rated_under_partial_coverage() -> None:
+    organization_ids = [
+        "legal_microsoft_corporation",
+        "legal_google_llc",
+        "parent_amazon",
+        "legal_meta_platforms",
+        "legal_ibm_corporation",
+    ]
+    template = _zero_history_rows().filter(pl.col("organization_id") == "resolved")
+    frame = pl.concat([template] * len(organization_ids), how="vertical_relaxed").with_columns(
+        pl.Series("organization_id", organization_ids),
+        pl.Series(
+            "identity_scope",
+            ["LEGAL_ENTITY", "LEGAL_ENTITY", "PARENT_ROLLUP", "LEGAL_ENTITY", "LEGAL_ENTITY"],
+        ),
+        pl.lit(True).alias("h1b_entity_resolution_valid"),
+        pl.lit(True).alias("perm_entity_resolution_valid"),
+        pl.Series(
+            "has_unresolved_h1b_candidate_evidence",
+            [True, True, True, False, True],
+        ),
+        pl.Series(
+            "has_unresolved_perm_candidate_evidence",
+            [False, False, True, False, True],
+        ),
+        pl.Series(
+            "entity_coverage_state",
+            [
+                "PARTIAL_ENTITY_COVERAGE",
+                "PARTIAL_ENTITY_COVERAGE",
+                "PARTIAL_ENTITY_COVERAGE",
+                "COMPLETE_ENTITY_COVERAGE",
+                "PARTIAL_ENTITY_COVERAGE",
+            ],
+        ),
+        pl.Series(
+            "h1b_entity_coverage_state",
+            [
+                "PARTIAL_ENTITY_COVERAGE",
+                "PARTIAL_ENTITY_COVERAGE",
+                "PARTIAL_ENTITY_COVERAGE",
+                "COMPLETE_ENTITY_COVERAGE",
+                "PARTIAL_ENTITY_COVERAGE",
+            ],
+        ),
+        pl.Series(
+            "perm_entity_coverage_state",
+            [
+                "COMPLETE_ENTITY_COVERAGE",
+                "COMPLETE_ENTITY_COVERAGE",
+                "PARTIAL_ENTITY_COVERAGE",
+                "COMPLETE_ENTITY_COVERAGE",
+                "PARTIAL_ENTITY_COVERAGE",
+            ],
+        ),
+        pl.lit(10.0).alias("weighted_relevant_lca_count"),
+        pl.lit(8).alias("relevant_certified_lca_count"),
+        pl.lit(4).alias("relevant_certified_withdrawn_lca_count"),
+        pl.lit(4).alias("lca_complete_active_years"),
+        pl.lit(3).alias("lca_relevant_job_family_count"),
+        pl.lit(2026).alias("last_relevant_lca_activity_year"),
+        pl.lit(4.0).alias("weighted_relevant_perm_count"),
+        pl.lit(3).alias("relevant_certified_perm_count"),
+        pl.lit(2).alias("relevant_certified_expired_perm_count"),
+        pl.lit(3).alias("perm_complete_active_years"),
+        pl.lit(2).alias("perm_relevant_job_family_count"),
+        pl.lit(2026).alias("last_relevant_perm_activity_year"),
+        pl.lit(20).alias("initial_approvals"),
+    )
+
+    rows = {
+        row["organization_id"]: row
+        for row in score_employers_product_a(
+            frame,
+            ProductAScoringConfig.from_yaml(),
+        ).to_dicts()
+    }
+    warning = "Rating is based on confirmed records. Additional ambiguous records were excluded."
+    for organization_id in organization_ids:
+        row = rows[organization_id]
+        assert row["h1b_history_status"] == "RATED"
+        assert row["green_card_history_status"] == "RATED"
+        assert row["overall_sponsorship_status"] == "RATED"
+        if row["entity_coverage_state"] == "PARTIAL_ENTITY_COVERAGE":
+            assert warning in row["overall_sponsorship_explanation"]
+    assert warning not in rows["legal_meta_platforms"]["overall_sponsorship_explanation"]

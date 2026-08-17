@@ -58,6 +58,13 @@ class CandidateEntity:
     institution_id: str | None
     created_by: str
     review_status: str
+    reviewed_by: str | None = None
+    reviewed_at: str | None = None
+    review_note: str | None = None
+    evidence_url: str | None = None
+    evidence_source: str | None = None
+    confidence: float | None = None
+    relationship_type: str | None = None
     occurrence_count: int = 0
 
 
@@ -178,6 +185,12 @@ def resolve_observations(
             "created_by": "MANUAL_OVERRIDE",
             "review_status": MatchStatus.MANUAL_OVERRIDE.value,
             "notes": item.notes,
+            "reviewed_by": item.reviewed_by,
+            "reviewed_at": item.reviewed_at,
+            "evidence_url": item.evidence_url,
+            "evidence_source": item.evidence_source,
+            "confidence": item.confidence,
+            "relationship_type": item.relationship_type,
         }
         for item in overrides.parent_organizations
     }
@@ -212,6 +225,13 @@ def resolve_observations(
                 institution_id=None,
                 created_by="MANUAL_OVERRIDE",
                 review_status=MatchStatus.MANUAL_OVERRIDE.value,
+                reviewed_by=item.reviewed_by,
+                reviewed_at=item.reviewed_at,
+                review_note=item.review_note,
+                evidence_url=item.evidence_url,
+                evidence_source=item.evidence_source,
+                confidence=item.confidence,
+                relationship_type=item.relationship_type,
             )
         )
 
@@ -241,6 +261,12 @@ def resolve_observations(
                         "Official IPEDS system relationship; campus legal identity "
                         "remains separate."
                     ),
+                    "reviewed_by": None,
+                    "reviewed_at": None,
+                    "evidence_url": None,
+                    "evidence_source": "IPEDS",
+                    "confidence": 1.0,
+                    "relationship_type": "PARENT_ROLLUP",
                 }
             index_entity(
                 CandidateEntity(
@@ -261,10 +287,11 @@ def resolve_observations(
                 )
             )
 
-    alias_overrides = {
-        (item.source_id or "*", normalize_name(item.raw_name, config)): item
-        for item in overrides.aliases
-    }
+    alias_overrides: dict[tuple[str, str], list[Any]] = {}
+    for item in overrides.aliases:
+        alias_overrides.setdefault(
+            (item.source_id or "*", normalize_name(item.raw_name, config)), []
+        ).append(item)
     rejection_overrides = {
         (item.source_id or "*", normalize_name(item.raw_name, config)): item
         for item in overrides.rejections
@@ -288,9 +315,60 @@ def resolve_observations(
         normalized = str(observation["normalized_name"])
         source_id = str(observation["source_id"])
         raw_name = str(observation["alias_raw"] or "")
-        override = alias_overrides.get((source_id, normalized)) or alias_overrides.get(
-            ("*", normalized)
+        override_candidates = alias_overrides.get(
+            (source_id, normalized), []
+        ) + alias_overrides.get(("*", normalized), [])
+        matching_overrides = [
+            item
+            for item in override_candidates
+            if (
+                item.employer_city is None
+                or normalize_city(item.employer_city) == observation["city"]
+            )
+            and (
+                item.employer_state is None
+                or normalize_state(item.employer_state) == observation["state"]
+            )
+            and (
+                item.employer_postal_code is None
+                or normalize_postal_code(item.employer_postal_code) == observation["postal_code"]
+            )
+        ]
+        matching_overrides.sort(
+            key=lambda item: (
+                item.source_id is not None,
+                item.employer_city is not None,
+                item.employer_state is not None,
+                item.employer_postal_code is not None,
+                item.legal_entity_id,
+            ),
+            reverse=True,
         )
+        override = matching_overrides[0] if matching_overrides else None
+        if override is not None and len(matching_overrides) > 1:
+            top = matching_overrides[0]
+            top_specificity = (
+                top.source_id is not None,
+                top.employer_city is not None,
+                top.employer_state is not None,
+                top.employer_postal_code is not None,
+            )
+            tied = [
+                item
+                for item in matching_overrides
+                if (
+                    item.source_id is not None,
+                    item.employer_city is not None,
+                    item.employer_state is not None,
+                    item.employer_postal_code is not None,
+                )
+                == top_specificity
+            ]
+            if len({item.legal_entity_id for item in tied}) > 1:
+                raise ValueError(
+                    f"Conflicting reviewed aliases for {source_id}:{raw_name!r} at "
+                    f"{observation['city']}, {observation['state']} {observation['postal_code']}"
+                )
         rejection = rejection_overrides.get((source_id, normalized)) or rejection_overrides.get(
             ("*", normalized)
         )
@@ -304,6 +382,10 @@ def resolve_observations(
         reviewed_by: str | None = None
         reviewed_at: str | None = None
         resolution_reason: str | None = None
+        evidence_url: str | None = None
+        evidence_source: str | None = None
+        decision_confidence: float | None = None
+        relationship_type: str | None = None
 
         if override is not None:
             legal_entity_id = override.legal_entity_id
@@ -313,6 +395,10 @@ def resolve_observations(
             reviewed_by = override.reviewed_by
             reviewed_at = override.reviewed_at
             resolution_reason = override.reason
+            evidence_url = override.evidence_url
+            evidence_source = override.evidence_source
+            decision_confidence = override.confidence
+            relationship_type = override.relationship_type
         elif normalized:
             exact_candidates = [
                 entities[item] for item in sorted(exact_index.get(normalized, set()))
@@ -505,6 +591,10 @@ def resolve_observations(
             "reviewed_by": reviewed_by,
             "reviewed_at": reviewed_at,
             "resolution_reason": resolution_reason,
+            "evidence_url": evidence_url,
+            "evidence_source": evidence_source,
+            "decision_confidence": decision_confidence,
+            "relationship_type": relationship_type,
             "token_similarity": features.token_similarity if features else None,
             "character_similarity": features.character_similarity if features else None,
             "location_agreement": features.location_agreement if features else None,
@@ -524,6 +614,13 @@ def resolve_observations(
             "institution_id": item.institution_id,
             "created_by": item.created_by,
             "review_status": item.review_status,
+            "reviewed_by": item.reviewed_by,
+            "reviewed_at": item.reviewed_at,
+            "review_note": item.review_note,
+            "evidence_url": item.evidence_url,
+            "evidence_source": item.evidence_source,
+            "confidence": item.confidence,
+            "relationship_type": item.relationship_type,
         }
         for item in entities.values()
     ]
@@ -550,6 +647,12 @@ def resolve_observations(
                 "created_by": pl.String,
                 "review_status": pl.String,
                 "notes": pl.String,
+                "reviewed_by": pl.String,
+                "reviewed_at": pl.String,
+                "evidence_url": pl.String,
+                "evidence_source": pl.String,
+                "confidence": pl.Float64,
+                "relationship_type": pl.String,
             }
         )
     )

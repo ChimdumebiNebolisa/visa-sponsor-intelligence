@@ -91,6 +91,11 @@ A validated zero is evidence that the covered official records contained no qual
 under the Product A rules. It is not missing data and is never displayed as one star. `Unrated`
 means the product cannot make the calculation; it is not a negative conclusion.
 
+`COMPLETE_ENTITY_COVERAGE` and `PARTIAL_ENTITY_COVERAGE` are both scoreable when confirmed evidence
+exists. Partial coverage excludes ambiguous records and displays: `Rating is based on confirmed
+records. Additional ambiguous records were excluded.` Only `UNRESOLVED_IDENTITY` normally causes
+identity-based `Unrated`.
+
 Every rating exposes an explanation, coverage/source state, score version, and the raw ingredients
 needed to reproduce it. The UI pairs `Why this rating` with `What this does not prove`.
 

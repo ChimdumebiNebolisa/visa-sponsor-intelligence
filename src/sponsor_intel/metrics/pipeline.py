@@ -1009,71 +1009,112 @@ def _employer_metrics(
             pl.col("has_unresolved_perm_candidate_evidence").fill_null(False),
         ]
     )
-    result = result.with_columns(
-        pl.col("relevant_certified_lca_count").alias("relevant_lca_count"),
-        (
-            (pl.col("lca_case_count") > 0).cast(pl.Int8)
-            + (pl.col("perm_case_count") > 0).cast(pl.Int8)
-            + (pl.col("uscis_employer_year_rows") > 0).cast(pl.Int8)
-        ).alias("source_coverage_count"),
-        pl.max_horizontal(
-            "last_relevant_lca_activity_year",
-            "last_relevant_perm_activity_year",
-            "last_uscis_activity_year",
-        ).alias("last_observed_activity_year"),
-        pl.max_horizontal(
-            "lca_latest_complete_fiscal_year",
-            "perm_latest_complete_fiscal_year",
-            "uscis_latest_complete_fiscal_year",
-        ).alias("latest_complete_fiscal_year"),
-        pl.max_horizontal(
-            "last_relevant_lca_activity_year",
-            "last_relevant_perm_activity_year",
-            "last_uscis_activity_year",
-        ).alias("latest_observed_year"),
-        pl.max_horizontal("lca_complete_active_years", "perm_complete_active_years").alias(
-            "complete_active_years"
-        ),
-        pl.max_horizontal(
-            "lca_partial_fiscal_year", "perm_partial_fiscal_year", "uscis_partial_fiscal_year"
-        ).alias("current_partial_fiscal_year"),
-        pl.max_horizontal("lca_partial_quarter", "perm_partial_quarter").alias(
-            "current_partial_quarter"
-        ),
-        (
-            pl.col("lca_has_partial_period")
-            | pl.col("perm_has_partial_period")
-            | pl.col("uscis_has_partial_period")
-        ).alias("has_partial_period"),
-        pl.lit("UNKNOWN").alias("everify_status"),
-        pl.lit("UNKNOWN").alias("known_opt_observation"),
-        pl.when(pl.col("is_higher_education"))
-        .then(pl.lit("HIGHER_EDUCATION_CONTEXT_VERIFY_CAP_EXEMPTION"))
-        .otherwise(pl.lit("UNKNOWN"))
-        .alias("cap_exemption_status"),
-        pl.col("entity_resolution_status")
-        .is_in(["DETERMINISTIC", "HIGH_CONFIDENCE_AUTO", "MANUAL_OVERRIDE"])
-        .alias("entity_resolution_valid"),
-        pl.lit(True).alias("lca_source_valid"),
-        pl.lit(True).alias("perm_source_valid"),
-        pl.lit(True).alias("uscis_source_valid"),
-        pl.lit(lca_complete_year_count).alias("lca_complete_fiscal_year_count"),
-        pl.lit(perm_complete_year_count).alias("perm_complete_fiscal_year_count"),
-        pl.lit(latest_complete).alias("latest_complete_immigration_fiscal_year"),
-        pl.lit(current_partial, dtype=pl.Int64).alias("current_partial_immigration_fiscal_year"),
-        pl.lit("NOT_SCORED").alias("evidence_confidence"),
-        pl.lit(None, dtype=pl.Float64).alias("h1b_activity_score"),
-        pl.lit(None, dtype=pl.Float64).alias("immigration_evidence_score"),
-        pl.lit("OBSERVED_GOVERNMENT_RECORD|DERIVED_METRIC").alias("evidence_classes"),
-        pl.lit(METRIC_VERSION).alias("metric_version"),
-    ).with_columns(
-        (
-            pl.col("entity_resolution_valid") & ~pl.col("has_unresolved_h1b_candidate_evidence")
-        ).alias("h1b_entity_resolution_valid"),
-        (
-            pl.col("entity_resolution_valid") & ~pl.col("has_unresolved_perm_candidate_evidence")
-        ).alias("perm_entity_resolution_valid"),
-        (pl.col("source_coverage_count") / 3).alias("source_coverage_ratio"),
+    result = (
+        result.with_columns(
+            pl.col("relevant_certified_lca_count").alias("relevant_lca_count"),
+            (
+                (pl.col("lca_case_count") > 0).cast(pl.Int8)
+                + (pl.col("perm_case_count") > 0).cast(pl.Int8)
+                + (pl.col("uscis_employer_year_rows") > 0).cast(pl.Int8)
+            ).alias("source_coverage_count"),
+            pl.max_horizontal(
+                "last_relevant_lca_activity_year",
+                "last_relevant_perm_activity_year",
+                "last_uscis_activity_year",
+            ).alias("last_observed_activity_year"),
+            pl.max_horizontal(
+                "lca_latest_complete_fiscal_year",
+                "perm_latest_complete_fiscal_year",
+                "uscis_latest_complete_fiscal_year",
+            ).alias("latest_complete_fiscal_year"),
+            pl.max_horizontal(
+                "last_relevant_lca_activity_year",
+                "last_relevant_perm_activity_year",
+                "last_uscis_activity_year",
+            ).alias("latest_observed_year"),
+            pl.max_horizontal("lca_complete_active_years", "perm_complete_active_years").alias(
+                "complete_active_years"
+            ),
+            pl.max_horizontal(
+                "lca_partial_fiscal_year", "perm_partial_fiscal_year", "uscis_partial_fiscal_year"
+            ).alias("current_partial_fiscal_year"),
+            pl.max_horizontal("lca_partial_quarter", "perm_partial_quarter").alias(
+                "current_partial_quarter"
+            ),
+            (
+                pl.col("lca_has_partial_period")
+                | pl.col("perm_has_partial_period")
+                | pl.col("uscis_has_partial_period")
+            ).alias("has_partial_period"),
+            pl.lit("UNKNOWN").alias("everify_status"),
+            pl.lit("UNKNOWN").alias("known_opt_observation"),
+            pl.when(pl.col("is_higher_education"))
+            .then(pl.lit("HIGHER_EDUCATION_CONTEXT_VERIFY_CAP_EXEMPTION"))
+            .otherwise(pl.lit("UNKNOWN"))
+            .alias("cap_exemption_status"),
+            pl.col("entity_resolution_status")
+            .is_in(["DETERMINISTIC", "HIGH_CONFIDENCE_AUTO", "MANUAL_OVERRIDE"])
+            .alias("entity_resolution_valid"),
+            pl.lit(True).alias("lca_source_valid"),
+            pl.lit(True).alias("perm_source_valid"),
+            pl.lit(True).alias("uscis_source_valid"),
+            pl.lit(lca_complete_year_count).alias("lca_complete_fiscal_year_count"),
+            pl.lit(perm_complete_year_count).alias("perm_complete_fiscal_year_count"),
+            pl.lit(latest_complete).alias("latest_complete_immigration_fiscal_year"),
+            pl.lit(current_partial, dtype=pl.Int64).alias(
+                "current_partial_immigration_fiscal_year"
+            ),
+            pl.lit("NOT_SCORED").alias("evidence_confidence"),
+            pl.lit(None, dtype=pl.Float64).alias("h1b_activity_score"),
+            pl.lit(None, dtype=pl.Float64).alias("immigration_evidence_score"),
+            pl.lit("OBSERVED_GOVERNMENT_RECORD|DERIVED_METRIC").alias("evidence_classes"),
+            pl.lit(METRIC_VERSION).alias("metric_version"),
+        )
+        .with_columns(
+            pl.when(~pl.col("entity_resolution_valid"))
+            .then(pl.lit("UNRESOLVED_IDENTITY"))
+            .when(
+                pl.col("has_unresolved_h1b_candidate_evidence")
+                & (pl.col("weighted_relevant_lca_count") > 0)
+            )
+            .then(pl.lit("PARTIAL_ENTITY_COVERAGE"))
+            .when(pl.col("has_unresolved_h1b_candidate_evidence"))
+            .then(pl.lit("UNRESOLVED_IDENTITY"))
+            .otherwise(pl.lit("COMPLETE_ENTITY_COVERAGE"))
+            .alias("h1b_entity_coverage_state"),
+            pl.when(~pl.col("entity_resolution_valid"))
+            .then(pl.lit("UNRESOLVED_IDENTITY"))
+            .when(
+                pl.col("has_unresolved_perm_candidate_evidence")
+                & (pl.col("weighted_relevant_perm_count") > 0)
+            )
+            .then(pl.lit("PARTIAL_ENTITY_COVERAGE"))
+            .when(pl.col("has_unresolved_perm_candidate_evidence"))
+            .then(pl.lit("UNRESOLVED_IDENTITY"))
+            .otherwise(pl.lit("COMPLETE_ENTITY_COVERAGE"))
+            .alias("perm_entity_coverage_state"),
+            (pl.col("source_coverage_count") / 3).alias("source_coverage_ratio"),
+        )
+        .with_columns(
+            (pl.col("h1b_entity_coverage_state") != "UNRESOLVED_IDENTITY").alias(
+                "h1b_entity_resolution_valid"
+            ),
+            (pl.col("perm_entity_coverage_state") != "UNRESOLVED_IDENTITY").alias(
+                "perm_entity_resolution_valid"
+            ),
+            pl.when(
+                (pl.col("h1b_entity_coverage_state") == "UNRESOLVED_IDENTITY")
+                | (pl.col("perm_entity_coverage_state") == "UNRESOLVED_IDENTITY")
+            )
+            .then(pl.lit("UNRESOLVED_IDENTITY"))
+            .when(
+                (pl.col("h1b_entity_coverage_state") == "PARTIAL_ENTITY_COVERAGE")
+                | (pl.col("perm_entity_coverage_state") == "PARTIAL_ENTITY_COVERAGE")
+            )
+            .then(pl.lit("PARTIAL_ENTITY_COVERAGE"))
+            .otherwise(pl.lit("COMPLETE_ENTITY_COVERAGE"))
+            .alias("entity_coverage_state"),
+        )
     )
     return result.sort(
         ["weighted_relevant_lca_count", "organization_name"], descending=[True, False]
@@ -1909,6 +1950,9 @@ class MetricsPipeline:
             "entity_resolution_valid",
             "h1b_entity_resolution_valid",
             "perm_entity_resolution_valid",
+            "entity_coverage_state",
+            "h1b_entity_coverage_state",
+            "perm_entity_coverage_state",
             "has_unresolved_h1b_candidate_evidence",
             "has_unresolved_perm_candidate_evidence",
             "score_version",

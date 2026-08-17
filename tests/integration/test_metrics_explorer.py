@@ -539,7 +539,7 @@ def test_metrics_database_services_and_exports(tmp_path: Path) -> None:
     service.close()
 
 
-def test_unresolved_candidate_evidence_makes_institution_history_unrated_without_moving_counts(
+def test_candidate_evidence_distinguishes_partial_coverage_from_unresolved_identity(
     tmp_path: Path,
 ) -> None:
     data_root = tmp_path / "data"
@@ -554,18 +554,24 @@ def test_unresolved_candidate_evidence_makes_institution_history_unrated_without
             legal_entities,
             pl.DataFrame(
                 {
-                    "legal_entity_id": ["legal_unresolved_university"],
-                    "legal_name": ["State University Springfield"],
-                    "normalized_legal_name": ["STATE UNIVERSITY SPRINGFIELD"],
-                    "parent_organization_id": [None],
-                    "city": ["Springfield"],
-                    "state": ["MO"],
-                    "postal_code": ["65806"],
-                    "country": ["US"],
-                    "organization_type": ["UNKNOWN"],
-                    "institution_id": [None],
-                    "created_by": ["FIXTURE"],
-                    "review_status": ["REVIEW_REQUIRED"],
+                    "legal_entity_id": [
+                        "legal_unresolved_university",
+                        "legal_unresolved_acme",
+                    ],
+                    "legal_name": ["State University Springfield", "Acme Labs West"],
+                    "normalized_legal_name": [
+                        "STATE UNIVERSITY SPRINGFIELD",
+                        "ACME LABS WEST",
+                    ],
+                    "parent_organization_id": [None, None],
+                    "city": ["Springfield", "Oakland"],
+                    "state": ["MO", "CA"],
+                    "postal_code": ["65806", "94612"],
+                    "country": ["US", "US"],
+                    "organization_type": ["UNKNOWN", "UNKNOWN"],
+                    "institution_id": [None, None],
+                    "created_by": ["FIXTURE", "FIXTURE"],
+                    "review_status": ["REVIEW_REQUIRED", "REVIEW_REQUIRED"],
                 }
             ),
         ],
@@ -579,18 +585,24 @@ def test_unresolved_candidate_evidence_makes_institution_history_unrated_without
             aliases,
             pl.DataFrame(
                 {
-                    "alias_raw": ["State University Springfield"],
-                    "source_id": ["dol_lca"],
-                    "city": ["Springfield"],
-                    "state": ["MO"],
-                    "match_method": ["EXACT_NAME_LOCATION_CONFLICT"],
-                    "match_score": [0.95],
-                    "review_status": ["REVIEW_REQUIRED"],
-                    "match_status": ["REVIEW_REQUIRED"],
-                    "occurrence_count": [1],
-                    "legal_entity_id": ["legal_unresolved_university"],
-                    "parent_organization_id": [None],
-                    "candidate_legal_entity_id": ["legal_university"],
+                    "alias_raw": ["State University Springfield", "Acme Labs West"],
+                    "source_id": ["dol_lca", "dol_lca"],
+                    "city": ["Springfield", "Oakland"],
+                    "state": ["MO", "CA"],
+                    "match_method": [
+                        "EXACT_NAME_LOCATION_CONFLICT",
+                        "FUZZY_CANDIDATE_UNMERGED",
+                    ],
+                    "match_score": [0.95, 0.91],
+                    "review_status": ["REVIEW_REQUIRED", "REVIEW_REQUIRED"],
+                    "match_status": ["REVIEW_REQUIRED", "REVIEW_REQUIRED"],
+                    "occurrence_count": [1, 1],
+                    "legal_entity_id": [
+                        "legal_unresolved_university",
+                        "legal_unresolved_acme",
+                    ],
+                    "parent_organization_id": [None, None],
+                    "candidate_legal_entity_id": ["legal_university", "legal_acme_labs"],
                 }
             ),
         ],
@@ -614,7 +626,14 @@ def test_unresolved_candidate_evidence_makes_institution_history_unrated_without
         .otherwise(pl.col("case_status"))
         .alias("case_status"),
     )
-    lca.write_parquet(lca_path)
+    unresolved_acme = lca.head(1).with_columns(
+        pl.lit("dol_lca-unresolved-acme").alias("case_id"),
+        pl.lit("Acme Labs West").alias("employer_name_raw"),
+        pl.lit("legal_unresolved_acme").alias("legal_entity_id"),
+        pl.lit(None, dtype=pl.String).alias("parent_organization_id"),
+        pl.lit("Certified").alias("case_status"),
+    )
+    pl.concat([lca, unresolved_acme], how="vertical_relaxed").write_parquet(lca_path)
 
     MetricsPipeline(data_root=data_root, output_root=output_root).build()
     employer_metrics = pl.read_parquet(data_root / "processed" / "employer_metrics.parquet")
@@ -622,10 +641,14 @@ def test_unresolved_candidate_evidence_makes_institution_history_unrated_without
     unresolved_source = employer_metrics.filter(
         pl.col("organization_id") == "legal_unresolved_university"
     )
+    partial = employer_metrics.filter(pl.col("organization_id") == "legal_acme_labs")
+    partial_parent = employer_metrics.filter(pl.col("organization_id") == "parent_acme")
     institution = pl.read_parquet(data_root / "processed" / "institution_metrics.parquet")
 
     assert target["entity_resolution_valid"].item()
     assert not target["h1b_entity_resolution_valid"].item()
+    assert target["h1b_entity_coverage_state"].item() == "UNRESOLVED_IDENTITY"
+    assert target["entity_coverage_state"].item() == "UNRESOLVED_IDENTITY"
     assert target["has_unresolved_h1b_candidate_evidence"].item()
     assert target["weighted_relevant_lca_count"].item() == 0
     assert target["h1b_history_status"].item() == "UNRATED"
@@ -634,6 +657,16 @@ def test_unresolved_candidate_evidence_makes_institution_history_unrated_without
     assert unresolved_source["weighted_relevant_lca_count"].item() == 1
     assert institution["has_unresolved_h1b_candidate_evidence"].item()
     assert institution["h1b_history_status"].item() == "UNRATED"
+    for scored in (partial, partial_parent):
+        assert scored["h1b_entity_coverage_state"].item() == "PARTIAL_ENTITY_COVERAGE"
+        assert scored["entity_coverage_state"].item() == "PARTIAL_ENTITY_COVERAGE"
+        assert scored["h1b_history_status"].item() == "RATED"
+        assert scored["overall_sponsorship_status"].item() == "RATED"
+        assert scored["weighted_relevant_lca_count"].item() == 2
+        assert (
+            "Rating is based on confirmed records. Additional ambiguous records were excluded."
+            in scored["h1b_history_explanation"].item()
+        )
 
 
 def test_phase6_evidence_enriches_signals_without_treating_no_match_as_no(

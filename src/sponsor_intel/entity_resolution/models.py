@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -59,6 +60,10 @@ class ParentOverride(BaseModel):
     reviewed_by: str
     reviewed_at: str
     notes: str
+    evidence_url: str | None = None
+    evidence_source: str | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    relationship_type: Literal["PARENT_ROLLUP"] = "PARENT_ROLLUP"
 
 
 class LegalEntityOverride(BaseModel):
@@ -71,6 +76,13 @@ class LegalEntityOverride(BaseModel):
     state: str | None = None
     postal_code: str | None = None
     organization_type: str
+    reviewed_by: str | None = None
+    reviewed_at: str | None = None
+    review_note: str | None = None
+    evidence_url: str | None = None
+    evidence_source: str | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    relationship_type: Literal["DIRECT_LEGAL_ENTITY"] = "DIRECT_LEGAL_ENTITY"
 
 
 class AliasOverride(BaseModel):
@@ -82,6 +94,13 @@ class AliasOverride(BaseModel):
     reviewed_by: str
     reviewed_at: str
     reason: str
+    employer_city: str | None = None
+    employer_state: str | None = None
+    employer_postal_code: str | None = None
+    evidence_url: str | None = None
+    evidence_source: str | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    relationship_type: Literal["DIRECT_LEGAL_ENTITY"] = "DIRECT_LEGAL_ENTITY"
 
 
 class RejectionOverride(BaseModel):

@@ -596,6 +596,9 @@ def _build_fixture(root: Path) -> tuple[Path, Path, Path, Path]:
                 "entity_resolution_valid": True,
                 "h1b_entity_resolution_valid": True,
                 "perm_entity_resolution_valid": True,
+                "entity_coverage_state": "COMPLETE_ENTITY_COVERAGE",
+                "h1b_entity_coverage_state": "COMPLETE_ENTITY_COVERAGE",
+                "perm_entity_coverage_state": "COMPLETE_ENTITY_COVERAGE",
                 "has_unresolved_h1b_candidate_evidence": False,
                 "has_unresolved_perm_candidate_evidence": False,
                 "lca_source_valid": True,
@@ -624,6 +627,7 @@ def _build_fixture(root: Path) -> tuple[Path, Path, Path, Path]:
                 "state": "WA",
                 "postal_code": "98101",
                 "review_status": "DETERMINISTIC",
+                "created_by": "FIXTURE",
             }
             for legal_id, name in legal_names.items()
         ]
@@ -1176,7 +1180,7 @@ def test_product_a_acceptance_rejects_missed_spaced_secondary_statuses(tmp_path:
     assert perm_status_check["passed"] is False
 
 
-def test_product_a_acceptance_rejects_unrated_candidate_false_zero(tmp_path: Path) -> None:
+def test_product_a_acceptance_rejects_unreconciled_candidate_coverage(tmp_path: Path) -> None:
     data_root, database, output_root, manifest_path = _build_fixture(tmp_path)
     with duckdb.connect(str(database)) as connection:
         connection.execute(
@@ -1205,13 +1209,83 @@ def test_product_a_acceptance_rejects_unrated_candidate_false_zero(tmp_path: Pat
 
     assert exit_code == 1
     acceptance = json.loads((output_root / "acceptance.json").read_text(encoding="utf-8"))
-    zero_gating_check = next(
-        check
-        for check in acceptance["checks"]
-        if check["check_id"] == "unresolved_candidate_zero_gating"
+    coverage_check = next(
+        check for check in acceptance["checks"] if check["check_id"] == "entity_coverage_semantics"
     )
-    assert zero_gating_check["passed"] is False
-    assert "H-1B expected/actual=1/0" in zero_gating_check["evidence"]
+    assert coverage_check["passed"] is False
+    assert "H-1B expected/actual=1/0" in coverage_check["evidence"]
+
+
+def test_product_a_acceptance_allows_confirmed_partial_entity_coverage(tmp_path: Path) -> None:
+    data_root, database, output_root, manifest_path = _build_fixture(tmp_path)
+    warning = "Rating is based on confirmed records. Additional ambiguous records were excluded."
+    employer_metrics_path = data_root / "processed" / "employer_metrics.parquet"
+    employer_metrics = pl.read_parquet(employer_metrics_path).with_columns(
+        pl.when(pl.col("organization_id") == "legal_microsoft")
+        .then(True)
+        .otherwise(pl.col("has_unresolved_h1b_candidate_evidence"))
+        .alias("has_unresolved_h1b_candidate_evidence"),
+        pl.when(pl.col("organization_id") == "legal_microsoft")
+        .then(pl.lit("PARTIAL_ENTITY_COVERAGE"))
+        .otherwise(pl.col("h1b_entity_coverage_state"))
+        .alias("h1b_entity_coverage_state"),
+        pl.when(pl.col("organization_id") == "legal_microsoft")
+        .then(pl.lit("PARTIAL_ENTITY_COVERAGE"))
+        .otherwise(pl.col("entity_coverage_state"))
+        .alias("entity_coverage_state"),
+        pl.when(pl.col("organization_id") == "legal_microsoft")
+        .then(pl.col("h1b_history_explanation") + " " + warning)
+        .otherwise(pl.col("h1b_history_explanation"))
+        .alias("h1b_history_explanation"),
+        pl.when(pl.col("organization_id") == "legal_microsoft")
+        .then(pl.col("overall_sponsorship_explanation") + " " + warning)
+        .otherwise(pl.col("overall_sponsorship_explanation"))
+        .alias("overall_sponsorship_explanation"),
+    )
+    employer_metrics.write_parquet(employer_metrics_path)
+    with duckdb.connect(str(database)) as connection:
+        connection.execute(
+            """
+            UPDATE entity_aliases
+            SET legal_entity_id = 'legal_strong_sponsor',
+                candidate_legal_entity_id = 'legal_microsoft',
+                match_status = 'REVIEW_REQUIRED',
+                review_status = 'REVIEW_REQUIRED'
+            WHERE alias_id = 'alias_unresolved'
+            """
+        )
+        connection.execute(
+            """
+            UPDATE employer_metrics
+            SET has_unresolved_h1b_candidate_evidence = TRUE,
+                h1b_entity_coverage_state = 'PARTIAL_ENTITY_COVERAGE',
+                entity_coverage_state = 'PARTIAL_ENTITY_COVERAGE',
+                h1b_history_explanation = h1b_history_explanation || ' ' || ?,
+                overall_sponsorship_explanation = overall_sponsorship_explanation || ' ' || ?
+            WHERE organization_id = 'legal_microsoft'
+            """,
+            [warning, warning],
+        )
+
+    exit_code = main(
+        [
+            "--data-root",
+            str(data_root),
+            "--database",
+            str(database),
+            "--output-root",
+            str(output_root),
+            "--manifest",
+            str(manifest_path),
+        ]
+    )
+
+    assert exit_code == 0
+    acceptance = json.loads((output_root / "acceptance.json").read_text(encoding="utf-8"))
+    coverage_check = next(
+        check for check in acceptance["checks"] if check["check_id"] == "entity_coverage_semantics"
+    )
+    assert coverage_check["passed"] is True
 
 
 def test_product_a_acceptance_rejects_arbitrary_cross_year_lca_overlap(tmp_path: Path) -> None:

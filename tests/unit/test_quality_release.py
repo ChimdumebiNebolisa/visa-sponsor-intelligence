@@ -37,6 +37,9 @@ def _write_quality_fixture(root: Path) -> tuple[Path, Path]:
         "organization_id": ["org-1"],
         "metric_version": ["product_a_metrics_v1"],
         "score_version": ["product_a_scores_v1"],
+        "entity_coverage_state": ["COMPLETE_ENTITY_COVERAGE"],
+        "h1b_entity_coverage_state": ["COMPLETE_ENTITY_COVERAGE"],
+        "perm_entity_coverage_state": ["COMPLETE_ENTITY_COVERAGE"],
     }
     employer_columns.update(_rating_columns("h1b_history", score=80.0, stars=5))
     employer_columns.update(_rating_columns("green_card_history", score=70.0, stars=4))

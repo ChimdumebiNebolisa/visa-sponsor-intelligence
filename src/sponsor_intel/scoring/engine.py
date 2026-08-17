@@ -1153,14 +1153,8 @@ def score_employers_product_a(
         if "has_unresolved_perm_candidate_evidence" in frame.columns
         else pl.lit(False)
     )
-    lca_valid = (
-        pl.col("lca_source_valid").fill_null(False) & h1b_entity_valid & ~unresolved_h1b_candidate
-    )
-    perm_valid = (
-        pl.col("perm_source_valid").fill_null(False)
-        & perm_entity_valid
-        & ~unresolved_perm_candidate
-    )
+    lca_valid = pl.col("lca_source_valid").fill_null(False) & h1b_entity_valid
+    perm_valid = pl.col("perm_source_valid").fill_null(False) & perm_entity_valid
     uscis_available = pl.col("uscis_source_valid").fill_null(False)
     legal_entity_scope = pl.col("identity_scope") == "LEGAL_ENTITY"
 
@@ -1235,6 +1229,16 @@ def score_employers_product_a(
         .then(pl.col("initial_approvals").cast(pl.String))
         .otherwise(pl.lit("unavailable")),
     )
+    h1b_explanation = (
+        pl.when(unresolved_h1b_candidate)
+        .then(
+            h1b_explanation
+            + pl.lit(
+                " Rating is based on confirmed records. Additional ambiguous records were excluded."
+            )
+        )
+        .otherwise(h1b_explanation)
+    )
     result = _product_a_rating_columns(
         frame,
         name="h1b_history",
@@ -1244,7 +1248,7 @@ def score_employers_product_a(
         positive_explanation=h1b_explanation,
         no_observed_text="No observed technical H-1B history",
         unrated_explanation=(
-            pl.when(unresolved_h1b_candidate)
+            pl.when(~h1b_entity_valid & unresolved_h1b_candidate)
             .then(
                 pl.lit(
                     "Unrated because qualifying technical H-1B evidence is attached to a "
@@ -1289,6 +1293,16 @@ def score_employers_product_a(
         pl.col("perm_relevant_job_family_count"),
         pl.col("last_relevant_perm_activity_year"),
     )
+    green_explanation = (
+        pl.when(unresolved_perm_candidate)
+        .then(
+            green_explanation
+            + pl.lit(
+                " Rating is based on confirmed records. Additional ambiguous records were excluded."
+            )
+        )
+        .otherwise(green_explanation)
+    )
     result = _product_a_rating_columns(
         result,
         name="green_card_history",
@@ -1298,7 +1312,7 @@ def score_employers_product_a(
         positive_explanation=green_explanation,
         no_observed_text="No observed technical PERM history",
         unrated_explanation=(
-            pl.when(unresolved_perm_candidate)
+            pl.when(~perm_entity_valid & unresolved_perm_candidate)
             .then(
                 pl.lit(
                     "Unrated because qualifying technical PERM evidence is attached to a "
@@ -1341,7 +1355,10 @@ def score_employers_product_a(
         positive_explanation=overall_explanation,
         no_observed_text="No observed technical sponsorship history",
         unrated_explanation=(
-            pl.when(unresolved_h1b_candidate | unresolved_perm_candidate)
+            pl.when(
+                ((~h1b_entity_valid) & unresolved_h1b_candidate)
+                | ((~perm_entity_valid) & unresolved_perm_candidate)
+            )
             .then(
                 pl.lit(
                     "Unrated because qualifying sponsorship evidence remains attached to a "

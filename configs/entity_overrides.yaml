@@ -1,4 +1,4 @@
-schema_version: entity_overrides_v1
+schema_version: entity_overrides_v2
 parent_organizations:
   - parent_organization_id: parent_amazon
     canonical_name: Amazon
@@ -8,6 +8,9 @@ parent_organizations:
     reviewed_by: codex_source_audit
     reviewed_at: "2026-08-14"
     notes: Separate observed Amazon legal petitioner names roll up only through this override.
+    evidence_url: https://www.sec.gov/Archives/edgar/data/1018724/000101872422000005/amzn-20211231xex211.htm
+    evidence_source: SEC EDGAR Exhibit 21.1
+    confidence: 1.0
   - parent_organization_id: parent_meta
     canonical_name: Meta Platforms
     organization_type: TECHNOLOGY
@@ -16,6 +19,42 @@ parent_organizations:
     reviewed_by: codex_source_audit
     reviewed_at: "2026-08-14"
     notes: Facebook and Meta petitioner identities remain separate legal entities.
+    evidence_url: https://www.sec.gov/Archives/edgar/data/1326801/000162828026003942/meta-12312025x10kexhibit211.htm
+    evidence_source: SEC EDGAR Exhibit 21.1
+    confidence: 1.0
+  - parent_organization_id: parent_microsoft
+    canonical_name: Microsoft
+    organization_type: TECHNOLOGY
+    headquarters_state: WA
+    is_staffing_or_consulting: false
+    reviewed_by: codex_major_employer_audit
+    reviewed_at: "2026-08-16"
+    notes: Only the reviewed Microsoft Corporation petitioner is included in this parent rollup.
+    evidence_url: https://www.sec.gov/Archives/edgar/data/789019/000095017025100235/msft-ex21.htm
+    evidence_source: SEC EDGAR Exhibit 21
+    confidence: 1.0
+  - parent_organization_id: parent_alphabet
+    canonical_name: Alphabet
+    organization_type: TECHNOLOGY
+    headquarters_state: CA
+    is_staffing_or_consulting: false
+    reviewed_by: codex_major_employer_audit
+    reviewed_at: "2026-08-16"
+    notes: Google LLC is a disclosed Alphabet Inc. subsidiary; other Google-like names remain excluded unless separately reviewed.
+    evidence_url: https://www.sec.gov/Archives/edgar/data/1652044/000165204426000018/googexhibit2101q42025.htm
+    evidence_source: SEC EDGAR Exhibit 21.01
+    confidence: 1.0
+  - parent_organization_id: parent_ibm
+    canonical_name: IBM
+    organization_type: TECHNOLOGY
+    headquarters_state: NY
+    is_staffing_or_consulting: false
+    reviewed_by: codex_major_employer_audit
+    reviewed_at: "2026-08-16"
+    notes: Only the reviewed International Business Machines Corporation petitioner is included; other IBM-named entities remain separate.
+    evidence_url: https://www.ibm.com/support/pages/node/6988387
+    evidence_source: IBM official organization-validation page
+    confidence: 1.0
   - parent_organization_id: parent_walmart
     canonical_name: Walmart
     organization_type: RETAIL
@@ -26,42 +65,117 @@ parent_organizations:
     notes: Wal-Mart Associates spelling variants map to one legal entity below.
 
 legal_entities:
+  - legal_entity_id: legal_microsoft_corporation
+    legal_name: Microsoft Corporation
+    parent_organization_id: parent_microsoft
+    city: Redmond
+    state: WA
+    postal_code: "98052"
+    organization_type: TECHNOLOGY
+    reviewed_by: codex_major_employer_audit
+    reviewed_at: "2026-08-16"
+    review_note: Exact petitioner name and One Microsoft Way legal-employer location agree with the SEC registrant address.
+    evidence_url: https://www.sec.gov/Archives/edgar/data/789019/000078901926000019/0000789019-26-000019-index.htm
+    evidence_source: SEC EDGAR registrant filing
+    confidence: 1.0
+  - legal_entity_id: legal_google_llc
+    legal_name: Google LLC
+    parent_organization_id: parent_alphabet
+    city: Mountain View
+    state: CA
+    postal_code: "94043"
+    organization_type: TECHNOLOGY
+    reviewed_by: codex_major_employer_audit
+    reviewed_at: "2026-08-16"
+    review_note: Exact Google LLC petitioner at the repeatedly observed Mountain View legal-employer location; unrelated and conflicting locations remain separate.
+    evidence_url: https://www.sec.gov/Archives/edgar/data/1652044/000165204426000018/googexhibit2101q42025.htm
+    evidence_source: SEC EDGAR Exhibit 21.01
+    confidence: 1.0
+  - legal_entity_id: legal_ibm_corporation
+    legal_name: IBM Corporation
+    parent_organization_id: parent_ibm
+    city: Durham
+    state: NC
+    postal_code: "27709"
+    organization_type: TECHNOLOGY
+    reviewed_by: codex_major_employer_audit
+    reviewed_at: "2026-08-16"
+    review_note: Full legal name is verified by IBM; IBM Corporation observations are included only at the repeatedly observed Durham legal-employer location.
+    evidence_url: https://www.ibm.com/support/pages/node/6988387
+    evidence_source: IBM official organization-validation page
+    confidence: 0.99
   - legal_entity_id: legal_amazon_com_services
     legal_name: Amazon.com Services LLC
     parent_organization_id: parent_amazon
     city: Seattle
     state: WA
     organization_type: TECHNOLOGY
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    review_note: Exact significant-subsidiary name in Amazon's SEC filing.
+    evidence_url: https://www.sec.gov/Archives/edgar/data/1018724/000101872422000005/amzn-20211231xex211.htm
+    evidence_source: SEC EDGAR Exhibit 21.1
+    confidence: 1.0
   - legal_entity_id: legal_amazon_web_services
     legal_name: Amazon Web Services, Inc.
     parent_organization_id: parent_amazon
     city: Seattle
     state: WA
     organization_type: TECHNOLOGY
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    review_note: Exact significant-subsidiary name in Amazon's SEC filing.
+    evidence_url: https://www.sec.gov/Archives/edgar/data/1018724/000101872422000005/amzn-20211231xex211.htm
+    evidence_source: SEC EDGAR Exhibit 21.1
+    confidence: 1.0
   - legal_entity_id: legal_amazon_development_center_us
     legal_name: Amazon Development Center U.S., Inc.
     parent_organization_id: parent_amazon
     city: Seattle
     state: WA
     organization_type: TECHNOLOGY
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    review_note: Exact Amazon petitioner is preserved as a separate legal entity; parent relationship is reviewed from official Amazon disclosures.
+    evidence_url: https://www.sec.gov/Archives/edgar/data/1018724/000101872422000005/amzn-20211231xex211.htm
+    evidence_source: SEC EDGAR Exhibit 21.1
+    confidence: 0.99
   - legal_entity_id: legal_amazon_data_services
     legal_name: Amazon Data Services, Inc.
     parent_organization_id: parent_amazon
     city: Seattle
     state: WA
     organization_type: TECHNOLOGY
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    review_note: Exact significant-subsidiary name in Amazon's SEC filing.
+    evidence_url: https://www.sec.gov/Archives/edgar/data/1018724/000101872422000005/amzn-20211231xex211.htm
+    evidence_source: SEC EDGAR Exhibit 21.1
+    confidence: 1.0
   - legal_entity_id: legal_meta_platforms
     legal_name: Meta Platforms, Inc.
     parent_organization_id: parent_meta
     city: Menlo Park
     state: CA
     organization_type: TECHNOLOGY
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    review_note: Exact SEC registrant name and address.
+    evidence_url: https://www.sec.gov/Archives/edgar/data/1326801/000162828026003942/0001628280-26-003942-index.htm
+    evidence_source: SEC EDGAR Form 10-K
+    confidence: 1.0
   - legal_entity_id: legal_facebook_inc
     legal_name: Facebook, Inc.
     parent_organization_id: parent_meta
     city: Menlo Park
     state: CA
     organization_type: TECHNOLOGY
+    reviewed_by: codex_source_audit
+    reviewed_at: "2026-08-14"
+    review_note: Historical petitioner retained separately under the reviewed Meta parent.
+    evidence_url: https://www.sec.gov/Archives/edgar/data/1326801/000095010325015039/0000950103-25-015039-index.htm
+    evidence_source: SEC EDGAR issuer filing using c/o Facebook, Inc.
+    confidence: 0.99
   - legal_entity_id: legal_walmart_associates
     legal_name: Wal-Mart Associates, Inc.
     parent_organization_id: parent_walmart
@@ -70,6 +184,66 @@ legal_entities:
     organization_type: RETAIL
 
 aliases:
+  - raw_name: INTERNATIONAL BUSINESS MACHINES CORPORATION
+    legal_entity_id: legal_ibm_corporation
+    source_id: dol_lca
+    employer_city: Durham
+    employer_state: NC
+    employer_postal_code: "27709"
+    reviewed_by: codex_major_employer_audit
+    reviewed_at: "2026-08-16"
+    reason: Exact official legal name at the same reviewed Durham petitioner address; other locations remain unresolved.
+    evidence_url: https://www.ibm.com/support/pages/node/6988387
+    evidence_source: IBM official organization-validation page
+    confidence: 0.99
+  - raw_name: IBM Corporation
+    legal_entity_id: legal_ibm_corporation
+    source_id: dol_lca
+    employer_city: Durham
+    employer_state: NC
+    employer_postal_code: "27709"
+    reviewed_by: codex_major_employer_audit
+    reviewed_at: "2026-08-16"
+    reason: Reviewed short-form petitioner name at the stable Durham legal-employer address; other IBM locations remain separate.
+    evidence_url: https://www.ibm.com/support/pages/node/6988387
+    evidence_source: IBM official organization-validation page
+    confidence: 0.99
+  - raw_name: IBM Corporation
+    legal_entity_id: legal_ibm_corporation
+    source_id: dol_perm
+    employer_city: Durham
+    employer_state: NC
+    employer_postal_code: "27709"
+    reviewed_by: codex_major_employer_audit
+    reviewed_at: "2026-08-16"
+    reason: Reviewed short-form petitioner name at the stable Durham legal-employer address; RTP and other variants remain excluded pending review.
+    evidence_url: https://www.ibm.com/support/pages/node/6988387
+    evidence_source: IBM official organization-validation page
+    confidence: 0.99
+  - raw_name: IBM CORPORATION
+    legal_entity_id: legal_ibm_corporation
+    source_id: uscis_h1b
+    employer_city: Durham
+    employer_state: NC
+    employer_postal_code: "27709"
+    reviewed_by: codex_major_employer_audit
+    reviewed_at: "2026-08-16"
+    reason: Employer-level USCIS observation agrees with the reviewed Durham petitioner identity.
+    evidence_url: https://www.ibm.com/support/pages/node/6988387
+    evidence_source: IBM official organization-validation page
+    confidence: 0.99
+  - raw_name: MICROSOFT CORPORTION
+    legal_entity_id: legal_microsoft_corporation
+    source_id: uscis_h1b
+    employer_city: Redmond
+    employer_state: WA
+    employer_postal_code: "98052"
+    reviewed_by: codex_major_employer_audit
+    reviewed_at: "2026-08-16"
+    reason: Single-character spelling error with exact reviewed Microsoft legal-employer location.
+    evidence_url: https://www.sec.gov/Archives/edgar/data/789019/000078901926000019/0000789019-26-000019-index.htm
+    evidence_source: SEC EDGAR registrant filing
+    confidence: 0.99
   - raw_name: Amazon.com Services LLC
     legal_entity_id: legal_amazon_com_services
     reviewed_by: codex_source_audit

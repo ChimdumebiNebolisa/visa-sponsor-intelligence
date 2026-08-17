@@ -224,6 +224,19 @@ produces `No observed technical PERM history`.
 
 A resolved zero is valid history. A missing source or unresolved identity is not zero.
 
+Entity coverage is explicit and program-specific:
+
+- `COMPLETE_ENTITY_COVERAGE`: all material candidate records are resolved or reviewed out.
+- `PARTIAL_ENTITY_COVERAGE`: confirmed records are sufficient to rate, while additional ambiguous
+  records remain excluded. Display: `Rating is based on confirmed records. Additional ambiguous
+  records were excluded.`
+- `UNRESOLVED_IDENTITY`: confirmed identity evidence is insufficient; this is identity-based
+  `Unrated`.
+
+An unresolved additional candidate never erases confirmed records and is never silently included.
+Reviewed parent rollups aggregate only their reviewed child legal entities and apply the same
+coverage-state contract.
+
 ### Star mapping
 
 | Hidden score | Display |

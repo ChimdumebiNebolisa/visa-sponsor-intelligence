@@ -75,6 +75,9 @@ Acceptance verifies at least:
 15. employer and institution explorers, detail, comparison, Data Health, and exports return nonzero
     real evidence through the service layer; and
 16. Product A quality has zero critical failures without an OpenAI key or policy facts.
+17. confirmed records remain rated under `PARTIAL_ENTITY_COVERAGE`, excluded candidates do not
+    change the counts, the exact partial-coverage warning is visible, and only
+    `UNRESOLVED_IDENTITY` causes identity-based `Unrated`.
 
 ## Named real-data validation
 
@@ -90,6 +93,10 @@ independence. Never force an ambiguous identity.
 - one Amazon legal entity and the separate Amazon parent rollup
 - Meta
 - IBM
+
+For Microsoft, Google/Alphabet, Amazon, Meta, and IBM, validate the reviewed legal entity and parent
+rollup separately, verify the committed primary-source mapping metadata, and confirm that excluded
+exact-name/location conflicts remain inspectable.
 - Smart Data Solutions, only when confidently resolved
 - at least two smaller technical employers selected deterministically from real results
 
