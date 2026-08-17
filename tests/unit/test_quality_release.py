@@ -361,10 +361,13 @@ def test_release_bundle_passes_without_policy_files_caches_or_openai_key(
         )
 
 
-def test_release_bundle_excludes_only_inactive_score_sidecars(tmp_path: Path) -> None:
+def test_release_bundle_excludes_inactive_scores_and_supplemental_policy(tmp_path: Path) -> None:
     data_root, output_root = _write_quality_fixture(tmp_path)
     assert QualityReporter(data_root=data_root, output_root=output_root).build().passed
-    _write_release_database(tmp_path, data_root)
+    database_path = _write_release_database(tmp_path, data_root)
+    with duckdb.connect(str(database_path)) as connection:
+        for table_name in ("policy_documents", "policy_facts", "policy_review_queue"):
+            connection.execute(f"CREATE TABLE {table_name} AS SELECT 'supplemental' AS value")
     for directory in (data_root / "resolved", data_root / "classified"):
         directory.mkdir()
         (directory / "fixture.txt").write_text("fixture", encoding="utf-8")
@@ -377,9 +380,14 @@ def test_release_bundle_excludes_only_inactive_score_sidecars(tmp_path: Path) ->
     }
     for name in inactive_sidecars:
         pl.DataFrame({"legacy_score": [1]}).write_parquet(processed / name)
-    pl.DataFrame({"policy_fact_id": ["supplemental-1"]}).write_parquet(
-        processed / "policy_facts.parquet"
-    )
+    for name in ("policy_documents.parquet", "policy_facts.parquet", "policy_review_queue.parquet"):
+        pl.DataFrame({"supplemental_id": [name]}).write_parquet(processed / name)
+    for directory in (
+        data_root / "cache" / "policy_discovery",
+        data_root / "cache" / "policy_extraction",
+    ):
+        directory.mkdir(parents=True)
+        (directory / "supplemental.json").write_text("{}", encoding="utf-8")
 
     bundle = build_release_bundle(
         repository_root=tmp_path,
@@ -392,11 +400,18 @@ def test_release_bundle_excludes_only_inactive_score_sidecars(tmp_path: Path) ->
         archived_names = set(archive.namelist())
     inactive_paths = {f"data/processed/{name}" for name in inactive_sidecars}
     assert archived_names.isdisjoint(inactive_paths)
+    assert not any(name.startswith("data/processed/policy_") for name in archived_names)
     assert {
         "data/processed/employer_metrics.parquet",
         "data/processed/source_artifacts.parquet",
-        "data/processed/policy_facts.parquet",
     } <= archived_names
+    with zipfile.ZipFile(bundle.release_root / "build-state.zip") as archive:
+        assert not any("/cache/policy_" in name for name in archive.namelist())
+    with duckdb.connect(
+        str(bundle.release_root / "immigration.duckdb"), read_only=True
+    ) as connection:
+        for table_name in ("policy_documents", "policy_facts", "policy_review_queue"):
+            assert connection.execute(f"SELECT count(*) FROM {table_name}").fetchone() == (0,)
 
 
 def test_release_bundle_rejects_arbitrary_database_bytes(tmp_path: Path) -> None:

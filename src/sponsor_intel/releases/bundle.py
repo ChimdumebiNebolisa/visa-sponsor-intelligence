@@ -61,6 +61,7 @@ _INACTIVE_SCORE_SIDECARS = {
     "employer_scores_v2.parquet",
     "institution_scores_v1.parquet",
 }
+_SUPPLEMENTAL_POLICY_PREFIX = "policy_"
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,13 +149,70 @@ def _tree_files(root: Path, repository_root: Path) -> list[tuple[Path, Path]]:
 def _processed_release_files(
     processed_root: Path, repository_root: Path
 ) -> list[tuple[Path, Path]]:
-    """Exclude only superseded score sidecars from Product A processed assets."""
+    """Exclude superseded scores and supplemental policy artifacts from Product A assets."""
 
     return [
         (path, archive_path)
         for path, archive_path in _tree_files(processed_root, repository_root)
-        if path.parent != processed_root or path.name not in _INACTIVE_SCORE_SIDECARS
+        if path.parent != processed_root
+        or (
+            path.name not in _INACTIVE_SCORE_SIDECARS
+            and not path.name.startswith(_SUPPLEMENTAL_POLICY_PREFIX)
+        )
     ]
+
+
+def _replace_product_a_database(source: Path, target: Path) -> None:
+    """Copy the database into a new file while emptying supplemental policy tables."""
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary_directory = Path(tempfile.mkdtemp(prefix=f".{target.name}-", dir=target.parent))
+    temporary = temporary_directory / target.name
+    try:
+        with duckdb.connect(str(temporary)) as connection:
+            source_literal = str(source).replace("'", "''")
+            connection.execute(f"ATTACH '{source_literal}' AS source (READ_ONLY)")
+            tables = connection.execute(
+                """
+                SELECT table_name
+                FROM duckdb_tables()
+                WHERE database_name = 'source'
+                  AND schema_name = 'main'
+                  AND NOT internal
+                ORDER BY table_name
+                """
+            ).fetchall()
+            for (table_name,) in tables:
+                identifier = str(table_name).replace('"', '""')
+                filter_clause = (
+                    " WHERE false"
+                    if str(table_name).startswith(_SUPPLEMENTAL_POLICY_PREFIX)
+                    else ""
+                )
+                connection.execute(
+                    f'CREATE TABLE "{identifier}" AS '
+                    f'SELECT * FROM source.main."{identifier}"{filter_clause}'
+                )
+            views = connection.execute(
+                """
+                SELECT sql
+                FROM duckdb_views()
+                WHERE database_name = 'source'
+                  AND schema_name = 'main'
+                  AND NOT internal
+                ORDER BY view_name
+                """
+            ).fetchall()
+            for (view_sql,) in views:
+                connection.execute(str(view_sql))
+            connection.execute("CHECKPOINT")
+        os.replace(temporary, target)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
+    finally:
+        Path(f"{temporary}.wal").unlink(missing_ok=True)
+        temporary_directory.rmdir()
 
 
 def _active_source_artifact_ids(processed_root: Path) -> set[str]:
@@ -429,15 +487,7 @@ def build_release_bundle(
     quality_asset = release_root / "data-quality.json"
     metadata_asset = release_root / "build-metadata.json"
 
-    # Historical policy caches are optional supplemental state. They may be retained when
-    # available, but can neither satisfy nor block the Product A release requirements above.
-    for directory in (
-        selected_data_root / "cache" / "policy_discovery",
-        selected_data_root / "cache" / "policy_extraction",
-    ):
-        state_files.extend(_tree_files(directory, repository_root))
-
-    _replace_copy(selected_database, database_asset)
+    _replace_product_a_database(selected_database, database_asset)
     _archive(processed_asset, processed_files)
     _archive(state_asset, state_files)
     _archive(manifests_asset, manifest_files)
